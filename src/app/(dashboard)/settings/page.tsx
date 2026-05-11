@@ -1,10 +1,11 @@
 import { Header } from '@/components/layout/Header'
-import { requireRole } from '@/lib/auth'
+import { requireAuth } from '@/lib/auth'
+import { ProfileNameForm } from '@/components/settings/ProfileNameForm'
 
 const ROLE_LABEL = { admin: '관리자', manager: '매니저', sales: '영업' }
 
 export default async function SettingsPage() {
-  const profile = await requireRole(['admin', 'manager'])
+  const profile = await requireAuth()
 
   return (
     <>
@@ -14,11 +15,16 @@ export default async function SettingsPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h2 className="text-sm font-semibold text-gray-900 mb-4">계정 정보</h2>
             <div className="space-y-3">
-              <InfoRow label="이름"   value={profile.name} />
               <InfoRow label="이메일" value={profile.email} />
               <InfoRow label="권한"   value={ROLE_LABEL[profile.role]} />
               {profile.team && <InfoRow label="팀" value={profile.team} />}
             </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-sm font-semibold text-gray-900 mb-1">담당자 이름 설정</h2>
+            <p className="text-sm text-gray-400 mb-4">이름은 거래처 담당자 표기 및 사이드바에 사용됩니다.</p>
+            <ProfileNameForm currentName={profile.name} />
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 p-6">

@@ -15,7 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: '대시보드',   href: '/dashboard', icon: '📊', roles: ['admin', 'manager', 'sales'] },
   { label: '오늘 할 일', href: '/tasks',     icon: '✅', roles: ['admin', 'manager', 'sales'] },
   { label: '거래처 관리', href: '/companies', icon: '🏢', roles: ['admin', 'manager', 'sales'] },
-  { label: '설정',      href: '/settings',  icon: '⚙️', roles: ['admin', 'manager'] },
+  { label: '설정',      href: '/settings',  icon: '⚙️', roles: ['admin', 'manager', 'sales'] },
 ]
 
 const ROLE_LABEL: Record<UserRole, string> = {

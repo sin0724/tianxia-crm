@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { useState, useTransition } from 'react'
 import { StatusBadge } from './StatusBadge'
 import type { Company } from '@/lib/companies'
+import { deleteCompany } from '@/app/(dashboard)/companies/actions'
 
 function fmtDate(s: string | null) {
   if (!s) return '—'
@@ -15,6 +17,9 @@ function isOverdue(s: string | null) {
 }
 
 export function CompanyTable({ companies }: { companies: Company[] }) {
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [isDeleting, startTransition] = useTransition()
+
   if (companies.length === 0) {
     return (
       <div className="bg-white border border-gray-200 rounded-xl py-16 text-center">
@@ -29,7 +34,7 @@ export function CompanyTable({ companies }: { companies: Company[] }) {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {['상호명','구분','지역','DB 경로','담당자','상태','미팅 예정일','마지막 연락일','다음 액션일','최근 특이사항'].map(h => (
+              {['상호명','구분','지역','DB 경로','담당자','상태','미팅 예정일','마지막 연락일','다음 액션일','최근 특이사항','작업'].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">
                   {h}
                 </th>
@@ -58,6 +63,43 @@ export function CompanyTable({ companies }: { companies: Company[] }) {
                 </td>
                 <td className="px-4 py-3 text-gray-500 max-w-xs">
                   <p className="truncate">{c.latest_note ?? '—'}</p>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {confirmId === c.id ? (
+                    <span className="inline-flex items-center gap-1">
+                      <span className="text-xs text-gray-600">정말요?</span>
+                      <button
+                        onClick={() => {
+                          startTransition(() => { deleteCompany(c.id) })
+                        }}
+                        disabled={isDeleting}
+                        className="text-xs px-2 py-0.5 border border-red-300 text-red-600 rounded hover:bg-red-50 disabled:opacity-50"
+                      >
+                        확인
+                      </button>
+                      <button
+                        onClick={() => setConfirmId(null)}
+                        className="text-xs px-2 py-0.5 border border-gray-300 text-gray-500 rounded hover:bg-gray-50"
+                      >
+                        취소
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1">
+                      <Link
+                        href={`/companies/${c.id}`}
+                        className="text-xs px-2 py-0.5 border border-gray-300 text-gray-500 rounded hover:bg-gray-50"
+                      >
+                        수정
+                      </Link>
+                      <button
+                        onClick={() => setConfirmId(c.id)}
+                        className="text-xs px-2 py-0.5 border border-gray-300 text-gray-500 rounded hover:bg-gray-50"
+                      >
+                        삭제
+                      </button>
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}

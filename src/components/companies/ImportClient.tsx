@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { CRM_FIELDS, parseCSV, autoDetectMapping, validateMapping } from '@/lib/csv'
+import { CRM_FIELDS, parseCSV, autoDetectMapping, validateMapping, generateCSV } from '@/lib/csv'
 import { checkDuplicates, importCompanies } from '@/app/(dashboard)/companies/import-actions'
 import type { DuplicateMatch, ImportResult, ImportRow } from '@/app/(dashboard)/companies/import-actions'
 
@@ -111,10 +111,37 @@ export function ImportClient() {
     })
   }
 
+  // ── 양식 다운로드 ─────────────────────────────────────────────
+
+  function downloadTemplate() {
+    const headers = CRM_FIELDS.map(f => f.label)
+    const exampleRow: (string | null)[] = [
+      '(주)티엔샤', '병의원', '네이버', '홍길동', '', '서울 강남구',
+      '010-1234-5678', 'contact@example.com', '', '', '', '',
+      '미연락', '', '', '', '',
+    ]
+    const csv = generateCSV(headers, [exampleRow])
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '거래처_가져오기_양식.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // ── Step 1: 업로드 UI ──────────────────────────────────────
 
   if (step === 'upload') return (
     <div className="max-w-lg">
+      <div className="flex justify-end mb-3">
+        <button
+          onClick={downloadTemplate}
+          className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+        >
+          📥 양식 다운로드
+        </button>
+      </div>
       <div
         className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:border-blue-400 transition-colors"
         onClick={() => fileRef.current?.click()}
