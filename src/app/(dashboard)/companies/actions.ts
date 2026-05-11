@@ -143,3 +143,14 @@ export async function deleteCompany(id: string): Promise<ActionResult | undefine
   revalidatePath('/companies')
   redirect('/companies')
 }
+
+export async function deleteCompanies(ids: string[]): Promise<ActionResult | undefined> {
+  await requireAuth()
+  if (ids.length === 0) return
+  const supabase = await createClient()
+
+  const { error } = await supabase.from('companies').delete().in('id', ids)
+  if (error) return { error: error.message }
+
+  revalidatePath('/companies')
+}

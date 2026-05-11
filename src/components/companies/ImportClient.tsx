@@ -43,14 +43,15 @@ function applyMapping(row: string[], headers: string[], mapping: Record<string, 
 
 export function ImportClient() {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [step, setStep]         = useState<Step>('upload')
-  const [headers, setHeaders]   = useState<string[]>([])
-  const [rows, setRows]         = useState<string[][]>([])
-  const [mapping, setMapping]   = useState<Record<string, string>>({})
-  const [dupes, setDupes]       = useState<DuplicateMatch[]>([])
-  const [result, setResult]     = useState<ImportResult | null>(null)
-  const [fileError, setFileError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [step, setStep]               = useState<Step>('upload')
+  const [headers, setHeaders]         = useState<string[]>([])
+  const [rows, setRows]               = useState<string[][]>([])
+  const [mapping, setMapping]         = useState<Record<string, string>>({})
+  const [dupes, setDupes]             = useState<DuplicateMatch[]>([])
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
+  const [result, setResult]           = useState<ImportResult | null>(null)
+  const [fileError, setFileError]     = useState<string | null>(null)
+  const [isPending, startTransition]  = useTransition()
 
   // ── Step 1: 파일 선택 ──────────────────────────────────────
 
@@ -86,6 +87,9 @@ export function ImportClient() {
     setFileError(null)
     setStep('preview')
 
+    // 전체 선택으로 초기화
+    setSelectedIndices(new Set(rows.map((_, i) => i)))
+
     const candidates = rows.map((row, idx) => ({
       idx,
       company_name:    applyMapping(row, headers, mapping).company_name,
@@ -97,13 +101,20 @@ export function ImportClient() {
     startTransition(async () => {
       const matches = await checkDuplicates(candidates)
       setDupes(matches)
+      // 중복 행은 기본으로 체크 해제
+      if (matches.length > 0) {
+        const dupeIdxs = new Set(matches.map(m => m.idx))
+        setSelectedIndices(prev => new Set([...prev].filter(i => !dupeIdxs.has(i))))
+      }
     })
   }
 
   // ── Step 3: 가져오기 실행 ──────────────────────────────────
 
   function handleImport() {
-    const importRows = rows.map(row => applyMapping(row, headers, mapping))
+    const importRows = [...selectedIndices]
+      .sort((a, b) => a - b)
+      .map(i => applyMapping(rows[i], headers, mapping))
     startTransition(async () => {
       const r = await importCompanies(importRows)
       setResult(r)
@@ -220,16 +231,34 @@ export function ImportClient() {
     const previewRows = rows.slice(0, 20).map((row, i) => ({
       mapped: applyMapping(row, headers, mapping),
       dupe: dupes.find(d => d.idx === i),
+      idx: i,
     }))
-    const dupeSet = new Set(dupes.map(d => d.idx))
+
+    const allPreviewSelected = previewRows.every(r => selectedIndices.has(r.idx))
+    const togglePreviewAll = () => {
+      if (allPreviewSelected) {
+        setSelectedIndices(prev => {
+          const next = new Set(prev)
+          previewRows.forEach(r => next.delete(r.idx))
+          return next
+        })
+      } else {
+        setSelectedIndices(prev => {
+          const next = new Set(prev)
+          previewRows.forEach(r => next.add(r.idx))
+          return next
+        })
+      }
+    }
 
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-4 text-sm">
-          <span className="text-gray-500">전체 <strong>{rows.length}행</strong> · 미리보기 최대 20행 표시</span>
+        <div className="flex items-center gap-4 text-sm flex-wrap">
+          <span className="text-gray-500">전체 <strong>{rows.length}행</strong></span>
+          <span className="text-blue-600 font-medium">선택 <strong>{selectedIndices.size}건</strong> 가져오기 예정</span>
           {isPending && <span className="text-gray-400">중복 검사 중...</span>}
           {!isPending && dupes.length > 0 && (
-            <span className="text-orange-600 font-medium">⚠ 중복 후보 {dupes.length}건</span>
+            <span className="text-orange-600 font-medium">⚠ 중복 후보 {dupes.length}건 (체크 해제됨)</span>
           )}
           {!isPending && dupes.length === 0 && (
             <span className="text-green-600">✓ 중복 없음</span>
@@ -240,6 +269,14 @@ export function ImportClient() {
           <table className="text-xs w-full">
             <thead className="bg-gray-50 text-gray-500">
               <tr>
+                <th className="px-3 py-2 w-8">
+                  <input
+                    type="checkbox"
+                    checked={allPreviewSelected}
+                    onChange={togglePreviewAll}
+                    className="rounded border-gray-300 text-blue-600"
+                  />
+                </th>
                 <th className="px-3 py-2 text-left">#</th>
                 <th className="px-3 py-2 text-left">상호명</th>
                 <th className="px-3 py-2 text-left">구분</th>
@@ -250,9 +287,24 @@ export function ImportClient() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
-              {previewRows.map(({ mapped, dupe }, i) => (
-                <tr key={i} className={dupe ? 'bg-orange-50' : ''}>
-                  <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+              {previewRows.map(({ mapped, dupe, idx }) => (
+                <tr key={idx} className={
+                  !selectedIndices.has(idx) ? 'opacity-40' :
+                  dupe ? 'bg-orange-50' : ''
+                }>
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedIndices.has(idx)}
+                      onChange={() => setSelectedIndices(prev => {
+                        const next = new Set(prev)
+                        next.has(idx) ? next.delete(idx) : next.add(idx)
+                        return next
+                      })}
+                      className="rounded border-gray-300 text-blue-600"
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-gray-400">{idx + 1}</td>
                   <td className="px-3 py-2 font-medium text-gray-900">{mapped.company_name || '—'}</td>
                   <td className="px-3 py-2 text-gray-600">{mapped.category || '—'}</td>
                   <td className="px-3 py-2 text-gray-600">{mapped.source || '—'}</td>
@@ -260,7 +312,7 @@ export function ImportClient() {
                   <td className="px-3 py-2 text-gray-600">{mapped.status || '미연락'}</td>
                   <td className="px-3 py-2">
                     {dupe
-                      ? <span className="text-orange-600">⚠ {dupe.matchedField} 중복 ({dupe.existingName})</span>
+                      ? <span className="text-orange-600">⚠ {dupe.matchedField} ({dupe.existingName})</span>
                       : <span className="text-gray-300">—</span>
                     }
                   </td>
@@ -271,22 +323,19 @@ export function ImportClient() {
         </div>
 
         {rows.length > 20 && (
-          <p className="text-xs text-gray-400">… 외 {rows.length - 20}행은 미리보기에서 제외됩니다. 가져오기 시 전체 포함됩니다.</p>
-        )}
-
-        {dupes.length > 0 && (
-          <p className="text-sm text-orange-600 bg-orange-50 rounded-lg px-4 py-2.5">
-            중복 후보 {dupes.length}건이 있습니다. 중복 항목도 포함하여 등록합니다.
+          <p className="text-xs text-gray-400">
+            미리보기는 20행까지 표시됩니다.
+            {rows.length - 20}행 더 있음 — 체크박스 선택은 전체 {rows.length}행에 적용됩니다.
           </p>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <button
             onClick={handleImport}
-            disabled={isPending}
+            disabled={isPending || selectedIndices.size === 0}
             className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {isPending ? '가져오는 중...' : `전체 ${rows.length}건 가져오기`}
+            {isPending ? '가져오는 중...' : `선택한 ${selectedIndices.size}건 가져오기`}
           </button>
           <button onClick={() => setStep('mapping')} disabled={isPending} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 transition-colors">
             매핑 수정
