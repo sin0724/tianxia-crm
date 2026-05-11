@@ -3,6 +3,26 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { parseDate } from '@/lib/csv'
+import { COMPANY_CATEGORY, COMPANY_SOURCE, COMPANY_STATUS } from '@/lib/constants'
+
+// enum 값 매칭: 정확 일치 → 대소문자 무시 → 부분 포함 → null
+function matchEnum<T extends string>(
+  val: string | undefined,
+  validValues: readonly T[],
+): T | null {
+  if (!val?.trim()) return null
+  const v = val.trim()
+  // 1. 정확 일치
+  const exact = validValues.find(e => e === v)
+  if (exact) return exact
+  // 2. 대소문자 무시
+  const ci = validValues.find(e => e.toLowerCase() === v.toLowerCase())
+  if (ci) return ci
+  // 3. 부분 포함 (예: "메타" → "메타 광고")
+  const partial = validValues.find(e => e.includes(v) || v.includes(e))
+  if (partial) return partial
+  return null
+}
 
 // ── 타입 ──────────────────────────────────────────────────────
 
@@ -160,8 +180,8 @@ export async function importCompanies(rows: ImportRow[]): Promise<ImportResult> 
 
     const { error } = await supabase.from('companies').insert({
       company_name:      row.company_name.trim(),
-      category:          row.category?.trim()          || null,
-      source:            row.source?.trim()             || null,
+      category:          matchEnum(row.category, COMPANY_CATEGORY),
+      source:            matchEnum(row.source, COMPANY_SOURCE),
       region:            row.region?.trim()             || null,
       phone:             row.phone?.trim()              || null,
       email:             row.email?.trim()              || null,
@@ -169,7 +189,7 @@ export async function importCompanies(rows: ImportRow[]): Promise<ImportResult> 
       instagram_url:     row.instagram_url?.trim()      || null,
       naver_place_url:   row.naver_place_url?.trim()    || null,
       website_url:       row.website_url?.trim()        || null,
-      status:            row.status?.trim()             || '미연락',
+      status:            matchEnum(row.status, COMPANY_STATUS) ?? '미연락',
       latest_note:       row.latest_note?.trim()        || null,
       meeting_at:        parseDate(row.meeting_at),
       last_contacted_at: parseDate(row.last_contacted_at),
