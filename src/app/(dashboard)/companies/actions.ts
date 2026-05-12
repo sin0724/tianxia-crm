@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
@@ -36,9 +37,10 @@ function extractData(fd: FormData) {
     status:          str('status') ?? '미연락',
     interest_level:  num('interest_level'),
     expected_amount: num('expected_amount'),
-    meeting_at:      str('meeting_at'),
-    next_action_at:  str('next_action_at'),
-    latest_note:     str('latest_note'),
+    meeting_at:        str('meeting_at'),
+    last_contacted_at: str('last_contacted_at'),
+    next_action_at:    str('next_action_at'),
+    latest_note:       str('latest_note'),
   }
 }
 
@@ -59,12 +61,15 @@ export async function createCompany(formData: FormData): Promise<ActionResult | 
   const data = extractData(formData)
   if (!data.company_name) return { error: '상호명은 필수입니다.' }
 
+  // sales 유저가 담당자를 지정하지 않으면 본인으로 자동 배정
+  const assigned_to = data.assigned_to ?? (profile.role === 'sales' ? profile.id : null)
+
+  // INSERT 후 SELECT RLS 충돌 방지: UUID를 미리 생성해 select() 없이 삽입
+  const id = randomUUID()
   const supabase = await createClient()
-  const { data: created, error } = await supabase
+  const { error } = await supabase
     .from('companies')
-    .insert(data)
-    .select('id')
-    .single()
+    .insert({ id, ...data, assigned_to })
 
   if (error) return { error: error.message }
 
@@ -72,7 +77,7 @@ export async function createCompany(formData: FormData): Promise<ActionResult | 
   const { data: co } = await supabase
     .from('companies')
     .select(NOTIF_SELECT)
-    .eq('id', created.id)
+    .eq('id', id)
     .single()
 
   if (co) {

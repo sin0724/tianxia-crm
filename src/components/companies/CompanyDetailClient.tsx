@@ -124,6 +124,13 @@ export function CompanyDetailClient({ company, profiles, activities }: CompanyDe
       <Card title="영업 현황">
         <Grid>
           <Row label="상태" value={<StatusBadge status={company.status} />} />
+          <Row label="마지막 연락일" value={fmtDate(company.last_contacted_at)} />
+          <Row label="다음 액션일" value={
+            <span className={isOverdue(company.next_action_at) ? 'text-red-600 font-semibold' : ''}>
+              {fmtDate(company.next_action_at)}
+            </span>
+          } />
+          <Row label="미팅 예정일"  value={fmtDate(company.meeting_at)} />
           <Row label="관심도" value={
             company.interest_level
               ? '★'.repeat(company.interest_level) + '☆'.repeat(5 - company.interest_level)
@@ -131,13 +138,6 @@ export function CompanyDetailClient({ company, profiles, activities }: CompanyDe
           } />
           <Row label="예상 계약금액" value={fmtAmount(company.expected_amount)} />
           <Row label="계약 금액"    value={fmtAmount(company.contract_amount)} />
-          <Row label="미팅 예정일"  value={fmtDate(company.meeting_at)} />
-          <Row label="다음 액션일" value={
-            <span className={isOverdue(company.next_action_at) ? 'text-red-600 font-semibold' : ''}>
-              {fmtDate(company.next_action_at)}
-            </span>
-          } />
-          <Row label="마지막 연락일" value={fmtDate(company.last_contacted_at)} />
           {company.lost_reason && (
             <div className="col-span-2">
               <Row label="실패 사유" value={company.lost_reason} />

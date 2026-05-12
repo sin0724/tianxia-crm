@@ -1,82 +1,98 @@
 -- ============================================================
--- 티엔샤 CRM — Supabase PostgreSQL Schema
+-- 티엔샤 CRM — Supabase PostgreSQL Schema (idempotent)
 -- Supabase SQL Editor에 전체 붙여넣기 후 실행하세요.
+-- 이미 생성된 DB에 재실행해도 오류 없이 동작합니다.
 -- ============================================================
 
 
 -- ── 1. ENUMS ────────────────────────────────────────────────
+-- CREATE TYPE은 IF NOT EXISTS를 지원하지 않으므로 DO 블록으로 처리
 
-CREATE TYPE user_role AS ENUM ('admin', 'manager', 'sales');
+DO $$ BEGIN
+  CREATE TYPE user_role AS ENUM ('admin', 'manager', 'sales');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE company_status AS ENUM (
-  '미연락',
-  '1차 연락 완료',
-  '부재',
-  '답변 대기',
-  '관심 있음',
-  '미팅 예정',
-  '미팅 완료',
-  '제안서 발송',
-  '계약 검토',
-  '계약 완료',
-  '보류',
-  '실패',
-  '제외'
-);
+DO $$ BEGIN
+  CREATE TYPE company_status AS ENUM (
+    '미연락',
+    '1차 연락 완료',
+    '부재',
+    '답변 대기',
+    '관심 있음',
+    '미팅 예정',
+    '미팅 완료',
+    '제안서 발송',
+    '계약 검토',
+    '계약 완료',
+    '보류',
+    '실패',
+    '제외'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE company_category AS ENUM (
-  '병의원',
-  '맛집',
-  '카페/디저트',
-  '뷰티샵',
-  '커머스',
-  '숙박',
-  '학원',
-  '피트니스',
-  '기타'
-);
+DO $$ BEGIN
+  CREATE TYPE company_category AS ENUM (
+    '병의원',
+    '맛집',
+    '카페/디저트',
+    '뷰티샵',
+    '커머스',
+    '숙박',
+    '학원',
+    '피트니스',
+    '기타'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE company_source AS ENUM (
-  'OB',
-  '네이버',
-  '스레드',
-  '인스타그램',
-  '메타 광고',
-  '회사DB',
-  '소개',
-  '기존 고객',
-  '기타'
-);
+DO $$ BEGIN
+  CREATE TYPE company_source AS ENUM (
+    'OB',
+    '네이버',
+    '스레드',
+    '인스타그램',
+    '메타 광고',
+    '회사DB',
+    '소개',
+    '기존 고객',
+    '기타'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE activity_type AS ENUM (
-  '전화',
-  '문자',
-  '카톡',
-  '이메일',
-  'DM',
-  '미팅',
-  '제안서 발송',
-  '계약서 발송',
-  '기타'
-);
+DO $$ BEGIN
+  CREATE TYPE activity_type AS ENUM (
+    '전화',
+    '문자',
+    '카톡',
+    '이메일',
+    'DM',
+    '미팅',
+    '제안서 발송',
+    '계약서 발송',
+    '기타'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE activity_result AS ENUM (
-  '부재',
-  '응답 없음',
-  '관심 있음',
-  '자료 요청',
-  '미팅 확정',
-  '보류',
-  '거절',
-  '계약 완료'
-);
+DO $$ BEGIN
+  CREATE TYPE activity_result AS ENUM (
+    '부재',
+    '응답 없음',
+    '관심 있음',
+    '자료 요청',
+    '미팅 확정',
+    '보류',
+    '거절',
+    '계약 완료'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE notification_status AS ENUM ('pending', 'sent', 'failed');
+DO $$ BEGIN
+  CREATE TYPE notification_status AS ENUM ('pending', 'sent', 'failed');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
 -- ── 2. TABLES ───────────────────────────────────────────────
 
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
   id            UUID        PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   name          TEXT        NOT NULL,
   email         TEXT        NOT NULL,
@@ -88,7 +104,7 @@ CREATE TABLE profiles (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE companies (
+CREATE TABLE IF NOT EXISTS companies (
   id                UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
   company_name      TEXT            NOT NULL,
   category          company_category,
@@ -115,7 +131,7 @@ CREATE TABLE companies (
   updated_at        TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE activities (
+CREATE TABLE IF NOT EXISTS activities (
   id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id      UUID            NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   user_id         UUID            NOT NULL REFERENCES profiles(id),
@@ -126,7 +142,7 @@ CREATE TABLE activities (
   created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
   id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   product_name TEXT        NOT NULL,
   description  TEXT,
@@ -134,7 +150,7 @@ CREATE TABLE products (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE company_products (
+CREATE TABLE IF NOT EXISTS company_products (
   id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID        NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   product_id UUID        NOT NULL REFERENCES products(id) ON DELETE CASCADE,
@@ -142,7 +158,7 @@ CREATE TABLE company_products (
   UNIQUE (company_id, product_id)
 );
 
-CREATE TABLE notification_settings (
+CREATE TABLE IF NOT EXISTS notification_settings (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   key         TEXT        NOT NULL UNIQUE,
   value       TEXT        NOT NULL,
@@ -152,7 +168,7 @@ CREATE TABLE notification_settings (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE notification_logs (
+CREATE TABLE IF NOT EXISTS notification_logs (
   id                UUID                PRIMARY KEY DEFAULT gen_random_uuid(),
   notification_type TEXT                NOT NULL,
   company_id        UUID                REFERENCES companies(id) ON DELETE SET NULL,
@@ -168,14 +184,14 @@ CREATE TABLE notification_logs (
 
 -- ── 3. INDEXES ──────────────────────────────────────────────
 
-CREATE INDEX idx_companies_assigned_to    ON companies(assigned_to);
-CREATE INDEX idx_companies_status         ON companies(status);
-CREATE INDEX idx_companies_next_action_at ON companies(next_action_at);
-CREATE INDEX idx_activities_company_id    ON activities(company_id);
-CREATE INDEX idx_activities_user_id       ON activities(user_id);
-CREATE INDEX idx_activities_created_at    ON activities(created_at DESC);
-CREATE INDEX idx_notif_logs_company_id    ON notification_logs(company_id);
-CREATE INDEX idx_notif_logs_status        ON notification_logs(status);
+CREATE INDEX IF NOT EXISTS idx_companies_assigned_to    ON companies(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_companies_status         ON companies(status);
+CREATE INDEX IF NOT EXISTS idx_companies_next_action_at ON companies(next_action_at);
+CREATE INDEX IF NOT EXISTS idx_activities_company_id    ON activities(company_id);
+CREATE INDEX IF NOT EXISTS idx_activities_user_id       ON activities(user_id);
+CREATE INDEX IF NOT EXISTS idx_activities_created_at    ON activities(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notif_logs_company_id    ON notification_logs(company_id);
+CREATE INDEX IF NOT EXISTS idx_notif_logs_status        ON notification_logs(status);
 
 
 -- ── 4. HELPER FUNCTIONS ─────────────────────────────────────
@@ -221,15 +237,15 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trg_profiles_updated_at
+CREATE OR REPLACE TRIGGER trg_profiles_updated_at
   BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-CREATE TRIGGER trg_companies_updated_at
+CREATE OR REPLACE TRIGGER trg_companies_updated_at
   BEFORE UPDATE ON companies
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-CREATE TRIGGER trg_notification_settings_updated_at
+CREATE OR REPLACE TRIGGER trg_notification_settings_updated_at
   BEFORE UPDATE ON notification_settings
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -253,7 +269,7 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trg_activity_sync_company
+CREATE OR REPLACE TRIGGER trg_activity_sync_company
   AFTER INSERT ON activities
   FOR EACH ROW EXECUTE FUNCTION sync_company_from_activity();
 
@@ -275,7 +291,7 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trg_on_auth_user_created
+CREATE OR REPLACE TRIGGER trg_on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
@@ -292,48 +308,50 @@ ALTER TABLE notification_logs     ENABLE ROW LEVEL SECURITY;
 
 
 -- ── 7. RLS POLICIES ──────────────────────────────────────────
+-- 재실행 안전: 기존 정책을 먼저 삭제 후 재생성
 
 -- ── profiles ──
 
--- 전체 유저 목록은 모두 조회 가능 (담당자 드롭다운 등에 필요)
+DROP POLICY IF EXISTS "profiles_select" ON profiles;
 CREATE POLICY "profiles_select"
   ON profiles FOR SELECT
   TO authenticated
   USING (true);
 
--- 본인 또는 admin/manager만 수정
+DROP POLICY IF EXISTS "profiles_update" ON profiles;
 CREATE POLICY "profiles_update"
   ON profiles FOR UPDATE
   TO authenticated
   USING (id = auth.uid() OR is_admin_or_manager());
 
--- admin만 삭제 (실제로는 is_active=false 처리 권장)
+DROP POLICY IF EXISTS "profiles_delete" ON profiles;
 CREATE POLICY "profiles_delete"
   ON profiles FOR DELETE
   TO authenticated
   USING (get_my_role() = 'admin');
 
 -- ── companies ──
-
 -- admin/manager: 전체, sales: 본인 담당 거래처만
+
+DROP POLICY IF EXISTS "companies_select" ON companies;
 CREATE POLICY "companies_select"
   ON companies FOR SELECT
   TO authenticated
   USING (is_admin_or_manager() OR assigned_to = auth.uid());
 
--- 로그인한 유저라면 거래처 등록 가능
+DROP POLICY IF EXISTS "companies_insert" ON companies;
 CREATE POLICY "companies_insert"
   ON companies FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() IS NOT NULL);
 
--- admin/manager: 전체 수정, sales: 본인 담당만
+DROP POLICY IF EXISTS "companies_update" ON companies;
 CREATE POLICY "companies_update"
   ON companies FOR UPDATE
   TO authenticated
   USING (is_admin_or_manager() OR assigned_to = auth.uid());
 
--- admin만 삭제
+DROP POLICY IF EXISTS "companies_delete" ON companies;
 CREATE POLICY "companies_delete"
   ON companies FOR DELETE
   TO authenticated
@@ -341,7 +359,7 @@ CREATE POLICY "companies_delete"
 
 -- ── activities ──
 
--- 접근 가능한 거래처의 활동만 조회
+DROP POLICY IF EXISTS "activities_select" ON activities;
 CREATE POLICY "activities_select"
   ON activities FOR SELECT
   TO authenticated
@@ -353,8 +371,7 @@ CREATE POLICY "activities_select"
     )
   );
 
--- 접근 가능한 거래처에 활동 추가
--- admin/manager는 다른 유저 대신 기록 가능, sales는 본인만
+DROP POLICY IF EXISTS "activities_insert" ON activities;
 CREATE POLICY "activities_insert"
   ON activities FOR INSERT
   TO authenticated
@@ -367,13 +384,13 @@ CREATE POLICY "activities_insert"
     )
   );
 
--- 본인 활동 수정 또는 admin 전체 수정
+DROP POLICY IF EXISTS "activities_update" ON activities;
 CREATE POLICY "activities_update"
   ON activities FOR UPDATE
   TO authenticated
   USING (user_id = auth.uid() OR get_my_role() = 'admin');
 
--- admin만 삭제
+DROP POLICY IF EXISTS "activities_delete" ON activities;
 CREATE POLICY "activities_delete"
   ON activities FOR DELETE
   TO authenticated
@@ -381,23 +398,25 @@ CREATE POLICY "activities_delete"
 
 -- ── products ──
 
--- 로그인 유저 전체 조회
+DROP POLICY IF EXISTS "products_select" ON products;
 CREATE POLICY "products_select"
   ON products FOR SELECT
   TO authenticated
   USING (true);
 
--- admin/manager만 등록·수정·삭제
+DROP POLICY IF EXISTS "products_insert" ON products;
 CREATE POLICY "products_insert"
   ON products FOR INSERT
   TO authenticated
   WITH CHECK (is_admin_or_manager());
 
+DROP POLICY IF EXISTS "products_update" ON products;
 CREATE POLICY "products_update"
   ON products FOR UPDATE
   TO authenticated
   USING (is_admin_or_manager());
 
+DROP POLICY IF EXISTS "products_delete" ON products;
 CREATE POLICY "products_delete"
   ON products FOR DELETE
   TO authenticated
@@ -405,7 +424,7 @@ CREATE POLICY "products_delete"
 
 -- ── company_products ──
 
--- 접근 가능한 거래처의 상품 연결 조회
+DROP POLICY IF EXISTS "company_products_select" ON company_products;
 CREATE POLICY "company_products_select"
   ON company_products FOR SELECT
   TO authenticated
@@ -417,7 +436,7 @@ CREATE POLICY "company_products_select"
     )
   );
 
--- 접근 가능한 거래처에 상품 연결/해제
+DROP POLICY IF EXISTS "company_products_insert" ON company_products;
 CREATE POLICY "company_products_insert"
   ON company_products FOR INSERT
   TO authenticated
@@ -429,6 +448,7 @@ CREATE POLICY "company_products_insert"
     )
   );
 
+DROP POLICY IF EXISTS "company_products_delete" ON company_products;
 CREATE POLICY "company_products_delete"
   ON company_products FOR DELETE
   TO authenticated
@@ -442,23 +462,25 @@ CREATE POLICY "company_products_delete"
 
 -- ── notification_settings ──
 
--- admin/manager만 조회
+DROP POLICY IF EXISTS "notification_settings_select" ON notification_settings;
 CREATE POLICY "notification_settings_select"
   ON notification_settings FOR SELECT
   TO authenticated
   USING (is_admin_or_manager());
 
--- admin만 수정
+DROP POLICY IF EXISTS "notification_settings_insert" ON notification_settings;
 CREATE POLICY "notification_settings_insert"
   ON notification_settings FOR INSERT
   TO authenticated
   WITH CHECK (get_my_role() = 'admin');
 
+DROP POLICY IF EXISTS "notification_settings_update" ON notification_settings;
 CREATE POLICY "notification_settings_update"
   ON notification_settings FOR UPDATE
   TO authenticated
   USING (get_my_role() = 'admin');
 
+DROP POLICY IF EXISTS "notification_settings_delete" ON notification_settings;
 CREATE POLICY "notification_settings_delete"
   ON notification_settings FOR DELETE
   TO authenticated
@@ -466,19 +488,19 @@ CREATE POLICY "notification_settings_delete"
 
 -- ── notification_logs ──
 
--- admin/manager만 조회
+DROP POLICY IF EXISTS "notification_logs_select" ON notification_logs;
 CREATE POLICY "notification_logs_select"
   ON notification_logs FOR SELECT
   TO authenticated
   USING (is_admin_or_manager());
 
--- 로그 기록은 인증 유저면 허용 (서버 사이드에서 삽입)
+DROP POLICY IF EXISTS "notification_logs_insert" ON notification_logs;
 CREATE POLICY "notification_logs_insert"
   ON notification_logs FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() IS NOT NULL);
 
--- admin만 삭제
+DROP POLICY IF EXISTS "notification_logs_delete" ON notification_logs;
 CREATE POLICY "notification_logs_delete"
   ON notification_logs FOR DELETE
   TO authenticated

@@ -174,6 +174,9 @@ export function CompanyForm({ profiles, defaultValues: d = {}, companyId, onCanc
             <input name="expected_amount" type="number" min="0" step="10000"
               defaultValue={d.expected_amount?.toString() ?? ''} className={inputCls} placeholder="0" />
           </Field>
+          <Field label="마지막 연락일">
+            <input name="last_contacted_at" type="date" defaultValue={toDate(d.last_contacted_at)} className={inputCls} />
+          </Field>
           <Field label="미팅 예정일">
             <input name="meeting_at" type="date" defaultValue={toDate(d.meeting_at)} className={inputCls} />
           </Field>
