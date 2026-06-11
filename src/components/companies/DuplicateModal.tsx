@@ -33,7 +33,7 @@ export function DuplicateModal({ candidates, onConfirm, onCancel, isPending }: D
         <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
           {candidates.map(c => (
             <div key={c.id} className="px-6 py-4">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-2">
                     <span className="font-semibold text-gray-900">{c.company_name}</span>
@@ -46,7 +46,7 @@ export function DuplicateModal({ candidates, onConfirm, onCancel, isPending }: D
                       </span>
                     ))}
                   </div>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-gray-500">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs text-gray-500">
                     <span>담당자: <span className="text-gray-700">{c.profiles?.name ?? '—'}</span></span>
                     <span>상태: <span className="text-gray-700">{c.status}</span></span>
                     <span>연락처: <span className="text-gray-700">{c.phone ?? '—'}</span></span>
@@ -63,7 +63,7 @@ export function DuplicateModal({ candidates, onConfirm, onCancel, isPending }: D
                   href={`/companies/${c.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="shrink-0 px-3 py-1.5 text-xs border border-gray-300 rounded-md hover:bg-gray-50 whitespace-nowrap transition-colors"
+                  className="shrink-0 self-start px-3 py-1.5 text-xs border border-gray-300 rounded-md hover:bg-gray-50 whitespace-nowrap transition-colors"
                 >
                   상세 보기 →
                 </Link>

@@ -87,7 +87,7 @@ export default async function DashboardPage() {
   return (
     <>
       <Header title={`대시보드 — ${scopeLabel} 현황`} />
-      <main className="flex-1 p-6 max-w-5xl">
+      <main className="flex-1 p-4 sm:p-6 max-w-5xl">
 
         {/* ── KPI ─────────────────────────────────────── */}
         <SectionTitle>핵심 지표</SectionTitle>

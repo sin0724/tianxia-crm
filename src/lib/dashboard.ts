@@ -1,5 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth'
+import {
+  kstStartOfDay, kstEndOfDay, kstStartOfMonth,
+  kstStartOfWeek, kstEndOfWeek, kstDaysAgoEnd,
+} from '@/lib/datetime'
 
 // ── 내부 타입 ──────────────────────────────────────────────────
 
@@ -46,31 +50,6 @@ export interface DashboardData {
   byStatus: ChartRow[]
 }
 
-// ── 날짜 헬퍼 ──────────────────────────────────────────────────
-
-function startOfDay() {
-  const d = new Date(); d.setHours(0, 0, 0, 0); return d
-}
-function endOfDay() {
-  const d = new Date(); d.setHours(23, 59, 59, 999); return d
-}
-function startOfMonth() {
-  const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d
-}
-function startOfWeek() {
-  const d = new Date()
-  const day = d.getDay()
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-function endOfWeek() {
-  const d = startOfWeek(); d.setDate(d.getDate() + 6); d.setHours(23, 59, 59, 999); return d
-}
-function daysAgo(n: number) {
-  const d = new Date(); d.setDate(d.getDate() - n); d.setHours(23, 59, 59, 999); return d
-}
-
 // ── 역할별 회사 조회 ───────────────────────────────────────────
 
 const SELECT = [
@@ -104,12 +83,12 @@ async function fetchCompanies(profile: Profile): Promise<DashCompany[]> {
 const EXCLUDED = new Set(['계약 완료', '실패', '제외'])
 
 function computeStats(companies: DashCompany[]): DashboardStats {
-  const todayS   = startOfDay().getTime()
-  const todayE   = endOfDay().getTime()
-  const monthS   = startOfMonth().getTime()
-  const weekS    = startOfWeek().getTime()
-  const weekE    = endOfWeek().getTime()
-  const noContactCutoff = daysAgo(7).getTime()
+  const todayS   = kstStartOfDay().getTime()
+  const todayE   = kstEndOfDay().getTime()
+  const monthS   = kstStartOfMonth().getTime()
+  const weekS    = kstStartOfWeek().getTime()
+  const weekE    = kstEndOfWeek().getTime()
+  const noContactCutoff = new Date(kstDaysAgoEnd(7)).getTime()
 
   let newThisMonth    = 0
   let todayActions    = 0

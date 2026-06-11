@@ -13,7 +13,8 @@ function fmtDate(s: string | null) {
 }
 
 function isOverdue(s: string | null) {
-  return !!s && new Date(s) < new Date()
+  // 오늘 자정 이전이면 기한 초과 (당일은 초과 아님)
+  return !!s && new Date(s).getTime() < new Date().setHours(0, 0, 0, 0)
 }
 
 export function CompanyTable({ companies }: { companies: Company[] }) {
@@ -58,7 +59,7 @@ export function CompanyTable({ companies }: { companies: Company[] }) {
     <div className="space-y-2">
       {/* 선택 액션 바 */}
       {someSelected && (
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5">
           <span className="text-sm font-medium text-blue-700">{selectedIds.size}개 선택됨</span>
           <div className="flex-1" />
           {bulkConfirm ? (
@@ -100,7 +101,92 @@ export function CompanyTable({ companies }: { companies: Company[] }) {
         </div>
       )}
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      {/* 모바일: 카드 리스트 */}
+      <div className="md:hidden space-y-2">
+        <label className="flex items-center gap-2 px-1 py-1 text-sm text-gray-500">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleAll}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          전체 선택
+        </label>
+        {companies.map(c => (
+          <div
+            key={c.id}
+            className={`bg-white border rounded-xl p-4 ${selectedIds.has(c.id) ? 'border-blue-300 bg-blue-50/50' : 'border-gray-200'}`}
+          >
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={selectedIds.has(c.id)}
+                onChange={() => toggleRow(c.id)}
+                className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <Link href={`/companies/${c.id}`} className="font-medium text-gray-900 truncate hover:text-blue-600">
+                    {c.company_name}
+                  </Link>
+                  <StatusBadge status={c.status} />
+                </div>
+                <p className="mt-1 text-xs text-gray-500 truncate">
+                  {[c.category, c.region, c.source, c.profiles?.name].filter(Boolean).join(' · ') || '—'}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                  <span>미팅 {fmtDate(c.meeting_at)}</span>
+                  <span>연락 {fmtDate(c.last_contacted_at)}</span>
+                  <span className={isOverdue(c.next_action_at) ? 'text-red-600 font-semibold' : ''}>
+                    액션 {fmtDate(c.next_action_at)}
+                  </span>
+                </div>
+                {c.latest_note && (
+                  <p className="mt-1.5 text-xs text-gray-400 truncate">{c.latest_note}</p>
+                )}
+                <div className="mt-2.5 flex items-center gap-2">
+                  {confirmId === c.id ? (
+                    <>
+                      <span className="text-xs text-gray-600">정말 삭제할까요?</span>
+                      <button
+                        onClick={() => startTransition(() => { deleteCompany(c.id) })}
+                        disabled={isDeleting}
+                        className="text-xs px-3 py-1.5 border border-red-300 text-red-600 rounded-md hover:bg-red-50 disabled:opacity-50"
+                      >
+                        확인
+                      </button>
+                      <button
+                        onClick={() => setConfirmId(null)}
+                        className="text-xs px-3 py-1.5 border border-gray-300 text-gray-500 rounded-md"
+                      >
+                        취소
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        href={`/companies/${c.id}`}
+                        className="text-xs px-3 py-1.5 border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50"
+                      >
+                        수정
+                      </Link>
+                      <button
+                        onClick={() => setConfirmId(c.id)}
+                        className="text-xs px-3 py-1.5 border border-gray-300 text-gray-500 rounded-md hover:bg-gray-50"
+                      >
+                        삭제
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 데스크탑: 테이블 */}
+      <div className="hidden md:block bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>

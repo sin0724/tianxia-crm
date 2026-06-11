@@ -11,7 +11,7 @@ export default async function ExportPage() {
   return (
     <>
       <Header title="거래처 내보내기" />
-      <main className="flex-1 p-6 max-w-lg">
+      <main className="flex-1 p-4 sm:p-6 max-w-lg">
         <div className="mb-5">
           <Link href="/companies" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
             ← 거래처 목록

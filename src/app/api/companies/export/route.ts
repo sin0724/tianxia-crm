@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getProfile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { generateCSV } from '@/lib/csv'
+import { fmtFullDateKST } from '@/lib/datetime'
 import { redirect } from 'next/navigation'
 
 const CSV_HEADERS = [
@@ -36,9 +37,7 @@ type ExportRow = {
 
 function fmtDate(s: string | null) {
   if (!s) return ''
-  return new Date(s).toLocaleDateString('ko-KR', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-  }).replace(/\. /g, '.').replace(/\.$/, '')
+  return fmtFullDateKST(s)
 }
 
 function toRow(c: ExportRow): (string | null)[] {
@@ -102,7 +101,7 @@ export async function GET(request: NextRequest) {
   const rows = (data as unknown as ExportRow[]) ?? []
   const csv  = generateCSV(CSV_HEADERS, rows.map(toRow))
 
-  const filename = `거래처_${new Date().toLocaleDateString('ko-KR').replace(/\. /g, '').replace(/\.$/, '')}.csv`
+  const filename = `거래처_${fmtFullDateKST(new Date().toISOString()).replace(/\./g, '')}.csv`
 
   return new NextResponse(csv, {
     status: 200,

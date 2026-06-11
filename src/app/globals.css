@@ -3,3 +3,13 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
+
+/* 모바일(iOS Safari)에서 입력 폰트가 16px 미만이면 포커스 시 화면이 자동 확대됨.
+   모바일 폭에서는 입력 요소 폰트를 16px로 강제해 확대 현상을 막는다. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

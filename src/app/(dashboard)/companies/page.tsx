@@ -28,10 +28,10 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
   return (
     <>
       <Header title="거래처 관리" />
-      <main className="flex-1 p-6 space-y-4">
-        <div className="flex items-center justify-between">
+      <main className="flex-1 p-4 sm:p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-gray-500">거래처 목록</p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link href="/companies/import" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
               📥 가져오기
             </Link>

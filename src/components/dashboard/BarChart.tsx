@@ -23,7 +23,7 @@ export function BarChart({ title, items, emptyMessage = '데이터 없음' }: Ba
         <div className="space-y-2.5">
           {items.map(item => (
             <div key={item.label} className="flex items-center gap-3">
-              <span className="text-xs text-gray-500 w-24 shrink-0 truncate text-right">
+              <span className="text-xs text-gray-500 w-16 sm:w-24 shrink-0 truncate text-right">
                 {item.label}
               </span>
               <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">

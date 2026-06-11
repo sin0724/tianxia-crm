@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { kstStartOfDay } from '@/lib/datetime'
 
 export interface Company {
   id: string
@@ -58,9 +59,10 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
   if (filters.source)      query = query.eq('source', filters.source)
 
   if (filters.next_action === 'overdue') {
+    // KST 기준 오늘 이전 = 기한 초과 (당일은 초과 아님)
     query = query
       .not('next_action_at', 'is', null)
-      .lt('next_action_at', new Date().toISOString())
+      .lt('next_action_at', kstStartOfDay().toISOString())
   }
 
   if (filters.q) {

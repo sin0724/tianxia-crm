@@ -37,6 +37,8 @@ function extractData(fd: FormData) {
     status:          str('status') ?? '미연락',
     interest_level:  num('interest_level'),
     expected_amount: num('expected_amount'),
+    contract_amount: num('contract_amount'),
+    lost_reason:     str('lost_reason'),
     meeting_at:        str('meeting_at'),
     last_contacted_at: str('last_contacted_at'),
     next_action_at:    str('next_action_at'),

@@ -20,7 +20,8 @@ function fmtAmount(n: number | null) {
 }
 
 function isOverdue(s: string | null) {
-  return !!s && new Date(s) < new Date()
+  // 오늘 자정 이전이면 기한 초과 (당일은 초과 아님)
+  return !!s && new Date(s).getTime() < new Date().setHours(0, 0, 0, 0)
 }
 
 interface CompanyDetailClientProps {
@@ -63,12 +64,12 @@ export function CompanyDetailClient({ company, profiles, activities }: CompanyDe
   return (
     <div className="space-y-4">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-gray-900">{company.company_name}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <h2 className="text-lg font-semibold text-gray-900 truncate">{company.company_name}</h2>
           <StatusBadge status={company.status} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {confirmDelete ? (
             <>
               <span className="text-sm text-gray-500">정말 삭제하시겠습니까?</span>
@@ -192,14 +193,14 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 function Grid({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-2 gap-x-8 gap-y-4">{children}</div>
+  return <div className="grid grid-cols-2 gap-x-4 sm:gap-x-8 gap-y-4">{children}</div>
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-      <div className="text-sm text-gray-900">
+      <div className="text-sm text-gray-900 break-words">
         {value ?? <span className="text-gray-400">—</span>}
       </div>
     </div>

@@ -25,7 +25,7 @@ export default async function CompanyDetailPage({ params }: PageProps) {
   return (
     <>
       <Header title="거래처 상세" />
-      <main className="flex-1 p-6 max-w-3xl">
+      <main className="flex-1 p-4 sm:p-6 max-w-3xl">
         <div className="mb-4">
           <Link href="/companies" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
             ← 거래처 목록

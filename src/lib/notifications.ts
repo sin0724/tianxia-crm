@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { sendSlackNotification, type SlackPayload, type SlackHeaderBlock, type SlackSectionBlock } from '@/lib/slack'
+import { fmtFullDateTimeKST } from '@/lib/datetime'
 
 type NotificationType = 'new_company' | 'meeting_scheduled' | 'contract_complete' | 'data_request'
 
@@ -14,14 +15,6 @@ function section(text: string): SlackSectionBlock {
 function fmtAmount(n: number | null) {
   if (!n) return '—'
   return n.toLocaleString('ko-KR') + '원'
-}
-
-function fmtDateTime(s: string | null) {
-  if (!s) return '—'
-  return new Date(s).toLocaleString('ko-KR', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-  })
 }
 
 async function saveLog(params: {
@@ -108,7 +101,7 @@ export async function notifyMeetingScheduled(
   const text = [
     `*상호명:* ${company.company_name}`,
     `*담당자:* ${company.profiles?.name ?? '—'}`,
-    `*미팅일:* ${fmtDateTime(company.meeting_at)}`,
+    `*미팅일:* ${fmtFullDateTimeKST(company.meeting_at)}`,
     `*최근 메모:* ${company.latest_note ?? '—'}`,
   ].join('\n')
 

@@ -174,6 +174,14 @@ export function CompanyForm({ profiles, defaultValues: d = {}, companyId, onCanc
             <input name="expected_amount" type="number" min="0" step="10000"
               defaultValue={d.expected_amount?.toString() ?? ''} className={inputCls} placeholder="0" />
           </Field>
+          <Field label="계약 금액 (원)">
+            <input name="contract_amount" type="number" min="0" step="10000"
+              defaultValue={d.contract_amount?.toString() ?? ''} className={inputCls} placeholder="계약 완료 시 입력" />
+          </Field>
+          <Field label="실패/보류 사유">
+            <input name="lost_reason" type="text" defaultValue={d.lost_reason ?? ''}
+              className={inputCls} placeholder="실패·보류 시 사유 입력" />
+          </Field>
           <Field label="마지막 연락일">
             <input name="last_contacted_at" type="date" defaultValue={toDate(d.last_contacted_at)} className={inputCls} />
           </Field>

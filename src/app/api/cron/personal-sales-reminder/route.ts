@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendSlackNotification, type SlackPayload, type SlackSectionBlock } from '@/lib/slack'
+import { kstTodayRange, kstDaysAgoEnd, fmtFullDateTimeKST } from '@/lib/datetime'
 
 // ── Admin client ───────────────────────────────────────────────
 
@@ -49,23 +50,14 @@ function mention(profiles: PersonalCompany['profiles']): string {
   return profiles?.name ?? '담당자'
 }
 
-function fmtDateTime(s: string | null) {
-  if (!s) return '—'
-  return new Date(s).toLocaleString('ko-KR', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-  })
-}
-
 // ── 쿼리 ───────────────────────────────────────────────────────
 
 async function getTodayActions(supabase: Supabase): Promise<PersonalCompany[]> {
-  const start = new Date(); start.setHours(0, 0, 0, 0)
-  const end = new Date();   end.setHours(23, 59, 59, 999)
+  const { start, end } = kstTodayRange()
 
   let q = supabase.from('companies').select(SELECT)
-    .gte('next_action_at', start.toISOString())
-    .lte('next_action_at', end.toISOString())
+    .gte('next_action_at', start)
+    .lte('next_action_at', end)
     .not('assigned_to', 'is', null)
   for (const s of EXCLUDED) q = q.neq('status', s)
   const { data } = await q.order('next_action_at')
@@ -85,13 +77,11 @@ async function getMeetingSoon(supabase: Supabase): Promise<PersonalCompany[]> {
 }
 
 async function getProposalPending(supabase: Supabase): Promise<PersonalCompany[]> {
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - 3)
-  cutoff.setHours(23, 59, 59, 999)
+  const cutoff = kstDaysAgoEnd(3)
 
   const { data } = await supabase.from('companies').select(SELECT)
     .eq('status', '제안서 발송')
-    .or(`last_contacted_at.is.null,last_contacted_at.lte.${cutoff.toISOString()}`)
+    .or(`last_contacted_at.is.null,last_contacted_at.lte.${cutoff}`)
     .not('assigned_to', 'is', null)
   return cast(data)
 }
@@ -125,7 +115,7 @@ function buildMeetingSoonPayload(c: PersonalCompany): SlackPayload {
     blocks: [block([
       `${m} 1시간 뒤 미팅 예정입니다.`,
       `*상호명:* ${c.company_name}`,
-      `*미팅일:* ${fmtDateTime(c.meeting_at)}`,
+      `*미팅일:* ${fmtFullDateTimeKST(c.meeting_at)}`,
       `*최근 메모:* ${c.latest_note ?? '—'}`,
       `*CRM 링크:* <${url}|바로가기>`,
     ].join('\n'))],

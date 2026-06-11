@@ -9,7 +9,7 @@ export default async function ImportPage() {
   return (
     <>
       <Header title="거래처 가져오기" />
-      <main className="flex-1 p-6 max-w-3xl">
+      <main className="flex-1 p-4 sm:p-6 max-w-3xl">
         <div className="mb-5">
           <Link href="/companies" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
             ← 거래처 목록

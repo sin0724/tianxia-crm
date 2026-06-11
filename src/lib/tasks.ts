@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Company } from '@/lib/companies'
+import { kstTodayRange, kstDaysAgoEnd } from '@/lib/datetime'
 
 type TaskCompany = Pick<
   Company,
@@ -17,24 +18,9 @@ const EXCLUDED_STATUSES = ['계약 완료', '실패', '제외']
 
 const SELECT = 'id, company_name, category, status, next_action_at, last_contacted_at, meeting_at, profiles(name)'
 
-function todayRange() {
-  const start = new Date()
-  start.setHours(0, 0, 0, 0)
-  const end = new Date()
-  end.setHours(23, 59, 59, 999)
-  return { start: start.toISOString(), end: end.toISOString() }
-}
-
-function daysAgo(n: number) {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  d.setHours(23, 59, 59, 999)
-  return d.toISOString()
-}
-
 export async function getTodayActions(): Promise<TaskCompany[]> {
   const supabase = await createClient()
-  const { end } = todayRange()
+  const { end } = kstTodayRange()
 
   let q = supabase
     .from('companies')
@@ -50,7 +36,7 @@ export async function getTodayActions(): Promise<TaskCompany[]> {
 
 export async function getTodayMeetings(): Promise<TaskCompany[]> {
   const supabase = await createClient()
-  const { start, end } = todayRange()
+  const { start, end } = kstTodayRange()
 
   const { data } = await supabase
     .from('companies')
@@ -64,7 +50,7 @@ export async function getTodayMeetings(): Promise<TaskCompany[]> {
 
 export async function getLongNoContact(): Promise<TaskCompany[]> {
   const supabase = await createClient()
-  const threshold = daysAgo(7)
+  const threshold = kstDaysAgoEnd(7)
 
   let q = supabase
     .from('companies')
@@ -80,7 +66,7 @@ export async function getLongNoContact(): Promise<TaskCompany[]> {
 
 export async function getProposalPending(): Promise<TaskCompany[]> {
   const supabase = await createClient()
-  const threshold = daysAgo(3)
+  const threshold = kstDaysAgoEnd(3)
 
   const { data } = await supabase
     .from('companies')

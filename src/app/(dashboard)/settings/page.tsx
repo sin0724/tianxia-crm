@@ -10,7 +10,7 @@ export default async function SettingsPage() {
   return (
     <>
       <Header title="설정" />
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-4 sm:p-6">
         <div className="max-w-lg space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h2 className="text-sm font-semibold text-gray-900 mb-4">계정 정보</h2>

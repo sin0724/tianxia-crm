@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendSlackNotification } from '@/lib/slack'
 import type { SlackBlock } from '@/lib/slack'
+import {
+  kstTodayRange, kstStartOfDay, kstDaysAgoEnd,
+  todayLabelKST, fmtDateKST, fmtDateTimeKST,
+} from '@/lib/datetime'
 
 // ── Admin client (RLS 우회, cron job에는 user session이 없음) ──
 
@@ -10,42 +14,6 @@ function createAdminClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error('SUPABASE_SERVICE_ROLE_KEY not configured')
   return createClient(url, key, { auth: { persistSession: false } })
-}
-
-// ── 날짜 헬퍼 ──────────────────────────────────────────────────
-
-function todayRange() {
-  const start = new Date()
-  start.setHours(0, 0, 0, 0)
-  const end = new Date()
-  end.setHours(23, 59, 59, 999)
-  return { start: start.toISOString(), end: end.toISOString() }
-}
-
-function daysAgo(n: number) {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  d.setHours(23, 59, 59, 999)
-  return d.toISOString()
-}
-
-function todayLabel() {
-  return new Date().toLocaleDateString('ko-KR', {
-    year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
-  })
-}
-
-function fmtDate(s: string | null) {
-  if (!s) return '—'
-  return new Date(s).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })
-    .replace(/\. /g, '.').replace(/\.$/, '')
-}
-
-function fmtDateTime(s: string | null) {
-  if (!s) return '—'
-  return new Date(s).toLocaleString('ko-KR', {
-    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-  })
 }
 
 // ── 쿼리 ───────────────────────────────────────────────────────
@@ -70,8 +38,8 @@ function cast(data: unknown): ReminderCompany[] {
 }
 
 async function fetchAll(supabase: Supabase) {
-  const { start: todayS, end: todayE } = todayRange()
-  const overdueEnd = new Date(); overdueEnd.setHours(0, 0, 0, 0)
+  const { start: todayS, end: todayE } = kstTodayRange()
+  const overdueEnd = kstStartOfDay()
 
   // 오늘 액션 (next_action_at = 오늘)
   let todayQ = supabase.from('companies').select(SELECT)
@@ -91,14 +59,14 @@ async function fetchAll(supabase: Supabase) {
     .order('meeting_at')
 
   // 7일 이상 미연락
-  const noContactCutoff = daysAgo(7)
+  const noContactCutoff = kstDaysAgoEnd(7)
   let noContactQ = supabase.from('companies').select(SELECT)
     .or(`last_contacted_at.is.null,last_contacted_at.lte.${noContactCutoff}`)
   for (const s of EXCLUDED) noContactQ = noContactQ.neq('status', s)
   const { data: longNoContact } = await noContactQ
 
   // 제안서 발송 후 3일+ 미답변
-  const proposalCutoff = daysAgo(3)
+  const proposalCutoff = kstDaysAgoEnd(3)
   const { data: proposalPending } = await supabase.from('companies').select(SELECT)
     .eq('status', '제안서 발송')
     .or(`last_contacted_at.is.null,last_contacted_at.lte.${proposalCutoff}`)
@@ -164,12 +132,12 @@ function buildBlocks(data: Awaited<ReturnType<typeof fetchAll>>): SlackBlock[] {
 
   return [
     { type: 'header', text: { type: 'plain_text', text: '📋 티엔샤 오늘의 영업 리마인드' } },
-    sec(`📅 *${todayLabel()}*`),
+    sec(`📅 *${todayLabelKST()}*`),
     divider(),
     sec(`*📊 오늘의 요약*\n${summary}`),
-    ...listBlocks('📞 오늘 연락해야 할 고객', todayActions, '액션일', c => fmtDate(c.next_action_at)),
-    ...listBlocks('🤝 오늘 미팅 예정', todayMeetings, '미팅', c => fmtDateTime(c.meeting_at)),
-    ...listBlocks('⚠️ 다음 액션일 지난 고객', overdue, '액션일', c => fmtDate(c.next_action_at)),
+    ...listBlocks('📞 오늘 연락해야 할 고객', todayActions, '액션일', c => fmtDateKST(c.next_action_at)),
+    ...listBlocks('🤝 오늘 미팅 예정', todayMeetings, '미팅', c => fmtDateTimeKST(c.meeting_at)),
+    ...listBlocks('⚠️ 다음 액션일 지난 고객', overdue, '액션일', c => fmtDateKST(c.next_action_at)),
   ]
 }
 

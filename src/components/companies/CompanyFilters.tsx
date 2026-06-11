@@ -83,8 +83,8 @@ export function CompanyFilters({ profiles, total }: CompanyFiltersProps) {
         </Sel>
       </div>
 
-      <div className="flex gap-2 items-center">
-        <form onSubmit={onSearch} className="flex flex-1 gap-2">
+      <div className="flex flex-wrap gap-2 items-center">
+        <form onSubmit={onSearch} className="flex flex-1 min-w-[200px] gap-2">
           <input
             type="text"
             value={q}
