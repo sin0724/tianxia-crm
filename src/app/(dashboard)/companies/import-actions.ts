@@ -3,18 +3,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { parseDate } from '@/lib/csv'
-import { COMPANY_STATUS } from '@/lib/constants'
-
-// status는 여전히 enum이므로 유효값 검증 유지
-function matchStatus(val: string | undefined): string {
-  if (!val?.trim()) return '미연락'
-  const v = val.trim()
-  const exact = (COMPANY_STATUS as readonly string[]).find(e => e === v)
-  if (exact) return exact
-  const ci = (COMPANY_STATUS as readonly string[]).find(e => e.toLowerCase() === v.toLowerCase())
-  if (ci) return ci
-  return '미연락'
-}
 
 // ── 타입 ──────────────────────────────────────────────────────
 
@@ -34,23 +22,17 @@ export interface DuplicateMatch {
   existingId: string
 }
 
+// 가져오기는 핵심 10개 항목만 받음 — 나머지는 등록 후 상세에서 보완
 export interface ImportRow {
   company_name: string
   category?: string
   source?: string
   assigned_to_name?: string
-  assigned_to_email?: string
   region?: string
   phone?: string
-  email?: string
-  kakao_id?: string
-  instagram_url?: string
   naver_place_url?: string
-  website_url?: string
-  status?: string
   meeting_at?: string
   last_contacted_at?: string
-  next_action_at?: string
   latest_note?: string
 }
 
@@ -147,12 +129,11 @@ export async function importCompanies(rows: ImportRow[]): Promise<ImportResult> 
 
   const { data: profilesData } = await supabase
     .from('profiles')
-    .select('id, name, email')
+    .select('id, name')
     .eq('is_active', true)
 
   const profiles = profilesData ?? []
-  const byName  = new Map(profiles.map(p => [p.name.toLowerCase(),  p.id as string]))
-  const byEmail = new Map(profiles.map(p => [p.email.toLowerCase(), p.id as string]))
+  const byName = new Map(profiles.map(p => [p.name.toLowerCase(), p.id as string]))
 
   const result: ImportResult = { inserted: 0, errors: [] }
 
@@ -164,28 +145,21 @@ export async function importCompanies(rows: ImportRow[]): Promise<ImportResult> 
       continue
     }
 
-    let assigned_to: string | null = null
-    if (row.assigned_to_name)
-      assigned_to = byName.get(row.assigned_to_name.toLowerCase()) ?? null
-    if (!assigned_to && row.assigned_to_email)
-      assigned_to = byEmail.get(row.assigned_to_email.toLowerCase()) ?? null
+    // 이름이 매칭되지 않으면 미배정으로 등록 → 목록에서 일괄 배분
+    const assigned_to = row.assigned_to_name
+      ? byName.get(row.assigned_to_name.trim().toLowerCase()) ?? null
+      : null
 
     const { error } = await supabase.from('companies').insert({
       company_name:      row.company_name.trim(),
-      category:          row.category?.trim()  || null,
-      source:            row.source?.trim()    || null,
-      region:            row.region?.trim()             || null,
-      phone:             row.phone?.trim()              || null,
-      email:             row.email?.trim()              || null,
-      kakao_id:          row.kakao_id?.trim()           || null,
-      instagram_url:     row.instagram_url?.trim()      || null,
-      naver_place_url:   row.naver_place_url?.trim()    || null,
-      website_url:       row.website_url?.trim()        || null,
-      status:            matchStatus(row.status),
-      latest_note:       row.latest_note?.trim()        || null,
+      category:          row.category?.trim()        || null,
+      source:            row.source?.trim()          || null,
+      region:            row.region?.trim()          || null,
+      phone:             row.phone?.trim()           || null,
+      naver_place_url:   row.naver_place_url?.trim() || null,
+      latest_note:       row.latest_note?.trim()     || null,
       meeting_at:        parseDate(row.meeting_at),
       last_contacted_at: parseDate(row.last_contacted_at),
-      next_action_at:    parseDate(row.next_action_at),
       assigned_to,
     })
 

@@ -1,29 +1,25 @@
 // ── CRM 필드 정의 ─────────────────────────────────────────────
+// 가져오기는 기존 엑셀 운영 컬럼에 맞춰 핵심 10개 항목만 받습니다.
+// aliases: 엑셀 헤더가 조금 달라도 자동 매핑되도록 하는 별칭 목록
 
 export interface CrmField {
   key: string
   label: string
   required: boolean
+  aliases?: string[]
 }
 
 export const CRM_FIELDS: CrmField[] = [
-  { key: 'company_name',      label: '상호명',              required: true  },
-  { key: 'category',          label: '구분',                required: true  },
-  { key: 'source',            label: 'DB 경로',              required: true  },
-  { key: 'assigned_to_name',  label: '담당자 (이름)',        required: false },
-  { key: 'assigned_to_email', label: '담당자 (이메일)',      required: false },
-  { key: 'region',            label: '지역',                required: false },
-  { key: 'phone',             label: '연락처',              required: false },
-  { key: 'email',             label: '이메일',              required: false },
-  { key: 'kakao_id',          label: '카카오ID',             required: false },
-  { key: 'instagram_url',     label: '인스타그램 URL',      required: false },
-  { key: 'naver_place_url',   label: '네이버 플레이스 URL', required: false },
-  { key: 'website_url',       label: '홈페이지 URL',        required: false },
-  { key: 'status',            label: '상태',                required: false },
-  { key: 'meeting_at',        label: '미팅 예정일',          required: false },
-  { key: 'last_contacted_at', label: '마지막 연락일',        required: false },
-  { key: 'next_action_at',    label: '다음 액션일',          required: false },
-  { key: 'latest_note',       label: '최근 특이사항',        required: false },
+  { key: 'company_name',      label: '상호명',           required: true,  aliases: ['업체명', '회사명', '거래처명'] },
+  { key: 'category',          label: '구분',             required: true,  aliases: ['카테고리', '업종'] },
+  { key: 'source',            label: 'DB 경로',          required: true,  aliases: ['DB경로', '경로', '유입경로', '유입 경로'] },
+  { key: 'assigned_to_name',  label: '담당자',           required: false, aliases: ['담당자 (이름)', '담당자명', '담당'] },
+  { key: 'region',            label: '지역',             required: false, aliases: ['위치', '소재지'] },
+  { key: 'phone',             label: '연락처',           required: false, aliases: ['전화번호', '휴대폰', '핸드폰', '전화'] },
+  { key: 'naver_place_url',   label: '네이버 플레이스',  required: false, aliases: ['네이버 플레이스 URL', '네이버플레이스', '플레이스'] },
+  { key: 'meeting_at',        label: '미팅 예정일',      required: false, aliases: ['미팅예정일', '미팅일', '미팅'] },
+  { key: 'last_contacted_at', label: '마지막 연락일',    required: false, aliases: ['마지막 연락', '마지막 연락 시점', '최근 연락일', '최근연락'] },
+  { key: 'latest_note',       label: '최근 특이사항',    required: false, aliases: ['특이사항', '메모', '비고', '노트'] },
 ]
 
 // ── CSV 파싱 ──────────────────────────────────────────────────
@@ -62,10 +58,15 @@ export function autoDetectMapping(csvHeaders: string[]): Record<string, string> 
   const mapping: Record<string, string> = {}
   const norm = (s: string) => s.toLowerCase().replace(/\s/g, '')
   const normalizedHeaders = csvHeaders.map(norm)
+  const used = new Set<number>()
 
   for (const field of CRM_FIELDS) {
-    const idx = normalizedHeaders.indexOf(norm(field.label))
-    if (idx !== -1) mapping[field.key] = csvHeaders[idx]
+    const candidates = [field.label, ...(field.aliases ?? [])].map(norm)
+    const idx = normalizedHeaders.findIndex((h, i) => !used.has(i) && candidates.includes(h))
+    if (idx !== -1) {
+      mapping[field.key] = csvHeaders[idx]
+      used.add(idx)
+    }
   }
   return mapping
 }

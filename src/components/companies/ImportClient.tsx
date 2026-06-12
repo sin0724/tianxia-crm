@@ -23,18 +23,11 @@ function applyMapping(row: string[], headers: string[], mapping: Record<string, 
     category:          get('category'),
     source:            get('source'),
     assigned_to_name:  get('assigned_to_name'),
-    assigned_to_email: get('assigned_to_email'),
     region:            get('region'),
     phone:             get('phone'),
-    email:             get('email'),
-    kakao_id:          get('kakao_id'),
-    instagram_url:     get('instagram_url'),
     naver_place_url:   get('naver_place_url'),
-    website_url:       get('website_url'),
-    status:            get('status'),
     meeting_at:        get('meeting_at'),
     last_contacted_at: get('last_contacted_at'),
-    next_action_at:    get('next_action_at'),
     latest_note:       get('latest_note'),
   }
 }
@@ -90,13 +83,15 @@ export function ImportClient() {
     // 전체 선택으로 초기화
     setSelectedIndices(new Set(rows.map((_, i) => i)))
 
-    const candidates = rows.map((row, idx) => ({
-      idx,
-      company_name:    applyMapping(row, headers, mapping).company_name,
-      phone:           applyMapping(row, headers, mapping).phone,
-      naver_place_url: applyMapping(row, headers, mapping).naver_place_url,
-      instagram_url:   applyMapping(row, headers, mapping).instagram_url,
-    }))
+    const candidates = rows.map((row, idx) => {
+      const mapped = applyMapping(row, headers, mapping)
+      return {
+        idx,
+        company_name:    mapped.company_name,
+        phone:           mapped.phone,
+        naver_place_url: mapped.naver_place_url,
+      }
+    })
 
     startTransition(async () => {
       const matches = await checkDuplicates(candidates)
@@ -127,9 +122,9 @@ export function ImportClient() {
   function downloadTemplate() {
     const headers = CRM_FIELDS.map(f => f.label)
     const exampleRow: (string | null)[] = [
-      '(주)티엔샤', '병의원', '네이버', '홍길동', '', '서울 강남구',
-      '010-1234-5678', 'contact@example.com', '', '', '', '',
-      '미연락', '', '', '', '',
+      '(주)티엔샤', '병의원', '네이버', '홍길동', '서울 강남구',
+      '010-1234-5678', 'https://place.naver.com/...',
+      '2026.07.01', '2026.06.10', '6월 초 상담, 7월 재연락 예정',
     ]
     const csv = generateCSV(headers, [exampleRow])
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -167,7 +162,9 @@ export function ImportClient() {
       <div className="mt-6 bg-gray-50 rounded-lg p-4 text-xs text-gray-500 space-y-1">
         <p className="font-semibold text-gray-700 mb-2">필수 컬럼</p>
         {CRM_FIELDS.filter(f => f.required).map(f => <p key={f.key}>• {f.label}</p>)}
-        <p className="text-gray-400 pt-1">+ 담당자 이름 또는 담당자 이메일 중 하나</p>
+        <p className="text-gray-400 pt-1">
+          담당자는 비워두면 미배정으로 들어오며, 목록에서 일괄 배분할 수 있습니다.
+        </p>
       </div>
     </div>
   )
@@ -282,7 +279,7 @@ export function ImportClient() {
                 <th className="px-3 py-2 text-left">구분</th>
                 <th className="px-3 py-2 text-left">DB 경로</th>
                 <th className="px-3 py-2 text-left">담당자</th>
-                <th className="px-3 py-2 text-left">상태</th>
+                <th className="px-3 py-2 text-left">연락처</th>
                 <th className="px-3 py-2 text-left">중복 여부</th>
               </tr>
             </thead>
@@ -308,8 +305,8 @@ export function ImportClient() {
                   <td className="px-3 py-2 font-medium text-gray-900">{mapped.company_name || '—'}</td>
                   <td className="px-3 py-2 text-gray-600">{mapped.category || '—'}</td>
                   <td className="px-3 py-2 text-gray-600">{mapped.source || '—'}</td>
-                  <td className="px-3 py-2 text-gray-600">{mapped.assigned_to_name || mapped.assigned_to_email || '—'}</td>
-                  <td className="px-3 py-2 text-gray-600">{mapped.status || '미연락'}</td>
+                  <td className="px-3 py-2 text-gray-600">{mapped.assigned_to_name || '미배정'}</td>
+                  <td className="px-3 py-2 text-gray-600">{mapped.phone || '—'}</td>
                   <td className="px-3 py-2">
                     {dupe
                       ? <span className="text-orange-600">⚠ {dupe.matchedField} ({dupe.existingName})</span>
