@@ -76,17 +76,6 @@ function toContractCountItems(rows: ChartRow[]) {
     .sort((a, b) => b.value - a.value)
 }
 
-function toContractAmountItems(rows: ChartRow[]) {
-  return rows
-    .filter(r => r.contractAmount > 0)
-    .map(r => ({
-      label:   r.label,
-      value:   r.contractAmount,
-      display: fmtAmount(r.contractAmount),
-    }))
-    .sort((a, b) => b.value - a.value)
-}
-
 // ── Page ──────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
@@ -200,13 +189,6 @@ export default async function DashboardPage() {
             items={toContractCountItems(byAssignee)}
             emptyMessage="계약 완료 내역 없음"
           />
-          <div className="sm:col-span-2">
-            <BarChart
-              title="담당자별 계약 완료 금액"
-              items={toContractAmountItems(byAssignee)}
-              emptyMessage="계약 완료 금액 없음"
-            />
-          </div>
         </div>
 
         {/* ── DB 경로별 ─────────────────────────────────── */}
