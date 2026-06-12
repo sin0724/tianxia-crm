@@ -64,6 +64,8 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
           canDelete={profile.role === 'admin'}
           canAssign={profile.role === 'admin' || profile.role === 'manager'}
           profiles={profiles}
+          categories={options.categories}
+          sources={options.sources}
         />
         <Pagination page={result.page} pageCount={result.pageCount} total={result.total} />
       </main>

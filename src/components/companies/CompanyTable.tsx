@@ -3,8 +3,9 @@
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { StatusBadge } from './StatusBadge'
+import { COMPANY_STATUS } from '@/lib/constants'
 import type { Company, ProfileOption } from '@/lib/companies'
-import { deleteCompany, deleteCompanies, assignCompanies } from '@/app/(dashboard)/companies/actions'
+import { deleteCompany, deleteCompanies, assignCompanies, bulkUpdateCompanies } from '@/app/(dashboard)/companies/actions'
 
 function fmtDate(s: string | null) {
   if (!s) return '—'
@@ -23,15 +24,25 @@ interface CompanyTableProps {
   /** admin/manager: 선택한 거래처를 담당자에게 일괄 배분 가능 */
   canAssign?: boolean
   profiles?: ProfileOption[]
+  /** 일괄 수정용 구분/DB경로 자동완성 옵션 */
+  categories?: string[]
+  sources?: string[]
 }
 
-export function CompanyTable({ companies, canDelete = false, canAssign = false, profiles = [] }: CompanyTableProps) {
+export function CompanyTable({
+  companies, canDelete = false, canAssign = false,
+  profiles = [], categories = [], sources = [],
+}: CompanyTableProps) {
   const [confirmId, setConfirmId]       = useState<string | null>(null)
   const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set())
   const [bulkConfirm, setBulkConfirm]   = useState(false)
   const [deleteError, setDeleteError]   = useState<string | null>(null)
   const [assignee, setAssignee]         = useState('')
   const [assignedMsg, setAssignedMsg]   = useState<string | null>(null)
+  const [showBulkEdit, setShowBulkEdit] = useState(false)
+  const [bulkStatus, setBulkStatus]     = useState('')
+  const [bulkCategory, setBulkCategory] = useState('')
+  const [bulkSource, setBulkSource]     = useState('')
   const [isDeleting, startTransition]   = useTransition()
 
   const allSelected  = companies.length > 0 && selectedIds.size === companies.length
@@ -87,6 +98,27 @@ export function CompanyTable({ companies, canDelete = false, canAssign = false, 
     })
   }
 
+  function handleBulkEdit() {
+    const ids = Array.from(selectedIds)
+    setDeleteError(null)
+    setAssignedMsg(null)
+    startTransition(async () => {
+      const result = await bulkUpdateCompanies(ids, {
+        status:   bulkStatus || undefined,
+        category: bulkCategory || undefined,
+        source:   bulkSource || undefined,
+      })
+      if (result?.error) {
+        setDeleteError(result.error)
+        return
+      }
+      setSelectedIds(new Set())
+      setShowBulkEdit(false)
+      setBulkStatus(''); setBulkCategory(''); setBulkSource('')
+      setAssignedMsg(`${ids.length}건 일괄 수정 완료`)
+    })
+  }
+
   if (companies.length === 0) {
     return (
       <div className="bg-white border border-gray-200 rounded-xl py-16 text-center">
@@ -105,7 +137,7 @@ export function CompanyTable({ companies, canDelete = false, canAssign = false, 
       )}
 
       {/* 선택 액션 바 */}
-      {someSelected && (canAssign || canDelete) && (
+      {someSelected && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5">
           <span className="text-sm font-medium text-blue-700">{selectedIds.size}개 선택됨</span>
           <div className="flex-1" />
@@ -136,6 +168,14 @@ export function CompanyTable({ companies, canDelete = false, canAssign = false, 
                 className="text-sm text-blue-600 hover:underline"
               >
                 전체 {companies.length}개 선택
+              </button>
+
+              <button
+                onClick={() => setShowBulkEdit(v => !v)}
+                disabled={isDeleting}
+                className="px-3 py-1.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-white disabled:opacity-50 transition-colors"
+              >
+                ✏️ 일괄 수정
               </button>
 
               {canAssign && (
@@ -178,6 +218,65 @@ export function CompanyTable({ companies, canDelete = false, canAssign = false, 
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* 일괄 수정 패널 — 비워둔 항목은 변경하지 않음 */}
+      {someSelected && showBulkEdit && (
+        <div className="flex flex-wrap items-end gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">상태</label>
+            <select
+              value={bulkStatus}
+              onChange={e => setBulkStatus(e.target.value)}
+              className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">변경 안 함</option>
+              {COMPANY_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">구분</label>
+            <input
+              type="text"
+              list="bulk-category-options"
+              value={bulkCategory}
+              onChange={e => setBulkCategory(e.target.value)}
+              placeholder="변경 안 함"
+              className="w-36 px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <datalist id="bulk-category-options">
+              {categories.map(v => <option key={v} value={v} />)}
+            </datalist>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">DB 경로</label>
+            <input
+              type="text"
+              list="bulk-source-options"
+              value={bulkSource}
+              onChange={e => setBulkSource(e.target.value)}
+              placeholder="변경 안 함"
+              className="w-36 px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <datalist id="bulk-source-options">
+              {sources.map(v => <option key={v} value={v} />)}
+            </datalist>
+          </div>
+          <button
+            onClick={handleBulkEdit}
+            disabled={isDeleting || (!bulkStatus && !bulkCategory.trim() && !bulkSource.trim())}
+            className="px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {isDeleting ? '수정 중...' : `선택한 ${selectedIds.size}건 수정`}
+          </button>
+          <button
+            onClick={() => setShowBulkEdit(false)}
+            disabled={isDeleting}
+            className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
+          >
+            닫기
+          </button>
         </div>
       )}
 

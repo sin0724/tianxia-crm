@@ -296,6 +296,48 @@ export async function assignCompanies(
   }
 }
 
+/**
+ * 선택한 거래처 일괄 수정 (상태/구분/DB경로).
+ * 비어 있는 필드는 변경하지 않는다. RLS가 적용되므로 sales는 본인 담당 건만 수정된다.
+ */
+export async function bulkUpdateCompanies(
+  ids: string[],
+  changes: { status?: string; category?: string; source?: string },
+): Promise<ActionResult | undefined> {
+  await requireAuth()
+  if (ids.length === 0) return
+
+  const update: Record<string, string> = {}
+  if (changes.status) {
+    if (!(COMPANY_STATUS as readonly string[]).includes(changes.status)) {
+      return { error: '유효하지 않은 상태입니다.' }
+    }
+    update.status = changes.status
+  }
+  if (changes.category?.trim()) update.category = changes.category.trim()
+  if (changes.source?.trim())   update.source = changes.source.trim()
+  if (Object.keys(update).length === 0) return { error: '변경할 항목을 선택해주세요.' }
+
+  const supabase = await createClient()
+  const { data: updated, error } = await supabase
+    .from('companies')
+    .update(update)
+    .in('id', ids)
+    .select('id')
+  if (error) return { error: error.message }
+
+  const count = updated?.length ?? 0
+  revalidatePath('/companies')
+  revalidatePath('/companies/board')
+  revalidatePath('/dashboard')
+  revalidatePath('/tasks')
+
+  if (count === 0) return { error: '수정된 거래처가 없습니다. (권한 확인 필요)' }
+  if (count < ids.length) {
+    return { error: `${ids.length}건 중 ${count}건만 수정되었습니다. (권한 없는 항목 제외)` }
+  }
+}
+
 // 칸반 보드: 상태만 변경
 export async function updateCompanyStatus(id: string, status: string): Promise<ActionResult | undefined> {
   await requireAuth()
