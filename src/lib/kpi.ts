@@ -23,7 +23,8 @@ export interface KpiEntry {
 }
 
 // ── 대상 유저 결정 ────────────────────────────────────────────
-// sales: 본인만 / manager: 같은 팀 / admin: 전체 활성 유저
+// KPI는 영업 실무자(sales) 지표 — admin/manager는 감독 대상인 영업사원만 조회
+// sales: 본인만 / manager: 같은 팀 영업사원 / admin: 전체 활성 영업사원
 
 async function getTargetProfiles(profile: Profile): Promise<{ id: string; name: string }[]> {
   if (profile.role === 'sales') {
@@ -35,6 +36,7 @@ async function getTargetProfiles(profile: Profile): Promise<{ id: string; name: 
     .from('profiles')
     .select('id, name')
     .eq('is_active', true)
+    .eq('role', 'sales')
     .order('name')
 
   if (profile.role === 'manager' && profile.team) {
@@ -42,7 +44,7 @@ async function getTargetProfiles(profile: Profile): Promise<{ id: string; name: 
   }
 
   const { data } = await q
-  return data ?? [{ id: profile.id, name: profile.name }]
+  return data ?? []
 }
 
 // ── KPI 집계 ──────────────────────────────────────────────────

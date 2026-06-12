@@ -9,6 +9,7 @@ type TaskCompany = Pick<
   | 'category'
   | 'status'
   | 'phone'
+  | 'assigned_to'
   | 'next_action_at'
   | 'last_contacted_at'
   | 'meeting_at'
@@ -17,7 +18,7 @@ type TaskCompany = Pick<
 
 const EXCLUDED_STATUSES = ['계약 완료', '실패', '제외']
 
-const SELECT = 'id, company_name, category, status, phone, next_action_at, last_contacted_at, meeting_at, profiles(name)'
+const SELECT = 'id, company_name, category, status, phone, assigned_to, next_action_at, last_contacted_at, meeting_at, profiles(name)'
 
 export interface TaskFilters {
   assigned_to?: string
