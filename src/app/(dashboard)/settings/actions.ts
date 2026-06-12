@@ -29,12 +29,17 @@ export async function updateProfileName(name: string): Promise<{ error?: string 
 
 export async function updateMemberAccess(
   targetId: string,
-  changes: { role?: 'admin' | 'manager' | 'sales'; is_active?: boolean; team?: string | null },
+  changes: { name?: string; role?: 'admin' | 'manager' | 'sales'; is_active?: boolean; team?: string | null },
 ): Promise<{ error?: string }> {
   const profile = await requireAuth()
   if (profile.role !== 'admin') return { error: '관리자만 변경할 수 있습니다.' }
   if (targetId === profile.id && changes.is_active === false) {
     return { error: '본인 계정은 비활성화할 수 없습니다.' }
+  }
+
+  if (changes.name !== undefined) {
+    changes.name = changes.name.trim()
+    if (!changes.name) return { error: '이름을 입력해주세요.' }
   }
 
   const supabase = await createClient()
@@ -48,5 +53,11 @@ export async function updateMemberAccess(
   if (!updated || updated.length === 0) return { error: '변경되지 않았습니다.' }
 
   revalidatePath('/settings')
+  if (changes.name !== undefined) {
+    // 이름은 거래처 담당자 표기·할 일·대시보드 곳곳에 쓰임
+    revalidatePath('/companies')
+    revalidatePath('/dashboard')
+    revalidatePath('/tasks')
+  }
   return {}
 }
