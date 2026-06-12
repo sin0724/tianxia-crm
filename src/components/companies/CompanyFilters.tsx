@@ -10,9 +10,10 @@ interface CompanyFiltersProps {
   total: number
   categories: string[]
   sources: string[]
+  inflowMonths: string[]
 }
 
-export function CompanyFilters({ profiles, total, categories, sources }: CompanyFiltersProps) {
+export function CompanyFilters({ profiles, total, categories, sources, inflowMonths }: CompanyFiltersProps) {
   const router = useRouter()
   const sp = useSearchParams()
 
@@ -21,12 +22,16 @@ export function CompanyFilters({ profiles, total, categories, sources }: Company
   const [category,    setCategory]    = useState(sp.get('category') ?? '')
   const [source,      setSource]      = useState(sp.get('source') ?? '')
   const [nextAction,  setNextAction]  = useState(sp.get('next_action') ?? '')
+  const [inflowMonth, setInflowMonth] = useState(sp.get('inflow_month') ?? '')
   const [q,           setQ]           = useState(sp.get('q') ?? '')
 
   const stage = sp.get('stage') ?? ''
 
   function push(overrides: Record<string, string> = {}) {
-    const cur = { stage, status, assigned_to: assignedTo, category, source, next_action: nextAction, q }
+    const cur = {
+      stage, status, assigned_to: assignedTo, category, source,
+      next_action: nextAction, inflow_month: inflowMonth, q,
+    }
     const merged = { ...cur, ...overrides }
     const params = new URLSearchParams()
     Object.entries(merged).forEach(([k, v]) => { if (v) params.set(k, v) })
@@ -35,11 +40,12 @@ export function CompanyFilters({ profiles, total, categories, sources }: Company
 
   function onSelect(key: string, value: string) {
     const setters: Record<string, (v: string) => void> = {
-      status:      setStatus,
-      assigned_to: setAssignedTo,
-      category:    setCategory,
-      source:      setSource,
-      next_action: setNextAction,
+      status:       setStatus,
+      assigned_to:  setAssignedTo,
+      category:     setCategory,
+      source:       setSource,
+      next_action:  setNextAction,
+      inflow_month: setInflowMonth,
     }
     setters[key]?.(value)
     push({ [key]: value })
@@ -58,11 +64,11 @@ export function CompanyFilters({ profiles, total, categories, sources }: Company
 
   function onClear() {
     setStatus(''); setAssignedTo(''); setCategory('')
-    setSource(''); setNextAction(''); setQ('')
+    setSource(''); setNextAction(''); setInflowMonth(''); setQ('')
     router.push('/companies')
   }
 
-  const hasFilter = [stage, status, assignedTo, category, source, nextAction, q].some(Boolean)
+  const hasFilter = [stage, status, assignedTo, category, source, nextAction, inflowMonth, q].some(Boolean)
 
   // 단계 탭 안에서는 해당 단계의 상태만 노출
   const statusOptions = stage && stage in STAGE_STATUS
@@ -100,6 +106,13 @@ export function CompanyFilters({ profiles, total, categories, sources }: Company
           <Sel label="DB 경로" value={source} onChange={v => onSelect('source', v)}>
             <option value="">전체 경로</option>
             {sources.map(s => <option key={s} value={s}>{s}</option>)}
+          </Sel>
+
+          <Sel label="유입월" value={inflowMonth} onChange={v => onSelect('inflow_month', v)}>
+            <option value="">전체 유입월</option>
+            {inflowMonths.map(m => (
+              <option key={m} value={m}>{m.replace('-', '년 ')}월 DB</option>
+            ))}
           </Sel>
 
           <Sel label="다음 액션" value={nextAction} onChange={v => onSelect('next_action', v)}>

@@ -6,7 +6,7 @@ import { fmtFullDateKST } from '@/lib/datetime'
 import { redirect } from 'next/navigation'
 
 const CSV_HEADERS = [
-  '상호명', '구분', '지역', 'DB 경로', '담당자',
+  '상호명', '구분', '지역', 'DB 경로', '유입일', '담당자',
   '상태', '연락처', '이메일', '카카오ID',
   '인스타그램 URL', '네이버 플레이스 URL', '홈페이지 URL',
   '예상 금액', '계약 금액', '미팅 예정일', '다음 액션일',
@@ -18,6 +18,7 @@ type ExportRow = {
   category: string | null
   region: string | null
   source: string | null
+  inflow_date: string | null
   profiles: { name: string } | null
   status: string
   phone: string | null
@@ -46,6 +47,7 @@ function toRow(c: ExportRow): (string | null)[] {
     c.category,
     c.region,
     c.source,
+    c.inflow_date,
     c.profiles?.name ?? null,
     c.status,
     c.phone,
@@ -76,7 +78,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient()
   const SELECT = [
-    'company_name', 'category', 'region', 'source',
+    'company_name', 'category', 'region', 'source', 'inflow_date',
     'status', 'phone', 'email', 'kakao_id',
     'instagram_url', 'naver_place_url', 'website_url',
     'expected_amount', 'contract_amount',

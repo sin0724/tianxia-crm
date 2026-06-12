@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Company } from '@/lib/companies'
-import { kstTodayRange, kstStartOfDay, kstDaysAgoEnd } from '@/lib/datetime'
+import { kstTodayRange, kstStartOfDay, kstStartOfMonth, kstDaysAgoEnd, kstDateString } from '@/lib/datetime'
 
 type TaskCompany = Pick<
   Company,
@@ -10,6 +10,7 @@ type TaskCompany = Pick<
   | 'status'
   | 'phone'
   | 'assigned_to'
+  | 'inflow_date'
   | 'next_action_at'
   | 'last_contacted_at'
   | 'meeting_at'
@@ -18,7 +19,7 @@ type TaskCompany = Pick<
 
 const EXCLUDED_STATUSES = ['계약 완료', '실패', '제외']
 
-const SELECT = 'id, company_name, category, status, phone, assigned_to, next_action_at, last_contacted_at, meeting_at, profiles(name)'
+const SELECT = 'id, company_name, category, status, phone, assigned_to, inflow_date, next_action_at, last_contacted_at, meeting_at, profiles(name)'
 
 export interface TaskFilters {
   assigned_to?: string
@@ -55,6 +56,24 @@ export async function getOverdueActions(filters: TaskFilters = {}): Promise<Task
 
   if (filters.assigned_to) q = q.eq('assigned_to', filters.assigned_to)
   for (const s of EXCLUDED_STATUSES) q = q.neq('status', s)
+
+  const { data } = await q
+  return (data as unknown as TaskCompany[]) ?? []
+}
+
+/** 이번 달 유입됐는데 아직 한 번도 연락 안 한 거래처 — 신선한 DB 우선 대응 유도 */
+export async function getFreshInflow(filters: TaskFilters = {}): Promise<TaskCompany[]> {
+  const supabase = await createClient()
+  const monthStart = kstDateString(kstStartOfMonth())
+
+  let q = supabase
+    .from('companies')
+    .select(SELECT)
+    .gte('inflow_date', monthStart)
+    .eq('status', '미연락')
+    .order('inflow_date', { ascending: false })
+
+  if (filters.assigned_to) q = q.eq('assigned_to', filters.assigned_to)
 
   const { data } = await q
   return (data as unknown as TaskCompany[]) ?? []

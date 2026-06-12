@@ -13,6 +13,11 @@ function fmtDate(s: string | null) {
     .replace(/\. /g, '.').replace(/\.$/, '')
 }
 
+function fmtMonth(s: string | null) {
+  if (!s) return '—'
+  return s.slice(0, 7).replace('-', '.')
+}
+
 function isOverdue(s: string | null) {
   // 오늘 자정 이전이면 기한 초과 (당일은 초과 아님)
   return !!s && new Date(s).getTime() < new Date().setHours(0, 0, 0, 0)
@@ -43,6 +48,7 @@ export function CompanyTable({
   const [bulkStatus, setBulkStatus]     = useState('')
   const [bulkCategory, setBulkCategory] = useState('')
   const [bulkSource, setBulkSource]     = useState('')
+  const [bulkInflow, setBulkInflow]     = useState('')
   const [isDeleting, startTransition]   = useTransition()
 
   const allSelected  = companies.length > 0 && selectedIds.size === companies.length
@@ -104,9 +110,10 @@ export function CompanyTable({
     setAssignedMsg(null)
     startTransition(async () => {
       const result = await bulkUpdateCompanies(ids, {
-        status:   bulkStatus || undefined,
-        category: bulkCategory || undefined,
-        source:   bulkSource || undefined,
+        status:       bulkStatus || undefined,
+        category:     bulkCategory || undefined,
+        source:       bulkSource || undefined,
+        inflow_month: bulkInflow || undefined,
       })
       if (result?.error) {
         setDeleteError(result.error)
@@ -114,7 +121,7 @@ export function CompanyTable({
       }
       setSelectedIds(new Set())
       setShowBulkEdit(false)
-      setBulkStatus(''); setBulkCategory(''); setBulkSource('')
+      setBulkStatus(''); setBulkCategory(''); setBulkSource(''); setBulkInflow('')
       setAssignedMsg(`${ids.length}건 일괄 수정 완료`)
     })
   }
@@ -263,9 +270,18 @@ export function CompanyTable({
               {sources.map(v => <option key={v} value={v} />)}
             </datalist>
           </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">유입월 (DB 월)</label>
+            <input
+              type="month"
+              value={bulkInflow}
+              onChange={e => setBulkInflow(e.target.value)}
+              className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
           <button
             onClick={handleBulkEdit}
-            disabled={isDeleting || (!bulkStatus && !bulkCategory.trim() && !bulkSource.trim())}
+            disabled={isDeleting || (!bulkStatus && !bulkCategory.trim() && !bulkSource.trim() && !bulkInflow)}
             className="px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             {isDeleting ? '수정 중...' : `선택한 ${selectedIds.size}건 수정`}
@@ -311,7 +327,11 @@ export function CompanyTable({
                   <StatusBadge status={c.status} />
                 </div>
                 <p className="mt-1 text-xs text-gray-500 truncate">
-                  {[c.category, c.region, c.source, c.profiles?.name].filter(Boolean).join(' · ') || '—'}
+                  {[
+                    c.category, c.region, c.source,
+                    c.inflow_date ? `${fmtMonth(c.inflow_date)} 유입` : null,
+                    c.profiles?.name,
+                  ].filter(Boolean).join(' · ') || '—'}
                 </p>
                 {c.phone && (
                   <a href={`tel:${c.phone}`} className="mt-1 inline-block text-xs text-blue-600 hover:underline">
@@ -385,7 +405,7 @@ export function CompanyTable({
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                 </th>
-                {['상호명','구분','지역','DB 경로','담당자','상태','미팅 예정일','마지막 연락일','다음 액션일','최근 특이사항','작업'].map(h => (
+                {['상호명','구분','지역','DB 경로','유입월','담당자','상태','미팅 예정일','마지막 연락일','다음 액션일','최근 특이사항','작업'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
@@ -411,6 +431,7 @@ export function CompanyTable({
                   <Td>{c.category}</Td>
                   <Td>{c.region}</Td>
                   <Td>{c.source}</Td>
+                  <Td>{fmtMonth(c.inflow_date)}</Td>
                   <Td>{c.profiles?.name}</Td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <StatusBadge status={c.status} />

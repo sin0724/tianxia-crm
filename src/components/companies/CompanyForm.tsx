@@ -147,6 +147,11 @@ export function CompanyForm({
               {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </Field>
+          <Field label="유입일 (DB 유입 시점)">
+            <input name="inflow_date" type="date"
+              defaultValue={toDate(d.inflow_date) || (companyId ? '' : new Date().toLocaleDateString('en-CA'))}
+              className={inputCls} />
+          </Field>
         </Card>
 
         {/* 연락처 정보 */}

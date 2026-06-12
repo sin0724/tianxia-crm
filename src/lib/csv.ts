@@ -17,6 +17,7 @@ export const CRM_FIELDS: CrmField[] = [
   { key: 'region',            label: '지역',             required: false, aliases: ['위치', '소재지'] },
   { key: 'phone',             label: '연락처',           required: false, aliases: ['전화번호', '휴대폰', '핸드폰', '전화'] },
   { key: 'naver_place_url',   label: '네이버 플레이스',  required: false, aliases: ['네이버 플레이스 URL', '네이버플레이스', '플레이스'] },
+  { key: 'inflow_date',       label: '유입일',           required: false, aliases: ['유입월', 'DB월', '유입 시점', '유입날짜', 'DB 유입일'] },
   { key: 'meeting_at',        label: '미팅 예정일',      required: false, aliases: ['미팅예정일', '미팅일', '미팅'] },
   { key: 'last_contacted_at', label: '마지막 연락일',    required: false, aliases: ['마지막 연락', '마지막 연락 시점', '최근 연락일', '최근연락'] },
   { key: 'latest_note',       label: '최근 특이사항',    required: false, aliases: ['특이사항', '메모', '비고', '노트'] },
@@ -103,12 +104,17 @@ export function generateCSV(headers: string[], rows: (string | null)[][]): strin
 
 export function parseDate(s: string | undefined | null): string | null {
   if (!s) return null
-  if (/^\d{4}-\d{2}-\d{2}/.test(s))     return s.substring(0, 10)
-  if (/^\d{4}\.\d{1,2}\.\d{1,2}/.test(s)) {
-    const [y, m, d] = s.split('.')
+  const v = s.trim()
+  if (/^\d{4}-\d{2}-\d{2}/.test(v))     return v.substring(0, 10)
+  if (/^\d{4}\.\d{1,2}\.\d{1,2}/.test(v)) {
+    const [y, m, d] = v.split('.')
     return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
   }
-  const ko = s.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/)
+  const ko = v.match(/^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/)
   if (ko) return `${ko[1]}-${ko[2].padStart(2, '0')}-${ko[3].padStart(2, '0')}`
+
+  // 월 단위 표기 → 해당 월 1일 ("2026-06", "2026.6", "2026년 6월")
+  const ym = v.match(/^(\d{4})[-.년]\s*(\d{1,2})월?$/)
+  if (ym) return `${ym[1]}-${ym[2].padStart(2, '0')}-01`
   return null
 }

@@ -17,6 +17,7 @@ export interface Company {
   website_url: string | null
   assigned_to: string | null
   status: string
+  inflow_date: string | null
   interest_level: number | null
   expected_amount: number | null
   contract_amount: number | null
@@ -43,8 +44,19 @@ export interface CompanyListFilters {
   category?: string
   source?: string
   next_action?: string
+  inflow_month?: string // "YYYY-MM"
   q?: string
   page?: number
+}
+
+// "YYYY-MM" → 해당 월의 [시작일, 다음 달 시작일) 범위
+function monthRange(month: string): { from: string; to: string } | null {
+  const m = month.match(/^(\d{4})-(\d{2})$/)
+  if (!m) return null
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const next = mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`
+  return { from: `${month}-01`, to: `${next}-01` }
 }
 
 export const PAGE_SIZE = 50
@@ -62,7 +74,7 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
 
   let query = supabase
     .from('companies')
-    .select('id, company_name, category, region, source, status, phone, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, profiles(name)', { count: 'exact' })
+    .select('id, company_name, category, region, source, status, phone, inflow_date, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, profiles(name)', { count: 'exact' })
     .order('next_action_at', { ascending: true, nullsFirst: false })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
 
@@ -77,6 +89,13 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
 
   if (filters.stage && filters.stage in STAGE_STATUS) {
     query = query.in('status', STAGE_STATUS[filters.stage as Stage])
+  }
+
+  if (filters.inflow_month) {
+    const range = monthRange(filters.inflow_month)
+    if (range) {
+      query = query.gte('inflow_date', range.from).lt('inflow_date', range.to)
+    }
   }
 
   if (filters.next_action === 'overdue') {
@@ -105,21 +124,31 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
   }
 }
 
-// 필터/폼 옵션용: DB에 실제 존재하는 구분·DB경로 값 + 기본 목록 병합
-export async function getCategorySourceOptions(): Promise<{ categories: string[]; sources: string[] }> {
+// 필터/폼 옵션용: DB에 실제 존재하는 구분·DB경로·유입월 값
+export async function getCategorySourceOptions(): Promise<{
+  categories: string[]
+  sources: string[]
+  inflowMonths: string[] // "YYYY-MM" 내림차순
+}> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('companies')
-    .select('category, source')
+    .select('category, source, inflow_date')
     .limit(5000)
 
   const categories = new Set<string>(COMPANY_CATEGORY)
   const sources = new Set<string>(COMPANY_SOURCE)
+  const months = new Set<string>()
   for (const row of data ?? []) {
-    if (row.category) categories.add(row.category)
-    if (row.source)   sources.add(row.source)
+    if (row.category)    categories.add(row.category)
+    if (row.source)      sources.add(row.source)
+    if (row.inflow_date) months.add((row.inflow_date as string).slice(0, 7))
   }
-  return { categories: [...categories], sources: [...sources] }
+  return {
+    categories: [...categories],
+    sources: [...sources],
+    inflowMonths: [...months].sort().reverse(),
+  }
 }
 
 export async function getCompany(id: string): Promise<Company | null> {

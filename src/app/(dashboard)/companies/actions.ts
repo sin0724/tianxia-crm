@@ -46,6 +46,7 @@ function extractData(fd: FormData) {
     website_url:     str('website_url'),
     assigned_to:     str('assigned_to'),
     status:          str('status') ?? '미연락',
+    inflow_date:     str('inflow_date'),
     interest_level:  num('interest_level'),
     expected_amount: num('expected_amount'),
     contract_amount: num('contract_amount'),
@@ -89,7 +90,7 @@ export async function createCompany(formData: FormData): Promise<ActionResult | 
   const supabase = await createClient()
   const { error } = await supabase
     .from('companies')
-    .insert({ id, ...data, assigned_to })
+    .insert({ id, ...data, assigned_to, inflow_date: data.inflow_date ?? kstDateString() })
 
   if (error) return { error: error.message }
 
@@ -118,13 +119,15 @@ export async function updateCompany(id: string, formData: FormData): Promise<Act
   // 변경 감지용 기존 데이터 조회
   const { data: prev } = await supabase
     .from('companies')
-    .select('status, meeting_at, last_contacted_at, next_action_at')
+    .select('status, meeting_at, last_contacted_at, next_action_at, inflow_date')
     .eq('id', id)
     .single()
 
   if (prev) {
     data.last_contacted_at = preserveTimeIfSameDate(data.last_contacted_at, prev.last_contacted_at)
     data.next_action_at    = preserveTimeIfSameDate(data.next_action_at,    prev.next_action_at)
+    // 유입일을 비워서 저장해도 기존 값이 지워지지 않게 보존
+    data.inflow_date       = data.inflow_date ?? prev.inflow_date
   }
 
   const { error } = await supabase.from('companies').update(data).eq('id', id)
@@ -302,7 +305,7 @@ export async function assignCompanies(
  */
 export async function bulkUpdateCompanies(
   ids: string[],
-  changes: { status?: string; category?: string; source?: string },
+  changes: { status?: string; category?: string; source?: string; inflow_month?: string },
 ): Promise<ActionResult | undefined> {
   await requireAuth()
   if (ids.length === 0) return
@@ -316,6 +319,12 @@ export async function bulkUpdateCompanies(
   }
   if (changes.category?.trim()) update.category = changes.category.trim()
   if (changes.source?.trim())   update.source = changes.source.trim()
+  if (changes.inflow_month) {
+    if (!/^\d{4}-\d{2}$/.test(changes.inflow_month)) {
+      return { error: '유입월 형식이 올바르지 않습니다. (예: 2026-06)' }
+    }
+    update.inflow_date = `${changes.inflow_month}-01`
+  }
   if (Object.keys(update).length === 0) return { error: '변경할 항목을 선택해주세요.' }
 
   const supabase = await createClient()

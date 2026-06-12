@@ -25,7 +25,7 @@ interface TaskSectionProps {
   title: string
   companies: TaskCompany[]
   dateLabel: string
-  dateKey: keyof Pick<TaskCompany, 'next_action_at' | 'last_contacted_at' | 'meeting_at'>
+  dateKey: keyof Pick<TaskCompany, 'next_action_at' | 'last_contacted_at' | 'meeting_at' | 'inflow_date'>
   emptyMessage: string
   accent?: 'red'
 }
@@ -98,7 +98,12 @@ export function TaskSection({ title, companies, dateLabel, dateKey, emptyMessage
                     {c.company_name}
                   </Link>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {c.category ?? '—'} · {c.profiles?.name ?? '—'} · {c.status}
+                    {[
+                      c.category ?? '—',
+                      c.profiles?.name ?? '—',
+                      c.status,
+                      c.inflow_date ? `${c.inflow_date.slice(0, 7).replace('-', '.')} 유입` : null,
+                    ].filter(Boolean).join(' · ')}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">

@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { parseDate } from '@/lib/csv'
+import { kstDateString } from '@/lib/datetime'
 
 // ── 타입 ──────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ export interface ImportRow {
   region?: string
   phone?: string
   naver_place_url?: string
+  inflow_date?: string
   meeting_at?: string
   last_contacted_at?: string
   latest_note?: string
@@ -158,6 +160,8 @@ export async function importCompanies(rows: ImportRow[]): Promise<ImportResult> 
       phone:             row.phone?.trim()           || null,
       naver_place_url:   row.naver_place_url?.trim() || null,
       latest_note:       row.latest_note?.trim()     || null,
+      // 유입일이 없으면 가져온 날짜(KST) — 나중에 일괄 수정으로 보정 가능
+      inflow_date:       parseDate(row.inflow_date) ?? kstDateString(),
       meeting_at:        parseDate(row.meeting_at),
       last_contacted_at: parseDate(row.last_contacted_at),
       assigned_to,

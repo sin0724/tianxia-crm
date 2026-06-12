@@ -20,9 +20,10 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
     assigned_to: sp.assigned_to,
     category:    sp.category,
     source:      sp.source,
-    next_action: sp.next_action,
-    q:           sp.q,
-    page:        sp.page ? parseInt(sp.page, 10) || 1 : 1,
+    next_action:  sp.next_action,
+    inflow_month: sp.inflow_month,
+    q:            sp.q,
+    page:         sp.page ? parseInt(sp.page, 10) || 1 : 1,
   }
 
   const [result, profiles, options] = await Promise.all([
@@ -58,6 +59,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
           total={result.total}
           categories={options.categories}
           sources={options.sources}
+          inflowMonths={options.inflowMonths}
         />
         <CompanyTable
           companies={result.companies}

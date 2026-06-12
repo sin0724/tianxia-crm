@@ -51,6 +51,11 @@ DO $$ BEGIN
   ALTER TABLE activities ALTER COLUMN activity_result TYPE TEXT USING activity_result::text;
 EXCEPTION WHEN undefined_table THEN NULL; END $$;
 
+-- 유입일 컬럼 추가 (기존 DB용) + 기존 데이터는 등록일(KST)로 백필
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS inflow_date DATE DEFAULT ((NOW() AT TIME ZONE 'Asia/Seoul')::date);
+UPDATE companies SET inflow_date = (created_at AT TIME ZONE 'Asia/Seoul')::date WHERE inflow_date IS NULL;
+CREATE INDEX IF NOT EXISTS idx_companies_inflow_date ON companies(inflow_date);
+
 -- 더 이상 사용하지 않는 ENUM 타입 정리 (참조 중이면 그대로 둠)
 DO $$ BEGIN DROP TYPE IF EXISTS company_category; EXCEPTION WHEN dependent_objects_still_exist THEN NULL; END $$;
 DO $$ BEGIN DROP TYPE IF EXISTS company_source;   EXCEPTION WHEN dependent_objects_still_exist THEN NULL; END $$;
@@ -87,6 +92,8 @@ CREATE TABLE IF NOT EXISTS companies (
   website_url       TEXT,
   assigned_to       UUID            REFERENCES profiles(id) ON DELETE SET NULL,
   status            company_status  NOT NULL DEFAULT '미연락',
+  -- 유입일: "6월 DB / 7월 DB"처럼 신규 유입 시점을 추적 (KST 기준 오늘이 기본값)
+  inflow_date       DATE            DEFAULT ((NOW() AT TIME ZONE 'Asia/Seoul')::date),
   interest_level    SMALLINT        CHECK (interest_level BETWEEN 1 AND 5),
   expected_amount   BIGINT,
   contract_amount   BIGINT,

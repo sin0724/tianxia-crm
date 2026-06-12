@@ -6,7 +6,7 @@ import { KpiQuickLog } from '@/components/kpi/KpiQuickLog'
 import { createClient } from '@/lib/supabase/server'
 import {
   getTodayActions, getOverdueActions, getTodayMeetings,
-  getLongNoContact, getProposalPending,
+  getLongNoContact, getProposalPending, getFreshInflow,
   type TaskCompany,
 } from '@/lib/tasks'
 import { getKpiData, getMyTodayKpiEntries, type KpiRow } from '@/lib/kpi'
@@ -52,13 +52,14 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const mineOnly = sp.mine === '1'
   const filters = mineOnly ? { assigned_to: profile.id } : {}
 
-  const [todayActions, overdueActions, todayMeetings, longNoContact, proposalPending, kpiRows, todayEntries] =
+  const [todayActions, overdueActions, todayMeetings, longNoContact, proposalPending, freshInflow, kpiRows, todayEntries] =
     await Promise.all([
       getTodayActions(filters),
       getOverdueActions(filters),
       getTodayMeetings(filters),
       getLongNoContact(filters),
       getProposalPending(filters),
+      getFreshInflow(filters),
       getKpiData(profile),
       profile.role === 'sales' ? getMyTodayKpiEntries(profile.id) : Promise.resolve([]),
     ])
@@ -144,6 +145,13 @@ export default async function TasksPage({ searchParams }: PageProps) {
           dateLabel="미팅 시간"
           dateKey="meeting_at"
           emptyMessage="오늘 예정된 미팅이 없습니다."
+        />
+        <TaskSection
+          title="이번 달 신규 유입 (미연락)"
+          companies={freshInflow}
+          dateLabel="유입일"
+          dateKey="inflow_date"
+          emptyMessage="이번 달 유입 중 미연락 건이 없습니다."
         />
         <TaskSection
           title={supervisorAllView ? '장기 미연락 — 회사 DB (미배정)' : '장기 미연락 (7일 이상)'}

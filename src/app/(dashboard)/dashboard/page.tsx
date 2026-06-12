@@ -80,7 +80,7 @@ function toContractCountItems(rows: ChartRow[]) {
 
 export default async function DashboardPage() {
   const profile = await requireAuth()
-  const [{ stats, byAssignee, bySource, byCategory, byStatus }, kpiRows] =
+  const [{ stats, byAssignee, bySource, byCategory, byStatus, cohorts }, kpiRows] =
     await Promise.all([
       getDashboardData(profile),
       getKpiData(profile),
@@ -170,6 +170,52 @@ export default async function DashboardPage() {
                     <KpiCell value={r.kolToday} target={KPI_TARGETS.kolPerDay} />
                     <td className="px-4 py-3 text-gray-600">{r.kolThisWeek}</td>
                     <KpiCell value={r.threadsThisWeek} target={KPI_TARGETS.threadsPerWeek} />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── 월별 유입 코호트 ──────────────────────────── */}
+        <SectionTitle>월별 유입 코호트 — 유입 시점별 DB 성과</SectionTitle>
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+                  <th className="px-4 py-3 text-left whitespace-nowrap">유입월</th>
+                  <th className="px-4 py-3 text-center whitespace-nowrap">유입 수</th>
+                  <th className="px-4 py-3 text-center whitespace-nowrap">가망 도달</th>
+                  <th className="px-4 py-3 text-center whitespace-nowrap">미팅 도달</th>
+                  <th className="px-4 py-3 text-center whitespace-nowrap">계약</th>
+                  <th className="px-4 py-3 text-center whitespace-nowrap">계약 전환율</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {cohorts.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400">데이터 없음</td></tr>
+                ) : cohorts.map(r => (
+                  <tr key={r.month} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
+                      {r.month === '미지정' ? (
+                        <span className="text-gray-400">미지정</span>
+                      ) : (
+                        <Link
+                          href={`/companies?inflow_month=${r.month}`}
+                          className="hover:text-blue-600 hover:underline"
+                        >
+                          {r.month.replace('-', '년 ')}월 DB
+                        </Link>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center text-gray-800">{r.total.toLocaleString('ko-KR')}</td>
+                    <td className="px-4 py-3 text-center text-blue-700">{r.prospects}</td>
+                    <td className="px-4 py-3 text-center text-purple-700">{r.meetings}</td>
+                    <td className="px-4 py-3 text-center text-emerald-700 font-medium">{r.contracts}</td>
+                    <td className="px-4 py-3 text-center text-gray-600">
+                      {r.total > 0 ? `${Math.round((r.contracts / r.total) * 100)}%` : '—'}
+                    </td>
                   </tr>
                 ))}
               </tbody>

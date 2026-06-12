@@ -15,6 +15,7 @@ type DashCompany = {
   source: string | null
   assigned_to: string | null
   created_at: string
+  inflow_date: string | null
   meeting_at: string | null
   next_action_at: string | null
   last_contacted_at: string | null
@@ -49,19 +50,28 @@ export interface ChartRow {
   contractAmount: number
 }
 
+export interface CohortRow {
+  month: string      // "2026-06" 또는 '미지정'
+  total: number      // 유입 수
+  prospects: number  // 가망 단계 이상 도달
+  meetings: number   // 미팅 단계 도달 (미팅 예정 이후 또는 미팅일 보유)
+  contracts: number  // 계약 완료
+}
+
 export interface DashboardData {
   stats: DashboardStats
   byAssignee: ChartRow[]
   bySource: ChartRow[]
   byCategory: ChartRow[]
   byStatus: ChartRow[]
+  cohorts: CohortRow[]
 }
 
 // ── 역할별 회사 조회 ───────────────────────────────────────────
 
 const SELECT = [
   'id', 'status', 'category', 'source', 'assigned_to',
-  'created_at', 'meeting_at', 'next_action_at', 'last_contacted_at',
+  'created_at', 'inflow_date', 'meeting_at', 'next_action_at', 'last_contacted_at',
   'contract_amount', 'profiles(id, name)',
 ].join(', ')
 
@@ -194,12 +204,43 @@ function computeCharts(companies: DashCompany[]) {
   }
 }
 
+// ── 월별 유입 코호트 ───────────────────────────────────────────
+// "6월 DB가 얼마나 가망/미팅/계약까지 갔는지" — DB 질·소싱 채널 판단용
+
+const MEETING_REACHED = new Set(['미팅 예정', '미팅 완료', '제안서 발송', '계약 검토', '계약 완료'])
+
+function computeCohorts(companies: DashCompany[]): CohortRow[] {
+  const map = new Map<string, CohortRow>()
+
+  for (const c of companies) {
+    const month = c.inflow_date ? c.inflow_date.slice(0, 7) : '미지정'
+    const row = map.get(month) ?? { month, total: 0, prospects: 0, meetings: 0, contracts: 0 }
+    row.total++
+
+    const stage = stageOf(c.status)
+    if (stage === '가망' || stage === '고객') row.prospects++
+    if (MEETING_REACHED.has(c.status) || c.meeting_at) row.meetings++
+    if (c.status === '계약 완료') row.contracts++
+
+    map.set(month, row)
+  }
+
+  // 최신 월 먼저, '미지정'은 맨 뒤 — 최근 12개월만
+  const rows = [...map.values()].sort((a, b) => {
+    if (a.month === '미지정') return 1
+    if (b.month === '미지정') return -1
+    return b.month.localeCompare(a.month)
+  })
+  return rows.slice(0, 13)
+}
+
 // ── 공개 진입점 ────────────────────────────────────────────────
 
 export async function getDashboardData(profile: Profile): Promise<DashboardData> {
   const companies = await fetchCompanies(profile)
   return {
     stats: computeStats(companies),
+    cohorts: computeCohorts(companies),
     ...computeCharts(companies),
   }
 }

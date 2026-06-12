@@ -26,6 +26,7 @@ function applyMapping(row: string[], headers: string[], mapping: Record<string, 
     region:            get('region'),
     phone:             get('phone'),
     naver_place_url:   get('naver_place_url'),
+    inflow_date:       get('inflow_date'),
     meeting_at:        get('meeting_at'),
     last_contacted_at: get('last_contacted_at'),
     latest_note:       get('latest_note'),
@@ -124,7 +125,7 @@ export function ImportClient() {
     const exampleRow: (string | null)[] = [
       '(주)티엔샤', '병의원', '네이버', '홍길동', '서울 강남구',
       '010-1234-5678', 'https://place.naver.com/...',
-      '2026.07.01', '2026.06.10', '6월 초 상담, 7월 재연락 예정',
+      '2026-06', '2026.07.01', '2026.06.10', '6월 초 상담, 7월 재연락 예정',
     ]
     const csv = generateCSV(headers, [exampleRow])
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
