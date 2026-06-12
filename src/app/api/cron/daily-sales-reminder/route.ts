@@ -26,11 +26,12 @@ type ReminderCompany = {
   status: string
   next_action_at: string | null
   meeting_at: string | null
+  last_contacted_at: string | null
   latest_note: string | null
   profiles: { name: string } | null
 }
 
-const SELECT = 'id, company_name, status, next_action_at, meeting_at, latest_note, profiles(name)'
+const SELECT = 'id, company_name, status, next_action_at, meeting_at, last_contacted_at, latest_note, profiles(name)'
 const EXCLUDED = ['계약 완료', '실패', '제외']
 
 function cast(data: unknown): ReminderCompany[] {
@@ -138,6 +139,8 @@ function buildBlocks(data: Awaited<ReturnType<typeof fetchAll>>): SlackBlock[] {
     ...listBlocks('📞 오늘 연락해야 할 고객', todayActions, '액션일', c => fmtDateKST(c.next_action_at)),
     ...listBlocks('🤝 오늘 미팅 예정', todayMeetings, '미팅', c => fmtDateTimeKST(c.meeting_at)),
     ...listBlocks('⚠️ 다음 액션일 지난 고객', overdue, '액션일', c => fmtDateKST(c.next_action_at)),
+    ...listBlocks('🕐 7일 이상 미연락 고객', longNoContact, '마지막 연락', c => fmtDateKST(c.last_contacted_at)),
+    ...listBlocks('📨 제안서 발송 후 3일+ 미답변', proposalPending, '마지막 연락', c => fmtDateKST(c.last_contacted_at)),
   ]
 }
 

@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { requireAuth } from '@/lib/auth'
+import { kstDateString } from '@/lib/datetime'
 import { notifyDataRequest } from '@/lib/notifications'
 
 interface ActionResult {
@@ -59,4 +60,40 @@ export async function createActivity(
   // DB trigger가 companies의 last_contacted_at, latest_note, next_action_at을 자동 갱신함
   revalidatePath(`/companies/${companyId}`)
   revalidatePath('/companies')
+}
+
+/**
+ * 원클릭 활동 기록 — 목록/할일 페이지의 퀵 버튼용.
+ * nextDays를 주면 다음 액션일을 오늘 + nextDays(KST)로 설정.
+ */
+export async function quickLogActivity(
+  companyId: string,
+  activityType: string,
+  activityResult: string | null,
+  nextDays?: number,
+): Promise<ActionResult | undefined> {
+  const profile = await requireAuth()
+  const supabase = await createClient()
+
+  let next_action_at: string | null = null
+  if (nextDays !== undefined && nextDays > 0) {
+    const d = new Date()
+    d.setDate(d.getDate() + nextDays)
+    next_action_at = kstDateString(d)
+  }
+
+  const { error } = await supabase.from('activities').insert({
+    company_id:      companyId,
+    user_id:         profile.id,
+    activity_type:   activityType,
+    activity_result: activityResult,
+    memo:            null,
+    next_action_at,
+  })
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/companies/${companyId}`)
+  revalidatePath('/companies')
+  revalidatePath('/tasks')
 }

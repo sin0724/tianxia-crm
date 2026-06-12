@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { sendSlackNotification, type SlackPayload, type SlackSectionBlock } from '@/lib/slack'
+import { sendSlackDM, type SlackPayload, type SlackSectionBlock } from '@/lib/slack'
 import { kstTodayRange, kstDaysAgoEnd, fmtFullDateTimeKST } from '@/lib/datetime'
 
 // ── Admin client ───────────────────────────────────────────────
@@ -136,7 +136,24 @@ function buildProposalPendingPayload(c: PersonalCompany): SlackPayload {
   }
 }
 
+// ── 중복 발송 방지 ─────────────────────────────────────────────
+// 크론을 자주 돌려도(예: 매시간) 같은 (유형, 거래처) 알림은 하루 1회만 발송.
+// 미팅 1시간 전 알림이 정상 동작하려면 크론을 30분~1시간 간격으로 돌려야 한다.
+
+async function getSentToday(supabase: Supabase): Promise<Set<string>> {
+  const { start } = kstTodayRange()
+  const { data } = await supabase
+    .from('notification_logs')
+    .select('notification_type, company_id')
+    .in('notification_type', ['action_day', 'meeting_soon', 'proposal_pending'])
+    .eq('status', 'sent')
+    .gte('created_at', start)
+
+  return new Set((data ?? []).map(r => `${r.notification_type}:${r.company_id}`))
+}
+
 // ── 전송 + 로그 ────────────────────────────────────────────────
+// SLACK_BOT_TOKEN이 설정되어 있으면 담당자에게 개인 DM, 없으면 채널 webhook 폴백
 
 async function sendAndLog(
   supabase: Supabase,
@@ -145,7 +162,7 @@ async function sendAndLog(
   payload: SlackPayload,
   summary: string,
 ): Promise<boolean> {
-  const result = await sendSlackNotification(payload)
+  const result = await sendSlackDM(company.profiles?.slack_user_id ?? null, payload)
   await supabase.from('notification_logs').insert({
     notification_type: notifType,
     company_id:        company.id,
@@ -170,40 +187,38 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createAdminClient()
 
-    const [todayActions, meetingSoon, proposalPending] = await Promise.all([
+    const [todayActions, meetingSoon, proposalPending, sentToday] = await Promise.all([
       getTodayActions(supabase),
       getMeetingSoon(supabase),
       getProposalPending(supabase),
+      getSentToday(supabase),
     ])
 
-    const results = { sent: 0, failed: 0 }
+    const results = { sent: 0, failed: 0, skipped: 0 }
 
-    for (const c of todayActions) {
-      const ok = await sendAndLog(
-        supabase, c, 'action_day',
-        buildActionDayPayload(c),
-        `[오늘 액션] ${c.company_name} → ${c.profiles?.name ?? '—'}`,
-      )
-      ok ? results.sent++ : results.failed++
+    async function dispatch(
+      companies: PersonalCompany[],
+      notifType: NotifType,
+      build: (c: PersonalCompany) => SlackPayload,
+      label: string,
+    ) {
+      for (const c of companies) {
+        if (sentToday.has(`${notifType}:${c.id}`)) {
+          results.skipped++
+          continue
+        }
+        const ok = await sendAndLog(
+          supabase, c, notifType, build(c),
+          `[${label}] ${c.company_name} → ${c.profiles?.name ?? '—'}`,
+        )
+        if (ok) results.sent++
+        else results.failed++
+      }
     }
 
-    for (const c of meetingSoon) {
-      const ok = await sendAndLog(
-        supabase, c, 'meeting_soon',
-        buildMeetingSoonPayload(c),
-        `[미팅 1시간 전] ${c.company_name} → ${c.profiles?.name ?? '—'}`,
-      )
-      ok ? results.sent++ : results.failed++
-    }
-
-    for (const c of proposalPending) {
-      const ok = await sendAndLog(
-        supabase, c, 'proposal_pending',
-        buildProposalPendingPayload(c),
-        `[제안서 미답변] ${c.company_name} → ${c.profiles?.name ?? '—'}`,
-      )
-      ok ? results.sent++ : results.failed++
-    }
+    await dispatch(todayActions,    'action_day',       buildActionDayPayload,       '오늘 액션')
+    await dispatch(meetingSoon,     'meeting_soon',     buildMeetingSoonPayload,     '미팅 1시간 전')
+    await dispatch(proposalPending, 'proposal_pending', buildProposalPendingPayload, '제안서 미답변')
 
     return NextResponse.json({
       success: true,
@@ -213,6 +228,7 @@ export async function POST(request: NextRequest) {
         proposalPending: proposalPending.length,
         sent:            results.sent,
         failed:          results.failed,
+        skipped:         results.skipped,
       },
     })
   } catch (err) {

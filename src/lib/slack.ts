@@ -53,3 +53,46 @@ export async function sendSlackNotification(
     return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
   }
 }
+
+/**
+ * 개인 DM 발송 (SLACK_BOT_TOKEN + chat.postMessage).
+ * 봇 토큰이 없거나 slackUserId가 없으면 공용 webhook 채널로 폴백합니다.
+ * 봇 앱에는 chat:write / im:write 스코프가 필요합니다.
+ */
+export async function sendSlackDM(
+  slackUserId: string | null,
+  payload: SlackPayload,
+): Promise<SlackResult | SlackError> {
+  const botToken = process.env.SLACK_BOT_TOKEN
+
+  if (!botToken || !slackUserId) {
+    return sendSlackNotification(payload)
+  }
+
+  try {
+    const res = await fetch('https://slack.com/api/chat.postMessage', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        Authorization: `Bearer ${botToken}`,
+      },
+      body: JSON.stringify({
+        channel: slackUserId, // user ID로 보내면 봇 DM으로 전송됨
+        text: payload.text,
+        blocks: payload.blocks,
+      }),
+    })
+
+    const body = (await res.json()) as { ok: boolean; error?: string }
+    if (!body.ok) {
+      // DM 실패 시 채널 webhook으로 폴백
+      const fallback = await sendSlackNotification(payload)
+      if (fallback.ok) return fallback
+      return { ok: false, error: `DM failed: ${body.error ?? 'unknown'}; webhook failed: ${fallback.error}` }
+    }
+
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}

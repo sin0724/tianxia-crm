@@ -72,13 +72,12 @@ export function autoDetectMapping(csvHeaders: string[]): Record<string, string> 
 
 // ── 매핑 유효성 검사 ──────────────────────────────────────────
 
+// 담당자는 선택 사항 — 미배정으로 들여온 뒤 목록에서 일괄 배분할 수 있음
 export function validateMapping(mapping: Record<string, string>): string[] {
   const missing: string[] = []
   if (!mapping.company_name) missing.push('상호명')
   if (!mapping.category)     missing.push('구분')
   if (!mapping.source)       missing.push('DB 경로')
-  if (!mapping.assigned_to_name && !mapping.assigned_to_email)
-    missing.push('담당자 (이름 또는 이메일 중 하나)')
   return missing
 }
 

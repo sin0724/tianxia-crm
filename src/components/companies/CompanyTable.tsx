@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { StatusBadge } from './StatusBadge'
-import type { Company } from '@/lib/companies'
-import { deleteCompany, deleteCompanies } from '@/app/(dashboard)/companies/actions'
+import type { Company, ProfileOption } from '@/lib/companies'
+import { deleteCompany, deleteCompanies, assignCompanies } from '@/app/(dashboard)/companies/actions'
 
 function fmtDate(s: string | null) {
   if (!s) return '—'
@@ -17,10 +17,21 @@ function isOverdue(s: string | null) {
   return !!s && new Date(s).getTime() < new Date().setHours(0, 0, 0, 0)
 }
 
-export function CompanyTable({ companies }: { companies: Company[] }) {
+interface CompanyTableProps {
+  companies: Company[]
+  canDelete?: boolean
+  /** admin/manager: 선택한 거래처를 담당자에게 일괄 배분 가능 */
+  canAssign?: boolean
+  profiles?: ProfileOption[]
+}
+
+export function CompanyTable({ companies, canDelete = false, canAssign = false, profiles = [] }: CompanyTableProps) {
   const [confirmId, setConfirmId]       = useState<string | null>(null)
   const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set())
   const [bulkConfirm, setBulkConfirm]   = useState(false)
+  const [deleteError, setDeleteError]   = useState<string | null>(null)
+  const [assignee, setAssignee]         = useState('')
+  const [assignedMsg, setAssignedMsg]   = useState<string | null>(null)
   const [isDeleting, startTransition]   = useTransition()
 
   const allSelected  = companies.length > 0 && selectedIds.size === companies.length
@@ -41,9 +52,38 @@ export function CompanyTable({ companies }: { companies: Company[] }) {
   function handleBulkDelete() {
     const ids = Array.from(selectedIds)
     setBulkConfirm(false)
+    setDeleteError(null)
     startTransition(async () => {
-      await deleteCompanies(ids)
+      const result = await deleteCompanies(ids)
+      if (result?.error) setDeleteError(result.error)
       setSelectedIds(new Set())
+    })
+  }
+
+  function handleDelete(id: string) {
+    setDeleteError(null)
+    startTransition(async () => {
+      const result = await deleteCompany(id)
+      if (result?.error) {
+        setDeleteError(result.error)
+        setConfirmId(null)
+      }
+    })
+  }
+
+  function handleAssign(target: string | 'auto') {
+    const ids = Array.from(selectedIds)
+    setDeleteError(null)
+    setAssignedMsg(null)
+    startTransition(async () => {
+      const result = await assignCompanies(ids, target)
+      if (result?.error) {
+        setDeleteError(result.error)
+        return
+      }
+      setSelectedIds(new Set())
+      setAssignee('')
+      setAssignedMsg(`${ids.length}건 배분 완료 — 담당자에게 알림을 보냈습니다.`)
     })
   }
 
@@ -57,8 +97,15 @@ export function CompanyTable({ companies }: { companies: Company[] }) {
 
   return (
     <div className="space-y-2">
+      {deleteError && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">{deleteError}</p>
+      )}
+      {assignedMsg && (
+        <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">✓ {assignedMsg}</p>
+      )}
+
       {/* 선택 액션 바 */}
-      {someSelected && (
+      {someSelected && (canAssign || canDelete) && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5">
           <span className="text-sm font-medium text-blue-700">{selectedIds.size}개 선택됨</span>
           <div className="flex-1" />
@@ -90,12 +137,45 @@ export function CompanyTable({ companies }: { companies: Company[] }) {
               >
                 전체 {companies.length}개 선택
               </button>
-              <button
-                onClick={() => { setBulkConfirm(true) }}
-                className="px-3 py-1.5 border border-red-300 text-red-600 text-sm font-medium rounded-md hover:bg-red-50 transition-colors"
-              >
-                선택 삭제 ({selectedIds.size}개)
-              </button>
+
+              {canAssign && (
+                <span className="inline-flex items-center gap-1.5">
+                  <select
+                    value={assignee}
+                    onChange={e => setAssignee(e.target.value)}
+                    disabled={isDeleting}
+                    className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    aria-label="배분할 담당자"
+                  >
+                    <option value="">담당자 선택</option>
+                    {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <button
+                    onClick={() => handleAssign(assignee)}
+                    disabled={isDeleting || !assignee}
+                    className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    배분
+                  </button>
+                  <button
+                    onClick={() => handleAssign('auto')}
+                    disabled={isDeleting}
+                    title="활성 영업사원에게 돌아가며 균등하게 배분합니다"
+                    className="px-3 py-1.5 border border-blue-300 text-blue-700 text-sm font-medium rounded-md hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                  >
+                    ⚖️ 균등 배분
+                  </button>
+                </span>
+              )}
+
+              {canDelete && (
+                <button
+                  onClick={() => { setBulkConfirm(true) }}
+                  className="px-3 py-1.5 border border-red-300 text-red-600 text-sm font-medium rounded-md hover:bg-red-50 transition-colors"
+                >
+                  선택 삭제 ({selectedIds.size}개)
+                </button>
+              )}
             </>
           )}
         </div>
@@ -134,6 +214,11 @@ export function CompanyTable({ companies }: { companies: Company[] }) {
                 <p className="mt-1 text-xs text-gray-500 truncate">
                   {[c.category, c.region, c.source, c.profiles?.name].filter(Boolean).join(' · ') || '—'}
                 </p>
+                {c.phone && (
+                  <a href={`tel:${c.phone}`} className="mt-1 inline-block text-xs text-blue-600 hover:underline">
+                    📞 {c.phone}
+                  </a>
+                )}
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                   <span>미팅 {fmtDate(c.meeting_at)}</span>
                   <span>연락 {fmtDate(c.last_contacted_at)}</span>
@@ -149,7 +234,7 @@ export function CompanyTable({ companies }: { companies: Company[] }) {
                     <>
                       <span className="text-xs text-gray-600">정말 삭제할까요?</span>
                       <button
-                        onClick={() => startTransition(() => { deleteCompany(c.id) })}
+                        onClick={() => handleDelete(c.id)}
                         disabled={isDeleting}
                         className="text-xs px-3 py-1.5 border border-red-300 text-red-600 rounded-md hover:bg-red-50 disabled:opacity-50"
                       >
@@ -170,12 +255,14 @@ export function CompanyTable({ companies }: { companies: Company[] }) {
                       >
                         수정
                       </Link>
-                      <button
-                        onClick={() => setConfirmId(c.id)}
-                        className="text-xs px-3 py-1.5 border border-gray-300 text-gray-500 rounded-md hover:bg-gray-50"
-                      >
-                        삭제
-                      </button>
+                      {canDelete && (
+                        <button
+                          onClick={() => setConfirmId(c.id)}
+                          className="text-xs px-3 py-1.5 border border-gray-300 text-gray-500 rounded-md hover:bg-gray-50"
+                        >
+                          삭제
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
@@ -242,7 +329,7 @@ export function CompanyTable({ companies }: { companies: Company[] }) {
                       <span className="inline-flex items-center gap-1">
                         <span className="text-xs text-gray-600">정말요?</span>
                         <button
-                          onClick={() => startTransition(() => { deleteCompany(c.id) })}
+                          onClick={() => handleDelete(c.id)}
                           disabled={isDeleting}
                           className="text-xs px-2 py-0.5 border border-red-300 text-red-600 rounded hover:bg-red-50 disabled:opacity-50"
                         >
@@ -263,12 +350,14 @@ export function CompanyTable({ companies }: { companies: Company[] }) {
                         >
                           수정
                         </Link>
-                        <button
-                          onClick={() => setConfirmId(c.id)}
-                          className="text-xs px-2 py-0.5 border border-gray-300 text-gray-500 rounded hover:bg-gray-50"
-                        >
-                          삭제
-                        </button>
+                        {canDelete && (
+                          <button
+                            onClick={() => setConfirmId(c.id)}
+                            className="text-xs px-2 py-0.5 border border-gray-300 text-gray-500 rounded hover:bg-gray-50"
+                          >
+                            삭제
+                          </button>
+                        )}
                       </span>
                     )}
                   </td>

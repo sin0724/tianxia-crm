@@ -30,64 +30,32 @@ DO $$ BEGIN
   );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-DO $$ BEGIN
-  CREATE TYPE company_category AS ENUM (
-    '병의원',
-    '맛집',
-    '카페/디저트',
-    '뷰티샵',
-    '커머스',
-    '숙박',
-    '학원',
-    '피트니스',
-    '기타'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-  CREATE TYPE company_source AS ENUM (
-    'OB',
-    '네이버',
-    '스레드',
-    '인스타그램',
-    '메타 광고',
-    '회사DB',
-    '소개',
-    '기존 고객',
-    '기타'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-  CREATE TYPE activity_type AS ENUM (
-    '전화',
-    '문자',
-    '카톡',
-    '이메일',
-    'DM',
-    '미팅',
-    '제안서 발송',
-    '계약서 발송',
-    '기타'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-  CREATE TYPE activity_result AS ENUM (
-    '부재',
-    '응답 없음',
-    '관심 있음',
-    '자료 요청',
-    '미팅 확정',
-    '보류',
-    '거절',
-    '계약 완료'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- category / source / activity_type / activity_result는 자유 입력을 허용하기 위해
+-- TEXT 컬럼을 사용합니다. (과거 ENUM에서 마이그레이션 — 아래 1-b 참조)
 
 DO $$ BEGIN
   CREATE TYPE notification_status AS ENUM ('pending', 'sent', 'failed');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+
+-- ── 1-b. ENUM → TEXT 마이그레이션 (기존 DB용, 재실행 안전) ──
+-- 과거에 ENUM으로 생성된 컬럼을 TEXT로 전환합니다. 이미 TEXT면 무해합니다.
+
+DO $$ BEGIN
+  ALTER TABLE companies  ALTER COLUMN category        TYPE TEXT USING category::text;
+  ALTER TABLE companies  ALTER COLUMN source          TYPE TEXT USING source::text;
+EXCEPTION WHEN undefined_table THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE activities ALTER COLUMN activity_type   TYPE TEXT USING activity_type::text;
+  ALTER TABLE activities ALTER COLUMN activity_result TYPE TEXT USING activity_result::text;
+EXCEPTION WHEN undefined_table THEN NULL; END $$;
+
+-- 더 이상 사용하지 않는 ENUM 타입 정리 (참조 중이면 그대로 둠)
+DO $$ BEGIN DROP TYPE IF EXISTS company_category; EXCEPTION WHEN dependent_objects_still_exist THEN NULL; END $$;
+DO $$ BEGIN DROP TYPE IF EXISTS company_source;   EXCEPTION WHEN dependent_objects_still_exist THEN NULL; END $$;
+DO $$ BEGIN DROP TYPE IF EXISTS activity_type;    EXCEPTION WHEN dependent_objects_still_exist THEN NULL; END $$;
+DO $$ BEGIN DROP TYPE IF EXISTS activity_result;  EXCEPTION WHEN dependent_objects_still_exist THEN NULL; END $$;
 
 
 -- ── 2. TABLES ───────────────────────────────────────────────
@@ -107,9 +75,9 @@ CREATE TABLE IF NOT EXISTS profiles (
 CREATE TABLE IF NOT EXISTS companies (
   id                UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
   company_name      TEXT            NOT NULL,
-  category          company_category,
+  category          TEXT,
   region            TEXT,
-  source            company_source,
+  source            TEXT,
   contact_name      TEXT,
   phone             TEXT,
   email             TEXT,
@@ -135,8 +103,8 @@ CREATE TABLE IF NOT EXISTS activities (
   id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id      UUID            NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   user_id         UUID            NOT NULL REFERENCES profiles(id),
-  activity_type   activity_type   NOT NULL,
-  activity_result activity_result,
+  activity_type   TEXT            NOT NULL,
+  activity_result TEXT,
   memo            TEXT,
   next_action_at  TIMESTAMPTZ,
   created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
@@ -168,6 +136,17 @@ CREATE TABLE IF NOT EXISTS notification_settings (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- 회사(거래처)에 묶이지 않는 개인 KPI 활동 기록
+-- entry_type: 'KOL 제안' | '스레드 업로드' (자유 입력 허용)
+CREATE TABLE IF NOT EXISTS kpi_entries (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  entry_type TEXT        NOT NULL,
+  topic      TEXT,
+  entry_date DATE        NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS notification_logs (
   id                UUID                PRIMARY KEY DEFAULT gen_random_uuid(),
   notification_type TEXT                NOT NULL,
@@ -192,6 +171,8 @@ CREATE INDEX IF NOT EXISTS idx_activities_user_id       ON activities(user_id);
 CREATE INDEX IF NOT EXISTS idx_activities_created_at    ON activities(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notif_logs_company_id    ON notification_logs(company_id);
 CREATE INDEX IF NOT EXISTS idx_notif_logs_status        ON notification_logs(status);
+CREATE INDEX IF NOT EXISTS idx_notif_logs_type_created  ON notification_logs(notification_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_kpi_entries_user_date    ON kpi_entries(user_id, entry_date);
 
 
 -- ── 4. HELPER FUNCTIONS ─────────────────────────────────────
@@ -249,6 +230,28 @@ CREATE OR REPLACE TRIGGER trg_notification_settings_updated_at
   BEFORE UPDATE ON notification_settings
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- role / is_active 변경은 admin만 가능 (권한 상승 방지)
+-- auth 컨텍스트가 없는 경우(service role, SQL Editor)는 허용
+CREATE OR REPLACE FUNCTION protect_profile_fields()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL
+     AND (NEW.role IS DISTINCT FROM OLD.role OR NEW.is_active IS DISTINCT FROM OLD.is_active)
+     AND COALESCE(get_my_role()::text, '') <> 'admin'
+  THEN
+    RAISE EXCEPTION 'role/is_active는 관리자만 변경할 수 있습니다.';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER trg_protect_profile_fields
+  BEFORE UPDATE ON profiles
+  FOR EACH ROW EXECUTE FUNCTION protect_profile_fields();
+
 -- activities INSERT → companies 자동 업데이트
 -- last_contacted_at: 항상 최신 활동 시각으로 갱신
 -- latest_note: 메모가 있을 때만 덮어씌움
@@ -274,17 +277,20 @@ CREATE OR REPLACE TRIGGER trg_activity_sync_company
   FOR EACH ROW EXECUTE FUNCTION sync_company_from_activity();
 
 -- Supabase Auth 신규 가입 → profiles 자동 생성
+-- 신규 가입자는 is_active = false로 생성되어 관리자 승인 전까지
+-- 데이터에 접근할 수 없습니다. (설정 > 팀 관리에서 승인)
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-  INSERT INTO profiles (id, email, name)
+  INSERT INTO profiles (id, email, name, is_active)
   VALUES (
     NEW.id,
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1))
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    false
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
@@ -299,6 +305,7 @@ CREATE OR REPLACE TRIGGER trg_on_auth_user_created
 -- ── 6. ROW LEVEL SECURITY ────────────────────────────────────
 
 ALTER TABLE profiles              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kpi_entries           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE companies             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activities            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products              ENABLE ROW LEVEL SECURITY;
@@ -318,11 +325,13 @@ CREATE POLICY "profiles_select"
   TO authenticated
   USING (true);
 
+-- role/is_active 변경 차단은 trg_protect_profile_fields 트리거가 담당
 DROP POLICY IF EXISTS "profiles_update" ON profiles;
 CREATE POLICY "profiles_update"
   ON profiles FOR UPDATE
   TO authenticated
-  USING (id = auth.uid() OR is_admin_or_manager());
+  USING (id = auth.uid() OR is_admin_or_manager())
+  WITH CHECK (id = auth.uid() OR is_admin_or_manager());
 
 DROP POLICY IF EXISTS "profiles_delete" ON profiles;
 CREATE POLICY "profiles_delete"
@@ -388,7 +397,8 @@ DROP POLICY IF EXISTS "activities_update" ON activities;
 CREATE POLICY "activities_update"
   ON activities FOR UPDATE
   TO authenticated
-  USING (user_id = auth.uid() OR get_my_role() = 'admin');
+  USING (user_id = auth.uid() OR get_my_role() = 'admin')
+  WITH CHECK (user_id = auth.uid() OR get_my_role() = 'admin');
 
 DROP POLICY IF EXISTS "activities_delete" ON activities;
 CREATE POLICY "activities_delete"
@@ -459,6 +469,27 @@ CREATE POLICY "company_products_delete"
         AND (is_admin_or_manager() OR c.assigned_to = auth.uid())
     )
   );
+
+-- ── kpi_entries ──
+-- sales: 본인 기록만, admin/manager: 전체 열람
+
+DROP POLICY IF EXISTS "kpi_entries_select" ON kpi_entries;
+CREATE POLICY "kpi_entries_select"
+  ON kpi_entries FOR SELECT
+  TO authenticated
+  USING (user_id = auth.uid() OR is_admin_or_manager());
+
+DROP POLICY IF EXISTS "kpi_entries_insert" ON kpi_entries;
+CREATE POLICY "kpi_entries_insert"
+  ON kpi_entries FOR INSERT
+  TO authenticated
+  WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "kpi_entries_delete" ON kpi_entries;
+CREATE POLICY "kpi_entries_delete"
+  ON kpi_entries FOR DELETE
+  TO authenticated
+  USING (user_id = auth.uid() OR get_my_role() = 'admin');
 
 -- ── notification_settings ──
 

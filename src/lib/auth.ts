@@ -29,9 +29,11 @@ export async function getProfile(): Promise<Profile | null> {
 }
 
 // 인증 필수 페이지에서 사용. 미로그인 시 /login으로 리다이렉트.
+// 신규 가입자(is_active = false)는 관리자 승인 전까지 /pending으로 보냄.
 export async function requireAuth(): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
+  if (!profile.is_active) redirect('/pending')
   return profile
 }
 

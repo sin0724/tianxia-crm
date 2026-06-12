@@ -43,6 +43,12 @@ export function kstDaysAgoEnd(n: number): string {
   return new Date(kstStartOfDay().getTime() - (n - 1) * DAY_MS - 1).toISOString()
 }
 
+/** KST 기준 오늘 날짜 "YYYY-MM-DD" */
+export function kstDateString(base: Date = new Date()): string {
+  const { y, m, d } = kstCalendar(base)
+  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
 /** KST 기준 이번 달 1일 00:00:00 */
 export function kstStartOfMonth(): Date {
   const { y, m } = kstCalendar()

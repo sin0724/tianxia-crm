@@ -1,8 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
-import { sendSlackNotification, type SlackPayload, type SlackHeaderBlock, type SlackSectionBlock } from '@/lib/slack'
+import { sendSlackNotification, sendSlackDM, type SlackPayload, type SlackHeaderBlock, type SlackSectionBlock } from '@/lib/slack'
 import { fmtFullDateTimeKST } from '@/lib/datetime'
 
-type NotificationType = 'new_company' | 'meeting_scheduled' | 'contract_complete' | 'data_request'
+type NotificationType = 'new_company' | 'meeting_scheduled' | 'contract_complete' | 'data_request' | 'assignment'
+
+function appUrl() {
+  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+}
 
 function header(text: string): SlackHeaderBlock {
   return { type: 'header', text: { type: 'plain_text', text } }
@@ -136,6 +140,44 @@ export async function notifyContractComplete(
   }
 
   await dispatch('contract_complete', payload, company.id, userId, `[계약 완료] ${company.company_name}`)
+}
+
+/** 거래처 배분 알림 — 담당자에게 DM (봇 토큰 없으면 채널 폴백) */
+export async function notifyAssignment(params: {
+  assignee: { id: string; name: string; slack_user_id: string | null }
+  companies: { id: string; company_name: string }[]
+  assignedBy: string // 배분한 사람 이름
+  userId: string     // 배분 실행자 ID (로그용)
+}): Promise<void> {
+  const { assignee, companies } = params
+  if (companies.length === 0) return
+
+  const mention = assignee.slack_user_id ? `<@${assignee.slack_user_id}>` : `*${assignee.name}*`
+  const listed = companies.slice(0, 10)
+    .map(c => `• <${appUrl()}/companies/${c.id}|${c.company_name}>`)
+    .join('\n')
+  const more = companies.length > 10 ? `\n…외 ${companies.length - 10}건` : ''
+
+  const text = [
+    `${mention} 신규 거래처 *${companies.length}건*이 배정되었습니다. (배분: ${params.assignedBy})`,
+    listed + more,
+    `내일 액션일로 등록되어 *오늘 할 일*에 표시됩니다.`,
+  ].join('\n\n')
+
+  const payload: SlackPayload = {
+    text: `[거래처 배분] ${assignee.name}님에게 ${companies.length}건`,
+    blocks: [header('📬 거래처 배분'), section(text)],
+  }
+
+  const result = await sendSlackDM(assignee.slack_user_id, payload)
+  await saveLog({
+    notification_type: 'assignment',
+    company_id:        companies.length === 1 ? companies[0].id : null,
+    user_id:           assignee.id,
+    message:           `[배분] ${assignee.name} ← ${companies.length}건 (by ${params.assignedBy})`,
+    status:            result.ok ? 'sent' : 'failed',
+    error_message:     result.ok ? undefined : result.error,
+  })
 }
 
 export async function notifyDataRequest(params: {

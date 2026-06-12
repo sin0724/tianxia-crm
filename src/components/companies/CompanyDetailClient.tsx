@@ -14,6 +14,14 @@ function fmtDate(s: string | null) {
   return new Date(s).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
+function fmtDateTime(s: string | null) {
+  if (!s) return '—'
+  return new Date(s).toLocaleString('ko-KR', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
+
 function fmtAmount(n: number | null) {
   if (n === null) return '—'
   return n.toLocaleString('ko-KR') + '원'
@@ -28,9 +36,15 @@ interface CompanyDetailClientProps {
   company: Company
   profiles: ProfileOption[]
   activities: Activity[]
+  canDelete?: boolean
+  categoryOptions?: string[]
+  sourceOptions?: string[]
 }
 
-export function CompanyDetailClient({ company, profiles, activities }: CompanyDetailClientProps) {
+export function CompanyDetailClient({
+  company, profiles, activities,
+  canDelete = false, categoryOptions, sourceOptions,
+}: CompanyDetailClientProps) {
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -56,6 +70,8 @@ export function CompanyDetailClient({ company, profiles, activities }: CompanyDe
           defaultValues={company}
           companyId={company.id}
           onCancel={() => setEditing(false)}
+          categoryOptions={categoryOptions}
+          sourceOptions={sourceOptions}
         />
       </div>
     )
@@ -96,12 +112,14 @@ export function CompanyDetailClient({ company, profiles, activities }: CompanyDe
               >
                 수정
               </button>
-              <button
-                onClick={() => setConfirmDelete(true)}
-                className="px-4 py-2 text-sm font-medium border border-red-300 text-red-600 rounded-md hover:bg-red-50 transition-colors"
-              >
-                삭제
-              </button>
+              {canDelete && (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="px-4 py-2 text-sm font-medium border border-red-300 text-red-600 rounded-md hover:bg-red-50 transition-colors"
+                >
+                  삭제
+                </button>
+              )}
             </>
           )}
         </div>
@@ -131,7 +149,7 @@ export function CompanyDetailClient({ company, profiles, activities }: CompanyDe
               {fmtDate(company.next_action_at)}
             </span>
           } />
-          <Row label="미팅 예정일"  value={fmtDate(company.meeting_at)} />
+          <Row label="미팅 예정 일시" value={fmtDateTime(company.meeting_at)} />
           <Row label="관심도" value={
             company.interest_level
               ? '★'.repeat(company.interest_level) + '☆'.repeat(5 - company.interest_level)
@@ -151,7 +169,11 @@ export function CompanyDetailClient({ company, profiles, activities }: CompanyDe
       <Card title="연락처 정보">
         <Grid>
           <Row label="담당자명"  value={company.contact_name} />
-          <Row label="연락처"   value={company.phone} />
+          <Row label="연락처"   value={
+            company.phone
+              ? <a href={`tel:${company.phone}`} className="text-blue-600 hover:underline">📞 {company.phone}</a>
+              : null
+          } />
           <Row label="이메일"   value={company.email} />
           <Row label="카카오 ID" value={company.kakao_id} />
         </Grid>

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth'
+import { stageOf, STAGES, type Stage } from '@/lib/constants'
 import {
   kstStartOfDay, kstEndOfDay, kstStartOfMonth,
   kstStartOfWeek, kstEndOfWeek, kstDaysAgoEnd,
@@ -27,12 +28,18 @@ export interface DashboardStats {
   totalCompanies: number
   newThisMonth: number
   todayActions: number
+  overdueActions: number
   thisWeekMeetings: number
   proposalSent: number
   contractReview: number
   contractDone: number
   contractDoneAmount: number
   longNoContact: number
+  unassigned: number
+  stageCounts: Record<Stage, number>
+  // 잠재 → 가망 이상으로 넘어간 비율 / 전체 → 계약 완료 비율
+  prospectRate: number
+  contractRate: number
 }
 
 export interface ChartRow {
@@ -92,20 +99,27 @@ function computeStats(companies: DashCompany[]): DashboardStats {
 
   let newThisMonth    = 0
   let todayActions    = 0
+  let overdueActions  = 0
   let thisWeekMeetings = 0
   let proposalSent    = 0
   let contractReview  = 0
   let contractDone    = 0
   let contractDoneAmount = 0
   let longNoContact   = 0
+  let unassigned      = 0
+  const stageCounts = Object.fromEntries(STAGES.map(s => [s, 0])) as Record<Stage, number>
 
   for (const c of companies) {
+    stageCounts[stageOf(c.status)]++
+    if (!c.assigned_to && !EXCLUDED.has(c.status))            unassigned++
+
     const createdAt = new Date(c.created_at).getTime()
     if (createdAt >= monthS)                                  newThisMonth++
 
     if (c.next_action_at && !EXCLUDED.has(c.status)) {
       const t = new Date(c.next_action_at).getTime()
       if (t >= todayS && t <= todayE)                        todayActions++
+      if (t < todayS)                                        overdueActions++
     }
 
     if (c.meeting_at) {
@@ -128,16 +142,24 @@ function computeStats(companies: DashCompany[]): DashboardStats {
     }
   }
 
+  const total = companies.length
+  const reached = stageCounts['가망'] + stageCounts['고객'] // 가망 단계 이상 도달
+
   return {
-    totalCompanies: companies.length,
+    totalCompanies: total,
     newThisMonth,
     todayActions,
+    overdueActions,
     thisWeekMeetings,
     proposalSent,
     contractReview,
     contractDone,
     contractDoneAmount,
     longNoContact,
+    unassigned,
+    stageCounts,
+    prospectRate: total > 0 ? Math.round((reached / total) * 100) : 0,
+    contractRate: total > 0 ? Math.round((stageCounts['고객'] / total) * 100) : 0,
   }
 }
 

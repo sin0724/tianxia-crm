@@ -14,6 +14,9 @@ interface CompanyFormProps {
   defaultValues?: Partial<Company>
   companyId?: string
   onCancel?: () => void
+  /** DB에 존재하는 값 + 기본 목록 (자유 입력 자동완성용) */
+  categoryOptions?: string[]
+  sourceOptions?: string[]
 }
 
 function toDate(v: string | null | undefined) {
@@ -21,9 +24,23 @@ function toDate(v: string | null | undefined) {
   return v.slice(0, 10)
 }
 
+// ISO → KST 기준 "YYYY-MM-DDTHH:mm" (datetime-local defaultValue용)
+function toDateTimeLocal(v: string | null | undefined) {
+  if (!v) return ''
+  const d = new Date(v)
+  if (isNaN(d.getTime())) return ''
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().slice(0, 16)
+}
+
 const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
 
-export function CompanyForm({ profiles, defaultValues: d = {}, companyId, onCancel }: CompanyFormProps) {
+export function CompanyForm({
+  profiles, defaultValues: d = {}, companyId, onCancel,
+  categoryOptions, sourceOptions,
+}: CompanyFormProps) {
+  const categories = categoryOptions ?? [...COMPANY_CATEGORY]
+  const sources = sourceOptions ?? [...COMPANY_SOURCE]
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -106,19 +123,23 @@ export function CompanyForm({ profiles, defaultValues: d = {}, companyId, onCanc
             </Field>
           </div>
           <Field label="구분">
-            <select name="category" defaultValue={d.category ?? ''} className={inputCls}>
-              <option value="">선택</option>
-              {COMPANY_CATEGORY.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
+            <input name="category" type="text" list="category-options"
+              defaultValue={d.category ?? ''} className={inputCls}
+              placeholder="병의원, 대행사, F&B 등 자유 입력" />
+            <datalist id="category-options">
+              {categories.map(v => <option key={v} value={v} />)}
+            </datalist>
           </Field>
           <Field label="지역">
             <input name="region" type="text" defaultValue={d.region ?? ''} className={inputCls} placeholder="서울 강남구" />
           </Field>
           <Field label="DB 경로">
-            <select name="source" defaultValue={d.source ?? ''} className={inputCls}>
-              <option value="">선택</option>
-              {COMPANY_SOURCE.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
+            <input name="source" type="text" list="source-options"
+              defaultValue={d.source ?? ''} className={inputCls}
+              placeholder="네이버, 스레드, 메타 등 자유 입력" />
+            <datalist id="source-options">
+              {sources.map(v => <option key={v} value={v} />)}
+            </datalist>
           </Field>
           <Field label="담당자">
             <select name="assigned_to" defaultValue={d.assigned_to ?? ''} className={inputCls}>
@@ -185,8 +206,8 @@ export function CompanyForm({ profiles, defaultValues: d = {}, companyId, onCanc
           <Field label="마지막 연락일">
             <input name="last_contacted_at" type="date" defaultValue={toDate(d.last_contacted_at)} className={inputCls} />
           </Field>
-          <Field label="미팅 예정일">
-            <input name="meeting_at" type="date" defaultValue={toDate(d.meeting_at)} className={inputCls} />
+          <Field label="미팅 예정 일시">
+            <input name="meeting_at" type="datetime-local" defaultValue={toDateTimeLocal(d.meeting_at)} className={inputCls} />
           </Field>
           <Field label="다음 액션일">
             <input name="next_action_at" type="date" defaultValue={toDate(d.next_action_at)} className={inputCls} />

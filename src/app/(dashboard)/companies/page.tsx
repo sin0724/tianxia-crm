@@ -2,7 +2,9 @@ import Link from 'next/link'
 import { Header } from '@/components/layout/Header'
 import { CompanyFilters } from '@/components/companies/CompanyFilters'
 import { CompanyTable } from '@/components/companies/CompanyTable'
-import { getCompanies, getProfiles } from '@/lib/companies'
+import { Pagination } from '@/components/companies/Pagination'
+import { getCompanies, getProfiles, getCategorySourceOptions } from '@/lib/companies'
+import { requireAuth } from '@/lib/auth'
 import type { CompanyListFilters } from '@/lib/companies'
 
 interface PageProps {
@@ -10,19 +12,23 @@ interface PageProps {
 }
 
 export default async function CompaniesPage({ searchParams }: PageProps) {
+  const profile = await requireAuth()
   const sp = await searchParams
   const filters: CompanyListFilters = {
     status:      sp.status,
+    stage:       sp.stage,
     assigned_to: sp.assigned_to,
     category:    sp.category,
     source:      sp.source,
     next_action: sp.next_action,
     q:           sp.q,
+    page:        sp.page ? parseInt(sp.page, 10) || 1 : 1,
   }
 
-  const [companies, profiles] = await Promise.all([
+  const [result, profiles, options] = await Promise.all([
     getCompanies(filters),
     getProfiles(),
+    getCategorySourceOptions(),
   ])
 
   return (
@@ -32,6 +38,9 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-gray-500">거래처 목록</p>
           <div className="flex flex-wrap items-center gap-2">
+            <Link href="/companies/board" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+              📋 보드 보기
+            </Link>
             <Link href="/companies/import" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
               📥 가져오기
             </Link>
@@ -44,8 +53,19 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
           </div>
         </div>
 
-        <CompanyFilters profiles={profiles} total={companies.length} />
-        <CompanyTable companies={companies} />
+        <CompanyFilters
+          profiles={profiles}
+          total={result.total}
+          categories={options.categories}
+          sources={options.sources}
+        />
+        <CompanyTable
+          companies={result.companies}
+          canDelete={profile.role === 'admin'}
+          canAssign={profile.role === 'admin' || profile.role === 'manager'}
+          profiles={profiles}
+        />
+        <Pagination page={result.page} pageCount={result.pageCount} total={result.total} />
       </main>
     </>
   )

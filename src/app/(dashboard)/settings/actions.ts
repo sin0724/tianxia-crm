@@ -23,3 +23,30 @@ export async function updateProfileName(name: string): Promise<{ error?: string 
   revalidatePath('/tasks')
   return {}
 }
+
+// ── 팀 관리 (admin 전용) ──────────────────────────────────────
+// role / is_active 변경은 DB 트리거(protect_profile_fields)도 함께 검증함
+
+export async function updateMemberAccess(
+  targetId: string,
+  changes: { role?: 'admin' | 'manager' | 'sales'; is_active?: boolean; team?: string | null },
+): Promise<{ error?: string }> {
+  const profile = await requireAuth()
+  if (profile.role !== 'admin') return { error: '관리자만 변경할 수 있습니다.' }
+  if (targetId === profile.id && changes.is_active === false) {
+    return { error: '본인 계정은 비활성화할 수 없습니다.' }
+  }
+
+  const supabase = await createClient()
+  const { data: updated, error } = await supabase
+    .from('profiles')
+    .update(changes)
+    .eq('id', targetId)
+    .select('id')
+
+  if (error) return { error: error.message }
+  if (!updated || updated.length === 0) return { error: '변경되지 않았습니다.' }
+
+  revalidatePath('/settings')
+  return {}
+}

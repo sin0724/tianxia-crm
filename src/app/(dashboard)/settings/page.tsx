@@ -1,11 +1,24 @@
 import { Header } from '@/components/layout/Header'
 import { requireAuth } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/server'
 import { ProfileNameForm } from '@/components/settings/ProfileNameForm'
+import { TeamManagement, type Member } from '@/components/settings/TeamManagement'
 
 const ROLE_LABEL = { admin: '관리자', manager: '매니저', sales: '영업' }
 
 export default async function SettingsPage() {
   const profile = await requireAuth()
+
+  let members: Member[] = []
+  if (profile.role === 'admin') {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, name, email, role, team, is_active')
+      .order('is_active', { ascending: true })
+      .order('name')
+    members = (data as Member[]) ?? []
+  }
 
   return (
     <>
@@ -27,10 +40,15 @@ export default async function SettingsPage() {
             <ProfileNameForm currentName={profile.name} />
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-1">시스템</h2>
-            <p className="text-sm text-gray-400">추가 설정 항목이 여기에 표시됩니다.</p>
-          </div>
+          {profile.role === 'admin' && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-sm font-semibold text-gray-900 mb-1">팀 관리</h2>
+              <p className="text-sm text-gray-400 mb-4">
+                신규 가입자 승인, 권한 변경, 계정 비활성화를 할 수 있습니다.
+              </p>
+              <TeamManagement members={members} myId={profile.id} />
+            </div>
+          )}
         </div>
       </main>
     </>

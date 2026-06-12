@@ -1,12 +1,15 @@
 import Link from 'next/link'
 import { Header } from '@/components/layout/Header'
 import { requireAuth } from '@/lib/auth'
-import { getProfiles } from '@/lib/companies'
-import { COMPANY_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE } from '@/lib/constants'
+import { getProfiles, getCategorySourceOptions } from '@/lib/companies'
+import { COMPANY_STATUS } from '@/lib/constants'
 
 export default async function ExportPage() {
   const profile = await requireAuth()
-  const profiles = await getProfiles()
+  const [profiles, options] = await Promise.all([
+    getProfiles(),
+    getCategorySourceOptions(),
+  ])
 
   return (
     <>
@@ -52,7 +55,7 @@ export default async function ExportPage() {
               <label className="block text-xs font-medium text-gray-500 mb-1.5">구분 필터</label>
               <select name="category" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">전체 구분</option>
-                {COMPANY_CATEGORY.map(c => <option key={c} value={c}>{c}</option>)}
+                {options.categories.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
 
@@ -61,7 +64,7 @@ export default async function ExportPage() {
               <label className="block text-xs font-medium text-gray-500 mb-1.5">DB 경로 필터</label>
               <select name="source" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">전체 경로</option>
-                {COMPANY_SOURCE.map(s => <option key={s} value={s}>{s}</option>)}
+                {options.sources.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 

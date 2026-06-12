@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Header } from '@/components/layout/Header'
 import { CompanyDetailClient } from '@/components/companies/CompanyDetailClient'
-import { getCompany, getProfiles } from '@/lib/companies'
+import { getCompany, getProfiles, getCategorySourceOptions } from '@/lib/companies'
 import { getActivities } from '@/lib/activities'
 import { requireAuth } from '@/lib/auth'
 
@@ -11,13 +11,14 @@ interface PageProps {
 }
 
 export default async function CompanyDetailPage({ params }: PageProps) {
-  await requireAuth()
+  const profile = await requireAuth()
   const { id } = await params
 
-  const [company, profiles, activities] = await Promise.all([
+  const [company, profiles, activities, options] = await Promise.all([
     getCompany(id),
     getProfiles(),
     getActivities(id),
+    getCategorySourceOptions(),
   ])
 
   if (!company) notFound()
@@ -31,7 +32,14 @@ export default async function CompanyDetailPage({ params }: PageProps) {
             ← 거래처 목록
           </Link>
         </div>
-        <CompanyDetailClient company={company} profiles={profiles} activities={activities} />
+        <CompanyDetailClient
+          company={company}
+          profiles={profiles}
+          activities={activities}
+          canDelete={profile.role === 'admin'}
+          categoryOptions={options.categories}
+          sourceOptions={options.sources}
+        />
       </main>
     </>
   )

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { kstStartOfDay } from '@/lib/datetime'
+import { STAGE_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE, type Stage } from '@/lib/constants'
 
 export interface Company {
   id: string
@@ -37,26 +38,46 @@ export interface ProfileOption {
 
 export interface CompanyListFilters {
   status?: string
+  stage?: string
   assigned_to?: string
   category?: string
   source?: string
   next_action?: string
   q?: string
+  page?: number
 }
 
-export async function getCompanies(filters: CompanyListFilters = {}): Promise<Company[]> {
+export const PAGE_SIZE = 50
+
+export interface CompanyListResult {
+  companies: Company[]
+  total: number
+  page: number
+  pageCount: number
+}
+
+export async function getCompanies(filters: CompanyListFilters = {}): Promise<CompanyListResult> {
   const supabase = await createClient()
+  const page = Math.max(1, filters.page ?? 1)
 
   let query = supabase
     .from('companies')
-    .select('id, company_name, category, region, source, status, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, profiles(name)')
+    .select('id, company_name, category, region, source, status, phone, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, profiles(name)', { count: 'exact' })
     .order('next_action_at', { ascending: true, nullsFirst: false })
-    .limit(500)
+    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
 
   if (filters.status)      query = query.eq('status', filters.status)
-  if (filters.assigned_to) query = query.eq('assigned_to', filters.assigned_to)
+  if (filters.assigned_to === 'none') {
+    query = query.is('assigned_to', null) // 미배정 (배분 대기)
+  } else if (filters.assigned_to) {
+    query = query.eq('assigned_to', filters.assigned_to)
+  }
   if (filters.category)    query = query.eq('category', filters.category)
   if (filters.source)      query = query.eq('source', filters.source)
+
+  if (filters.stage && filters.stage in STAGE_STATUS) {
+    query = query.in('status', STAGE_STATUS[filters.stage as Stage])
+  }
 
   if (filters.next_action === 'overdue') {
     // KST 기준 오늘 이전 = 기한 초과 (당일은 초과 아님)
@@ -66,14 +87,39 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
   }
 
   if (filters.q) {
-    const safe = filters.q.replace(/[%_\\]/g, '\\$&')
+    // PostgREST or() 구문 보호: 와일드카드 이스케이프 후 값 전체를 따옴표로 감쌈
+    // (쉼표·괄호가 포함된 검색어도 안전)
+    const safe = filters.q.replace(/[%_\\]/g, '\\$&').replace(/"/g, '\\"')
     query = query.or(
-      `company_name.ilike.%${safe}%,phone.ilike.%${safe}%,latest_note.ilike.%${safe}%`,
+      `company_name.ilike."%${safe}%",phone.ilike."%${safe}%",latest_note.ilike."%${safe}%"`,
     )
   }
 
-  const { data } = await query
-  return (data as unknown as Company[]) ?? []
+  const { data, count } = await query
+  const total = count ?? 0
+  return {
+    companies: (data as unknown as Company[]) ?? [],
+    total,
+    page,
+    pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+  }
+}
+
+// 필터/폼 옵션용: DB에 실제 존재하는 구분·DB경로 값 + 기본 목록 병합
+export async function getCategorySourceOptions(): Promise<{ categories: string[]; sources: string[] }> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('companies')
+    .select('category, source')
+    .limit(5000)
+
+  const categories = new Set<string>(COMPANY_CATEGORY)
+  const sources = new Set<string>(COMPANY_SOURCE)
+  for (const row of data ?? []) {
+    if (row.category) categories.add(row.category)
+    if (row.source)   sources.add(row.source)
+  }
+  return { categories: [...categories], sources: [...sources] }
 }
 
 export async function getCompany(id: string): Promise<Company | null> {

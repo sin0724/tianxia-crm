@@ -11,6 +11,7 @@ export default async function DashboardLayout({
 }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
+  if (!profile.is_active) redirect('/pending')
 
   return (
     <div className="flex min-h-screen bg-gray-50">
