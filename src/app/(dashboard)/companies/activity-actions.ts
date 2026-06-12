@@ -63,7 +63,7 @@ export async function createActivity(
 }
 
 /**
- * 원클릭 활동 기록 — 목록/할일 페이지의 퀵 버튼용.
+ * 원클릭 활동 기록 — 목록/할일 페이지의 퀵 버튼/미니 폼용.
  * nextDays를 주면 다음 액션일을 오늘 + nextDays(KST)로 설정.
  */
 export async function quickLogActivity(
@@ -71,6 +71,7 @@ export async function quickLogActivity(
   activityType: string,
   activityResult: string | null,
   nextDays?: number,
+  memo?: string | null,
 ): Promise<ActionResult | undefined> {
   const profile = await requireAuth()
   const supabase = await createClient()
@@ -87,7 +88,7 @@ export async function quickLogActivity(
     user_id:         profile.id,
     activity_type:   activityType,
     activity_result: activityResult,
-    memo:            null,
+    memo:            memo?.trim() || null,
     next_action_at,
   })
 
