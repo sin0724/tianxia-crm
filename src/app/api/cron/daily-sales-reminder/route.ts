@@ -81,6 +81,53 @@ async function fetchAll(supabase: Supabase) {
   }
 }
 
+// ── 지난 미팅 자동 기록 ────────────────────────────────────────
+// 어제(KST) 미팅이 예정돼 있던 거래처에 '미팅' 활동을 자동 기록한다.
+// → 미팅 KPI(월 12건)가 meeting_at만 등록해도 자동 집계됨.
+// 같은 기간에 수동으로 '미팅' 활동을 남긴 거래처는 건너뛴다 (중복 방지).
+// 취소된 미팅은 meeting_at을 비우거나 날짜를 옮겨두면 기록되지 않는다.
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+async function autoLogCompletedMeetings(supabase: Supabase): Promise<number> {
+  const todayStart = kstStartOfDay()
+  const yStart = new Date(todayStart.getTime() - DAY_MS).toISOString()
+  const yEnd   = new Date(todayStart.getTime() - 1).toISOString()
+
+  const { data: met } = await supabase
+    .from('companies')
+    .select('id, assigned_to')
+    .gte('meeting_at', yStart)
+    .lte('meeting_at', yEnd)
+    .not('assigned_to', 'is', null)
+
+  const companies = met ?? []
+  if (companies.length === 0) return 0
+
+  const { data: logged } = await supabase
+    .from('activities')
+    .select('company_id')
+    .eq('activity_type', '미팅')
+    .gte('created_at', yStart)
+    .in('company_id', companies.map(c => c.id))
+  const loggedSet = new Set((logged ?? []).map(a => a.company_id))
+
+  const inserts = companies
+    .filter(c => !loggedSet.has(c.id))
+    .map(c => ({
+      company_id:      c.id,
+      user_id:         c.assigned_to,
+      activity_type:   '미팅',
+      activity_result: null,
+      memo:            null, // latest_note를 덮어쓰지 않도록 비워둠
+      next_action_at:  null,
+    }))
+  if (inserts.length === 0) return 0
+
+  const { error } = await supabase.from('activities').insert(inserts)
+  return error ? 0 : inserts.length
+}
+
 // ── Block Kit 빌더 ─────────────────────────────────────────────
 
 function sec(text: string): SlackBlock {
@@ -158,6 +205,10 @@ export async function POST(request: NextRequest) {
 
   try {
     supabase = createAdminClient()
+
+    // 어제 미팅 자동 기록 → 리마인드 집계에 반영되도록 fetchAll보다 먼저 실행
+    const autoLogged = await autoLogCompletedMeetings(supabase)
+
     const data = await fetchAll(supabase)
     const blocks = buildBlocks(data)
 
@@ -167,7 +218,7 @@ export async function POST(request: NextRequest) {
     })
 
     const summary =
-      `[일일 리마인드] 오늘 액션 ${data.todayActions.length}건 · 미팅 ${data.todayMeetings.length}건 · 연체 ${data.overdue.length}건 · 미연락 ${data.longNoContact.length}건 · 제안 미답변 ${data.proposalPending.length}건`
+      `[일일 리마인드] 오늘 액션 ${data.todayActions.length}건 · 미팅 ${data.todayMeetings.length}건 · 연체 ${data.overdue.length}건 · 미연락 ${data.longNoContact.length}건 · 제안 미답변 ${data.proposalPending.length}건 · 미팅 자동기록 ${autoLogged}건`
 
     await supabase.from('notification_logs').insert({
       notification_type: 'daily_reminder',

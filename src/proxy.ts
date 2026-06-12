@@ -1,8 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// /api/cron/* 은 핸들러 내부에서 CRON_SECRET Bearer 토큰으로 자체 인증함
-const PUBLIC_PATHS = ['/login', '/auth/callback', '/api/cron']
+// /api/cron/*, /api/integrations/* 은 핸들러 내부에서 Bearer 토큰으로 자체 인증함
+const PUBLIC_PATHS = ['/login', '/auth/callback', '/api/cron', '/api/integrations']
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })

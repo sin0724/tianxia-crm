@@ -84,6 +84,13 @@ export default async function TasksPage({ searchParams }: PageProps) {
       })
     : []
 
+  // 관리자 전체 보기: 담당자별 장기 미연락은 팀 현황판 숫자로 충분하므로
+  // 목록에는 회사 DB(미배정) 건만 노출
+  const supervisorAllView = isSupervisor && !mineOnly
+  const noContactList = supervisorAllView
+    ? longNoContact.filter(c => !c.assigned_to)
+    : longNoContact
+
   return (
     <>
       <Header title="오늘 할 일" />
@@ -139,11 +146,11 @@ export default async function TasksPage({ searchParams }: PageProps) {
           emptyMessage="오늘 예정된 미팅이 없습니다."
         />
         <TaskSection
-          title="장기 미연락 (7일 이상)"
-          companies={longNoContact}
+          title={supervisorAllView ? '장기 미연락 — 회사 DB (미배정)' : '장기 미연락 (7일 이상)'}
+          companies={noContactList}
           dateLabel="마지막 연락"
           dateKey="last_contacted_at"
-          emptyMessage="장기 미연락 거래처가 없습니다."
+          emptyMessage={supervisorAllView ? '미배정 장기 미연락 건이 없습니다.' : '장기 미연락 거래처가 없습니다.'}
         />
         <TaskSection
           title="제안서 발송 후 미답변 (3일 이상)"
