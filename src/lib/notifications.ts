@@ -180,6 +180,56 @@ export async function notifyAssignment(params: {
   })
 }
 
+// ── 앱 내(in-app) 알림 ───────────────────────────────────────
+// notifications 테이블에 수신자별 알림을 남겨 대시보드 배너로 노출한다.
+// Slack DM(notifyAssignment)과 보완 관계이며, 실패해도 CRM 기능엔 영향 없음.
+
+export interface InAppNotification {
+  id: string
+  title: string
+  body: string | null
+  link: string | null
+  created_at: string
+}
+
+/** 거래처 배분 시 수신자에게 앱 내 알림 1건 생성 */
+export async function createAssignmentNotification(params: {
+  assignee: { id: string; name: string }
+  count: number
+  assignedBy: string
+}): Promise<void> {
+  if (params.count <= 0) return
+  try {
+    const supabase = await createClient()
+    await supabase.from('notifications').insert({
+      user_id: params.assignee.id,
+      type:    'assignment',
+      title:   `신규 거래처 ${params.count}건 배정`,
+      body:    `${params.assignedBy}님이 거래처 ${params.count}건을 배정했습니다. 내일 할 일로 등록되었습니다.`,
+      link:    '/companies',
+    })
+  } catch {
+    // 알림 저장 실패는 무시 — 배분 자체엔 영향 없음
+  }
+}
+
+/** 수신자의 미열람 알림 목록 (대시보드 배너용) */
+export async function getUnreadNotifications(userId: string): Promise<InAppNotification[]> {
+  try {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('notifications')
+      .select('id, title, body, link, created_at')
+      .eq('user_id', userId)
+      .eq('is_read', false)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    return (data as InAppNotification[]) ?? []
+  } catch {
+    return []
+  }
+}
+
 export async function notifyDataRequest(params: {
   company: { id: string; company_name: string; profiles: { name: string } | null }
   activityType: string

@@ -167,6 +167,20 @@ CREATE TABLE IF NOT EXISTS notification_logs (
   created_at        TIMESTAMPTZ         NOT NULL DEFAULT NOW()
 );
 
+-- 앱 내(in-app) 알림 — 수신자별 읽음 상태를 가진 범용 알림.
+-- 현재는 거래처 배분(type='assignment') 시 생성되어 대시보드 배너로 노출됩니다.
+CREATE TABLE IF NOT EXISTS notifications (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,  -- 수신자
+  type       TEXT        NOT NULL DEFAULT 'assignment',
+  title      TEXT        NOT NULL,
+  body       TEXT,
+  link       TEXT,
+  is_read    BOOLEAN     NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  read_at    TIMESTAMPTZ
+);
+
 
 -- ── 3. INDEXES ──────────────────────────────────────────────
 
@@ -180,6 +194,7 @@ CREATE INDEX IF NOT EXISTS idx_notif_logs_company_id    ON notification_logs(com
 CREATE INDEX IF NOT EXISTS idx_notif_logs_status        ON notification_logs(status);
 CREATE INDEX IF NOT EXISTS idx_notif_logs_type_created  ON notification_logs(notification_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_kpi_entries_user_date    ON kpi_entries(user_id, entry_date);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read, created_at DESC);
 
 
 -- ── 4. HELPER FUNCTIONS ─────────────────────────────────────
@@ -319,6 +334,7 @@ ALTER TABLE products              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE company_products      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_logs     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications         ENABLE ROW LEVEL SECURITY;
 
 
 -- ── 7. RLS POLICIES ──────────────────────────────────────────
@@ -543,6 +559,34 @@ CREATE POLICY "notification_logs_delete"
   ON notification_logs FOR DELETE
   TO authenticated
   USING (get_my_role() = 'admin');
+
+-- ── notifications ──
+-- 수신자 본인만 열람/읽음처리. 삽입은 배분 주체(admin/manager) 또는 본인.
+
+DROP POLICY IF EXISTS "notifications_select" ON notifications;
+CREATE POLICY "notifications_select"
+  ON notifications FOR SELECT
+  TO authenticated
+  USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "notifications_insert" ON notifications;
+CREATE POLICY "notifications_insert"
+  ON notifications FOR INSERT
+  TO authenticated
+  WITH CHECK (is_admin_or_manager() OR user_id = auth.uid());
+
+DROP POLICY IF EXISTS "notifications_update" ON notifications;
+CREATE POLICY "notifications_update"
+  ON notifications FOR UPDATE
+  TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "notifications_delete" ON notifications;
+CREATE POLICY "notifications_delete"
+  ON notifications FOR DELETE
+  TO authenticated
+  USING (user_id = auth.uid() OR get_my_role() = 'admin');
 
 
 -- ── 8. 기존 Auth 유저 profiles 동기화 ────────────────────────

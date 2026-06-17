@@ -1,9 +1,11 @@
 import Link from 'next/link'
 import { Header } from '@/components/layout/Header'
 import { BarChart } from '@/components/dashboard/BarChart'
+import { AssignmentBanner } from '@/components/dashboard/AssignmentBanner'
 import { requireAuth } from '@/lib/auth'
 import { getDashboardData } from '@/lib/dashboard'
 import { getKpiData } from '@/lib/kpi'
+import { getUnreadNotifications } from '@/lib/notifications'
 import { STAGES, STAGE_COLOR, KPI_TARGETS } from '@/lib/constants'
 import type { ChartRow } from '@/lib/dashboard'
 
@@ -80,10 +82,11 @@ function toContractCountItems(rows: ChartRow[]) {
 
 export default async function DashboardPage() {
   const profile = await requireAuth()
-  const [{ stats, byAssignee, bySource, byCategory, byStatus, cohorts }, kpiRows] =
+  const [{ stats, byAssignee, bySource, byCategory, byStatus, cohorts }, kpiRows, notifications] =
     await Promise.all([
       getDashboardData(profile),
       getKpiData(profile),
+      getUnreadNotifications(profile.id),
     ])
 
   const scopeLabel = ROLE_LABEL[profile.role]
@@ -92,6 +95,8 @@ export default async function DashboardPage() {
     <>
       <Header title={`대시보드 — ${scopeLabel} 현황`} />
       <main className="flex-1 p-4 sm:p-6 max-w-5xl">
+
+        <AssignmentBanner notifications={notifications} />
 
         {/* ── 영업 단계 파이프라인 ───────────────────────── */}
         <SectionTitle>영업 단계</SectionTitle>

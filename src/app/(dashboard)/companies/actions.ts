@@ -12,6 +12,7 @@ import {
   notifyMeetingScheduled,
   notifyContractComplete,
   notifyAssignment,
+  createAssignmentNotification,
 } from '@/lib/notifications'
 
 interface ActionResult {
@@ -286,6 +287,13 @@ export async function assignCompanies(
       companies: assigned,
       assignedBy: profile.name,
       userId: profile.id,
+    }).catch(() => {})
+
+    // 앱 내 알림 — 담당자 대시보드 배너에 노출
+    await createAssignmentNotification({
+      assignee,
+      count: assigned.length,
+      assignedBy: profile.name,
     }).catch(() => {})
   }
 
