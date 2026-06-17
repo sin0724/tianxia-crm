@@ -3,7 +3,7 @@ import { Header } from '@/components/layout/Header'
 import { CompanyFilters } from '@/components/companies/CompanyFilters'
 import { CompanyTable } from '@/components/companies/CompanyTable'
 import { Pagination } from '@/components/companies/Pagination'
-import { getCompanies, getProfiles, getCategorySourceOptions } from '@/lib/companies'
+import { getCompanies, getProfiles, getCategorySourceOptions, getNewAssignedCount } from '@/lib/companies'
 import { requireAuth } from '@/lib/auth'
 import type { CompanyListFilters } from '@/lib/companies'
 
@@ -22,14 +22,16 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
     source:      sp.source,
     next_action:  sp.next_action,
     inflow_month: sp.inflow_month,
+    new:          sp.new,
     q:            sp.q,
     page:         sp.page ? parseInt(sp.page, 10) || 1 : 1,
   }
 
-  const [result, profiles, options] = await Promise.all([
+  const [result, profiles, options, newCount] = await Promise.all([
     getCompanies(filters),
     getProfiles(),
     getCategorySourceOptions(),
+    getNewAssignedCount(),
   ])
 
   return (
@@ -60,6 +62,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
           categories={options.categories}
           sources={options.sources}
           inflowMonths={options.inflowMonths}
+          newCount={newCount}
         />
         <CompanyTable
           companies={result.companies}

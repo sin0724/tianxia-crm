@@ -120,7 +120,7 @@ export async function updateCompany(id: string, formData: FormData): Promise<Act
   // 변경 감지용 기존 데이터 조회
   const { data: prev } = await supabase
     .from('companies')
-    .select('status, meeting_at, last_contacted_at, next_action_at, inflow_date')
+    .select('status, meeting_at, last_contacted_at, next_action_at, inflow_date, assigned_to')
     .eq('id', id)
     .single()
 
@@ -131,7 +131,13 @@ export async function updateCompany(id: string, formData: FormData): Promise<Act
     data.inflow_date       = data.inflow_date ?? prev.inflow_date
   }
 
-  const { error } = await supabase.from('companies').update(data).eq('id', id)
+  // 담당자가 다른 사람으로 바뀌면 배정 시각을 갱신해 "신규 배정 DB"로 잡히게 한다
+  const reassigned = !!data.assigned_to && prev?.assigned_to !== data.assigned_to
+  const updatePayload = reassigned
+    ? { ...data, assigned_at: new Date().toISOString() }
+    : data
+
+  const { error } = await supabase.from('companies').update(updatePayload).eq('id', id)
   if (error) return { error: error.message }
 
   // 알림 조건 판별 후 발송
@@ -258,6 +264,7 @@ export async function assignCompanies(
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
   const nextActionDate = kstDateString(tomorrow)
+  const assignedAt = new Date().toISOString() // 배정 시각 — "신규 배정 DB" 식별용
 
   let assignedTotal = 0
   for (const assignee of assignees) {
@@ -266,7 +273,7 @@ export async function assignCompanies(
 
     const { data: updated, error } = await supabase
       .from('companies')
-      .update({ assigned_to: assignee.id })
+      .update({ assigned_to: assignee.id, assigned_at: assignedAt })
       .in('id', companyIds)
       .select('id, company_name')
     if (error) return { error: error.message }

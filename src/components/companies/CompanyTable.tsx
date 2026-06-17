@@ -23,6 +23,19 @@ function isOverdue(s: string | null) {
   return !!s && new Date(s).getTime() < new Date().setHours(0, 0, 0, 0)
 }
 
+// 신규 배정 DB: 배정됐는데 아직 한 번도 연락(활동) 기록이 없는 거래처
+function isNewAssigned(c: Company) {
+  return !!c.assigned_at && !c.last_contacted_at
+}
+
+function NewBadge() {
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-600 text-white leading-none">
+      NEW
+    </span>
+  )
+}
+
 interface CompanyTableProps {
   companies: Company[]
   canDelete?: boolean
@@ -321,9 +334,12 @@ export function CompanyTable({
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <Link href={`/companies/${c.id}`} className="font-medium text-gray-900 truncate hover:text-blue-600">
-                    {c.company_name}
-                  </Link>
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    {isNewAssigned(c) && <NewBadge />}
+                    <Link href={`/companies/${c.id}`} className="font-medium text-gray-900 truncate hover:text-blue-600">
+                      {c.company_name}
+                    </Link>
+                  </span>
                   <StatusBadge status={c.status} />
                 </div>
                 <p className="mt-1 text-xs text-gray-500 truncate">
@@ -424,9 +440,12 @@ export function CompanyTable({
                     />
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
-                    <Link href={`/companies/${c.id}`} className="hover:text-blue-600 hover:underline">
-                      {c.company_name}
-                    </Link>
+                    <span className="inline-flex items-center gap-1.5">
+                      {isNewAssigned(c) && <NewBadge />}
+                      <Link href={`/companies/${c.id}`} className="hover:text-blue-600 hover:underline">
+                        {c.company_name}
+                      </Link>
+                    </span>
                   </td>
                   <Td>{c.category}</Td>
                   <Td>{c.region}</Td>

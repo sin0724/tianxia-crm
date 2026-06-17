@@ -206,7 +206,7 @@ export async function createAssignmentNotification(params: {
       type:    'assignment',
       title:   `신규 거래처 ${params.count}건 배정`,
       body:    `${params.assignedBy}님이 거래처 ${params.count}건을 배정했습니다. 내일 할 일로 등록되었습니다.`,
-      link:    '/companies',
+      link:    '/companies?new=1',
     })
   } catch {
     // 알림 저장 실패는 무시 — 배분 자체엔 영향 없음

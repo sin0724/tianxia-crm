@@ -56,6 +56,11 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS inflow_date DATE DEFAULT ((NOW() 
 UPDATE companies SET inflow_date = (created_at AT TIME ZONE 'Asia/Seoul')::date WHERE inflow_date IS NULL;
 CREATE INDEX IF NOT EXISTS idx_companies_inflow_date ON companies(inflow_date);
 
+-- 배정 시각 컬럼 추가 (기존 DB용) — "신규 배정 DB" 식별용.
+-- 기존 데이터는 NULL로 두어(백필 안 함) 과거 배정 건이 '신규'로 표시되지 않게 한다.
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_companies_assigned_at ON companies(assigned_at);
+
 -- 더 이상 사용하지 않는 ENUM 타입 정리 (참조 중이면 그대로 둠)
 DO $$ BEGIN DROP TYPE IF EXISTS company_category; EXCEPTION WHEN dependent_objects_still_exist THEN NULL; END $$;
 DO $$ BEGIN DROP TYPE IF EXISTS company_source;   EXCEPTION WHEN dependent_objects_still_exist THEN NULL; END $$;
@@ -91,6 +96,8 @@ CREATE TABLE IF NOT EXISTS companies (
   naver_place_url   TEXT,
   website_url       TEXT,
   assigned_to       UUID            REFERENCES profiles(id) ON DELETE SET NULL,
+  -- 배정(분배) 시각 — "신규 배정 DB" 식별용. 분배/재배정 시 채워진다.
+  assigned_at       TIMESTAMPTZ,
   status            company_status  NOT NULL DEFAULT '미연락',
   -- 유입일: "6월 DB / 7월 DB"처럼 신규 유입 시점을 추적 (KST 기준 오늘이 기본값)
   inflow_date       DATE            DEFAULT ((NOW() AT TIME ZONE 'Asia/Seoul')::date),

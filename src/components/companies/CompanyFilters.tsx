@@ -11,9 +11,11 @@ interface CompanyFiltersProps {
   categories: string[]
   sources: string[]
   inflowMonths: string[]
+  /** 신규 배정(배정됨 + 미연락) 거래처 수 */
+  newCount?: number
 }
 
-export function CompanyFilters({ profiles, total, categories, sources, inflowMonths }: CompanyFiltersProps) {
+export function CompanyFilters({ profiles, total, categories, sources, inflowMonths, newCount = 0 }: CompanyFiltersProps) {
   const router = useRouter()
   const sp = useSearchParams()
 
@@ -26,11 +28,12 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
   const [q,           setQ]           = useState(sp.get('q') ?? '')
 
   const stage = sp.get('stage') ?? ''
+  const isNew = sp.get('new') ?? ''
 
   function push(overrides: Record<string, string> = {}) {
     const cur = {
       stage, status, assigned_to: assignedTo, category, source,
-      next_action: nextAction, inflow_month: inflowMonth, q,
+      next_action: nextAction, inflow_month: inflowMonth, new: isNew, q,
     }
     const merged = { ...cur, ...overrides }
     const params = new URLSearchParams()
@@ -68,7 +71,7 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
     router.push('/companies')
   }
 
-  const hasFilter = [stage, status, assignedTo, category, source, nextAction, inflowMonth, q].some(Boolean)
+  const hasFilter = [stage, status, assignedTo, category, source, nextAction, inflowMonth, isNew, q].some(Boolean)
 
   // 단계 탭 안에서는 해당 단계의 상태만 노출
   const statusOptions = stage && stage in STAGE_STATUS
@@ -77,6 +80,23 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
 
   return (
     <div className="space-y-3">
+      {/* 신규 배정 DB 바로가기 — 배정됐는데 아직 미연락인 거래처 */}
+      {(newCount > 0 || isNew) && (
+        <button
+          onClick={() => push({ new: isNew ? '' : '1' })}
+          className={`flex w-full items-center justify-between gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+            isNew
+              ? 'border-blue-300 bg-blue-100 text-blue-800'
+              : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+          }`}
+        >
+          <span>🆕 신규 배정 DB {newCount > 0 && `${newCount}건`}</span>
+          <span className="text-xs font-normal">
+            {isNew ? '✕ 신규만 보기 해제' : '바로 보기 →'}
+          </span>
+        </button>
+      )}
+
       {/* 영업 단계 탭: 잠재(반응 전) / 가망(반응 있음) / 고객 / 종료 */}
       <div className="flex flex-wrap gap-1 bg-white border border-gray-200 rounded-xl p-1.5">
         <StageTab label="전체" active={!stage} onClick={() => onStage('')} />

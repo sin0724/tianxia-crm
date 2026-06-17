@@ -16,6 +16,7 @@ export interface Company {
   naver_place_url: string | null
   website_url: string | null
   assigned_to: string | null
+  assigned_at: string | null
   status: string
   inflow_date: string | null
   interest_level: number | null
@@ -45,6 +46,7 @@ export interface CompanyListFilters {
   source?: string
   next_action?: string
   inflow_month?: string // "YYYY-MM"
+  new?: string          // '1' = 신규 배정(배정됨 + 미연락)만
   q?: string
   page?: number
 }
@@ -74,9 +76,15 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
 
   let query = supabase
     .from('companies')
-    .select('id, company_name, category, region, source, status, phone, inflow_date, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, profiles(name)', { count: 'exact' })
+    .select('id, company_name, category, region, source, status, phone, inflow_date, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, assigned_at, profiles(name)', { count: 'exact' })
     .order('next_action_at', { ascending: true, nullsFirst: false })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
+
+  // 신규 배정: 배정 시각이 있고 아직 연락 기록이 없는(미연락) 거래처.
+  // 담당자가 활동을 기록하면 last_contacted_at이 채워져 자동으로 빠진다.
+  if (filters.new === '1') {
+    query = query.not('assigned_at', 'is', null).is('last_contacted_at', null)
+  }
 
   if (filters.status)      query = query.eq('status', filters.status)
   if (filters.assigned_to === 'none') {
@@ -149,6 +157,20 @@ export async function getCategorySourceOptions(): Promise<{
     sources: [...sources],
     inflowMonths: [...months].sort().reverse(),
   }
+}
+
+/**
+ * 신규 배정(배정됨 + 미연락) 거래처 수.
+ * RLS로 sales는 본인 담당분만 집계되므로 "내게 새로 들어온 DB" 건수가 된다.
+ */
+export async function getNewAssignedCount(): Promise<number> {
+  const supabase = await createClient()
+  const { count } = await supabase
+    .from('companies')
+    .select('id', { count: 'exact', head: true })
+    .not('assigned_at', 'is', null)
+    .is('last_contacted_at', null)
+  return count ?? 0
 }
 
 export async function getCompany(id: string): Promise<Company | null> {
