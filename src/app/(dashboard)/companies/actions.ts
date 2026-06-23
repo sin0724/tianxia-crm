@@ -46,7 +46,7 @@ function extractData(fd: FormData) {
     naver_place_url: str('naver_place_url'),
     website_url:     str('website_url'),
     assigned_to:     str('assigned_to'),
-    status:          str('status') ?? '미연락',
+    status:          str('status') ?? '신규문의',
     inflow_date:     str('inflow_date'),
     interest_level:  num('interest_level'),
     expected_amount: num('expected_amount'),
@@ -147,7 +147,7 @@ export async function updateCompany(id: string, formData: FormData): Promise<Act
     const newMeetingMs = data.meeting_at ? new Date(data.meeting_at).getTime() : null
 
     const meetingChanged = newMeetingMs !== null && newMeetingMs !== oldMeetingMs
-    const contractJustDone = oldStatus !== '계약 완료' && data.status === '계약 완료'
+    const contractJustDone = oldStatus !== '계약완료' && data.status === '계약완료'
 
     if (meetingChanged || contractJustDone) {
       const { data: co } = await supabase

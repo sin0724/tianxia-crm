@@ -184,7 +184,7 @@ export function CompanyForm({
         {/* 영업 현황 */}
         <Card title="영업 현황">
           <Field label="현재 상태">
-            <select name="status" defaultValue={d.status ?? '미연락'} className={inputCls}>
+            <select name="status" defaultValue={d.status ?? '신규문의'} className={inputCls}>
               {COMPANY_STATUS.map(v => <option key={v} value={v}>{v}</option>)}
             </select>
           </Field>

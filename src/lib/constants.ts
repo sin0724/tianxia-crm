@@ -1,22 +1,27 @@
+// 영업 단계(DB 상태) — 6단계로 간소화 (2026-06 담당자 건의 반영)
+// 1.신규문의 → 2.제안서발송 → 3.미팅진행 → 4.계약검토 → 5.계약완료 / 6.이탈·보류
 export const COMPANY_STATUS = [
-  '미연락', '1차 연락 완료', '부재', '답변 대기', '관심 있음',
-  '미팅 예정', '미팅 완료', '제안서 발송', '계약 검토',
-  '계약 완료', '보류', '실패', '제외',
+  '신규문의', '제안서발송', '미팅진행', '계약검토', '계약완료', '이탈/보류',
 ] as const
 
 export type CompanyStatus = typeof COMPANY_STATUS[number]
 
+// 업종(구분) — 7개로 분류, 해당 없으면 '미분류'
 export const COMPANY_CATEGORY = [
-  '병의원', '맛집', '카페/디저트', '뷰티샵', '커머스', '숙박', '학원', '피트니스', '기타',
+  '병의원', 'F&B', '뷰티', '코스메틱', '커머스', '숙박', '기타및대행사', '미분류',
 ] as const
 
 export type CompanyCategory = typeof COMPANY_CATEGORY[number]
 
+// DB 경로 — 7개로 간소화
 export const COMPANY_SOURCE = [
-  'OB', '네이버', '스레드', '인스타그램', '메타 광고', '회사DB', '소개', '기존 고객', '기타',
+  '메타광고', '스레드', '네이버블로그/폼', '아웃바운드', '회사DB', '인스타DM', '기타및소개',
 ] as const
 
 export type CompanySource = typeof COMPANY_SOURCE[number]
+
+// 계약완료/이탈·보류 = 종료된 건 — 할 일·리마인드·미연락 집계에서 제외
+export const CLOSED_STATUSES = ['계약완료', '이탈/보류'] as const
 
 export const ACTIVITY_TYPE = [
   '전화', '문자', '카톡', '이메일', 'DM', '미팅', 'KOL 제안', '제안서 발송', '계약서 발송', '기타',
@@ -61,10 +66,10 @@ export const STAGES = ['잠재', '가망', '고객', '종료'] as const
 export type Stage = typeof STAGES[number]
 
 export const STAGE_STATUS: Record<Stage, CompanyStatus[]> = {
-  '잠재': ['미연락', '1차 연락 완료', '부재', '답변 대기'],
-  '가망': ['관심 있음', '미팅 예정', '미팅 완료', '제안서 발송', '계약 검토'],
-  '고객': ['계약 완료'],
-  '종료': ['보류', '실패', '제외'],
+  '잠재': ['신규문의'],
+  '가망': ['제안서발송', '미팅진행', '계약검토'],
+  '고객': ['계약완료'],
+  '종료': ['이탈/보류'],
 }
 
 export function stageOf(status: string): Stage {
@@ -82,28 +87,21 @@ export const STAGE_COLOR: Record<Stage, string> = {
 }
 
 // ── 영업사원 KPI 목표 ─────────────────────────────────────────
-
+// 1주 단위로 통합 (2026-06 담당자 건의 반영)
 export const KPI_TARGETS = {
-  meetingsPerMonth: 12, // 미팅 12건 이상 / 월 (활동 유형 '미팅' 기준)
-  kolPerDay:        3,  // KOL 제안 3건 / 일
-  threadsPerWeek:   3,  // 스레드 업로드(주제 선정) 3건 / 주
+  kolPerWeek:      15, // KOL 제안 15건 / 주
+  threadsPerWeek:  3,  // 스레드 업로드 3건 / 주
+  meetingsPerWeek: 3,  // 미팅 3건 / 주 (활동 유형 '미팅' 기준)
 } as const
 
 export const KPI_ENTRY_TYPES = ['KOL 제안', '스레드 업로드'] as const
 export type KpiEntryType = typeof KPI_ENTRY_TYPES[number]
 
 export const STATUS_COLOR: Record<CompanyStatus, string> = {
-  '미연락':        'bg-gray-100 text-gray-600',
-  '1차 연락 완료': 'bg-blue-100 text-blue-700',
-  '부재':          'bg-orange-100 text-orange-700',
-  '답변 대기':     'bg-yellow-100 text-yellow-700',
-  '관심 있음':     'bg-green-100 text-green-700',
-  '미팅 예정':     'bg-purple-100 text-purple-700',
-  '미팅 완료':     'bg-indigo-100 text-indigo-700',
-  '제안서 발송':   'bg-cyan-100 text-cyan-700',
-  '계약 검토':     'bg-amber-100 text-amber-700',
-  '계약 완료':     'bg-emerald-100 text-emerald-800',
-  '보류':          'bg-gray-100 text-gray-500',
-  '실패':          'bg-red-100 text-red-600',
-  '제외':          'bg-gray-200 text-gray-500',
+  '신규문의':   'bg-gray-100 text-gray-600',
+  '제안서발송': 'bg-cyan-100 text-cyan-700',
+  '미팅진행':   'bg-purple-100 text-purple-700',
+  '계약검토':   'bg-amber-100 text-amber-700',
+  '계약완료':   'bg-emerald-100 text-emerald-800',
+  '이탈/보류':  'bg-gray-200 text-gray-500',
 }

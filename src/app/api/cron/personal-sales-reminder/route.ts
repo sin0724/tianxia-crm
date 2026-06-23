@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendSlackDM, type SlackPayload, type SlackSectionBlock } from '@/lib/slack'
+import { CLOSED_STATUSES } from '@/lib/constants'
 import { kstTodayRange, kstDaysAgoEnd, fmtFullDateTimeKST } from '@/lib/datetime'
 
 // ── Admin client ───────────────────────────────────────────────
@@ -35,7 +36,7 @@ type NotifType = 'action_day' | 'meeting_soon' | 'proposal_pending'
 // ── 헬퍼 ───────────────────────────────────────────────────────
 
 const SELECT = 'id, company_name, status, next_action_at, meeting_at, latest_note, profiles(id, name, slack_user_id)'
-const EXCLUDED = ['계약 완료', '실패', '제외']
+const EXCLUDED = CLOSED_STATUSES
 
 function appUrl() {
   return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '')
@@ -80,7 +81,7 @@ async function getProposalPending(supabase: Supabase): Promise<PersonalCompany[]
   const cutoff = kstDaysAgoEnd(3)
 
   const { data } = await supabase.from('companies').select(SELECT)
-    .eq('status', '제안서 발송')
+    .eq('status', '제안서발송')
     .or(`last_contacted_at.is.null,last_contacted_at.lte.${cutoff}`)
     .not('assigned_to', 'is', null)
   return cast(data)

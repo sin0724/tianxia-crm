@@ -12,26 +12,9 @@ DO $$ BEGIN
   CREATE TYPE user_role AS ENUM ('admin', 'manager', 'sales');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-DO $$ BEGIN
-  CREATE TYPE company_status AS ENUM (
-    '미연락',
-    '1차 연락 완료',
-    '부재',
-    '답변 대기',
-    '관심 있음',
-    '미팅 예정',
-    '미팅 완료',
-    '제안서 발송',
-    '계약 검토',
-    '계약 완료',
-    '보류',
-    '실패',
-    '제외'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
--- category / source / activity_type / activity_result는 자유 입력을 허용하기 위해
--- TEXT 컬럼을 사용합니다. (과거 ENUM에서 마이그레이션 — 아래 1-b 참조)
+-- status / category / source / activity_type / activity_result는 모두 TEXT 컬럼입니다.
+-- status는 앱(constants.ts COMPANY_STATUS)에서 6단계로 검증합니다.
+-- 과거 company_status ENUM은 아래 1-b에서 TEXT로 전환 후 9번 섹션에서 값을 재매핑합니다.
 
 DO $$ BEGIN
   CREATE TYPE notification_status AS ENUM ('pending', 'sent', 'failed');
@@ -44,6 +27,14 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE companies  ALTER COLUMN category        TYPE TEXT USING category::text;
   ALTER TABLE companies  ALTER COLUMN source          TYPE TEXT USING source::text;
+EXCEPTION WHEN undefined_table THEN NULL; END $$;
+
+-- status: company_status ENUM → TEXT 전환 (기존 DB용, 재실행 안전)
+-- ENUM default가 걸려 있으면 TYPE 변경이 막히므로 default를 먼저 떼고 변환한다.
+DO $$ BEGIN
+  ALTER TABLE companies ALTER COLUMN status DROP DEFAULT;
+  ALTER TABLE companies ALTER COLUMN status TYPE TEXT USING status::text;
+  ALTER TABLE companies ALTER COLUMN status SET DEFAULT '신규문의';
 EXCEPTION WHEN undefined_table THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -98,7 +89,7 @@ CREATE TABLE IF NOT EXISTS companies (
   assigned_to       UUID            REFERENCES profiles(id) ON DELETE SET NULL,
   -- 배정(분배) 시각 — "신규 배정 DB" 식별용. 분배/재배정 시 채워진다.
   assigned_at       TIMESTAMPTZ,
-  status            company_status  NOT NULL DEFAULT '미연락',
+  status            TEXT            NOT NULL DEFAULT '신규문의',
   -- 유입일: "6월 DB / 7월 DB"처럼 신규 유입 시점을 추적 (KST 기준 오늘이 기본값)
   inflow_date       DATE            DEFAULT ((NOW() AT TIME ZONE 'Asia/Seoul')::date),
   interest_level    SMALLINT        CHECK (interest_level BETWEEN 1 AND 5),
@@ -606,3 +597,65 @@ SELECT
   COALESCE(raw_user_meta_data->>'name', split_part(email, '@', 1))
 FROM auth.users
 ON CONFLICT (id) DO NOTHING;
+
+
+-- ── 9. 카테고리 간소화 마이그레이션 (2026-06 담당자 건의 반영) ──
+-- 기존 13개 상태 / 자유입력 구분 / DB경로를 간소화된 분류 체계로 재매핑한다.
+-- 모두 idempotent: 이미 새 값이면 WHERE에 걸리지 않아 재실행해도 안전하다.
+-- (status가 TEXT로 전환된 뒤 실행되어야 하므로 1-b 변환 이후 시점인 이 위치에 둔다.)
+
+-- 9-a. DB 상태: 13단계 → 6단계
+--   미연락·1차 연락 완료·부재·답변 대기 → 신규문의 (아직 제안/미팅 전)
+--   관심 있음 → 제안서발송 (반응 있는 '가망'은 신규문의로 희석하지 않고 한 단계 위로)
+--   미팅 예정·미팅 완료 → 미팅진행 / 제안서 발송 → 제안서발송 / 계약 검토 → 계약검토
+--   계약 완료 → 계약완료 / 보류·실패·제외 → 이탈/보류
+UPDATE companies SET status = CASE status
+  WHEN '미연락'        THEN '신규문의'
+  WHEN '1차 연락 완료' THEN '신규문의'
+  WHEN '부재'          THEN '신규문의'
+  WHEN '답변 대기'     THEN '신규문의'
+  WHEN '관심 있음'     THEN '제안서발송'
+  WHEN '미팅 예정'     THEN '미팅진행'
+  WHEN '미팅 완료'     THEN '미팅진행'
+  WHEN '제안서 발송'   THEN '제안서발송'
+  WHEN '계약 검토'     THEN '계약검토'
+  WHEN '계약 완료'     THEN '계약완료'
+  WHEN '보류'          THEN '이탈/보류'
+  WHEN '실패'          THEN '이탈/보류'
+  WHEN '제외'          THEN '이탈/보류'
+  ELSE status
+END
+WHERE status IN (
+  '미연락','1차 연락 완료','부재','답변 대기','관심 있음',
+  '미팅 예정','미팅 완료','제안서 발송','계약 검토','계약 완료','보류','실패','제외'
+);
+
+-- 9-b. 업종(구분): 알려진 값만 새 분류로, 나머지(학원·피트니스·자유입력·빈값)는 미분류
+UPDATE companies SET category = CASE category
+  WHEN '맛집'        THEN 'F&B'
+  WHEN '카페/디저트' THEN 'F&B'
+  WHEN '뷰티샵'      THEN '뷰티'
+  WHEN '기타'        THEN '기타및대행사'
+  ELSE category
+END
+WHERE category IN ('맛집','카페/디저트','뷰티샵','기타');
+
+UPDATE companies SET category = '미분류'
+WHERE category IS NULL
+   OR category NOT IN ('병의원','F&B','뷰티','코스메틱','커머스','숙박','기타및대행사','미분류');
+
+-- 9-c. DB 경로: 7개로 간소화 (스레드·회사DB는 그대로 유지)
+UPDATE companies SET source = CASE source
+  WHEN 'OB'        THEN '아웃바운드'
+  WHEN '네이버'    THEN '네이버블로그/폼'
+  WHEN '인스타그램' THEN '인스타DM'
+  WHEN '메타 광고'  THEN '메타광고'
+  WHEN '소개'      THEN '기타및소개'
+  WHEN '기존 고객'  THEN '기타및소개'
+  WHEN '기타'      THEN '기타및소개'
+  ELSE source
+END
+WHERE source IN ('OB','네이버','인스타그램','메타 광고','소개','기존 고객','기타');
+
+-- 9-d. 더 이상 쓰지 않는 company_status ENUM 정리 (참조 중이면 그대로 둠)
+DO $$ BEGIN DROP TYPE IF EXISTS company_status; EXCEPTION WHEN dependent_objects_still_exist THEN NULL; END $$;

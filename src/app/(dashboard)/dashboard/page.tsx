@@ -151,14 +151,14 @@ export default async function DashboardPage() {
 
         {/* ── 영업사원 KPI ──────────────────────────────── */}
         <SectionTitle>
-          영업사원 KPI — 미팅 {KPI_TARGETS.meetingsPerMonth}건/월 · KOL 제안 {KPI_TARGETS.kolPerDay}건/일 · 스레드 {KPI_TARGETS.threadsPerWeek}건/주
+          영업사원 KPI (이번 주) — KOL 제안 {KPI_TARGETS.kolPerWeek}건 · 스레드 {KPI_TARGETS.threadsPerWeek}건 · 미팅 {KPI_TARGETS.meetingsPerWeek}건
         </SectionTitle>
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['담당자', '미팅 (이번 달)', 'KOL 제안 (오늘)', 'KOL 제안 (이번 주)', '스레드 (이번 주)'].map(h => (
+                  {['담당자', 'KOL 제안 (주)', '스레드 (주)', '미팅 (주)'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">
                       {h}
                     </th>
@@ -167,14 +167,13 @@ export default async function DashboardPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {kpiRows.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400">데이터 없음</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">데이터 없음</td></tr>
                 ) : kpiRows.map(r => (
                   <tr key={r.userId}>
                     <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{r.name}</td>
-                    <KpiCell value={r.meetingsThisMonth} target={KPI_TARGETS.meetingsPerMonth} />
-                    <KpiCell value={r.kolToday} target={KPI_TARGETS.kolPerDay} />
-                    <td className="px-4 py-3 text-gray-600">{r.kolThisWeek}</td>
+                    <KpiCell value={r.kolThisWeek} target={KPI_TARGETS.kolPerWeek} />
                     <KpiCell value={r.threadsThisWeek} target={KPI_TARGETS.threadsPerWeek} />
+                    <KpiCell value={r.meetingsThisWeek} target={KPI_TARGETS.meetingsPerWeek} />
                   </tr>
                 ))}
               </tbody>

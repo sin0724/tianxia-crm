@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth'
-import { stageOf, STAGES, type Stage } from '@/lib/constants'
+import { stageOf, STAGES, CLOSED_STATUSES, type Stage } from '@/lib/constants'
 import {
   kstStartOfDay, kstEndOfDay, kstStartOfMonth,
   kstStartOfWeek, kstEndOfWeek, kstDaysAgoEnd,
@@ -97,7 +97,7 @@ async function fetchCompanies(profile: Profile): Promise<DashCompany[]> {
 
 // ── 통계 집계 ─────────────────────────────────────────────────
 
-const EXCLUDED = new Set(['계약 완료', '실패', '제외'])
+const EXCLUDED = new Set<string>(CLOSED_STATUSES)
 
 function computeStats(companies: DashCompany[]): DashboardStats {
   const todayS   = kstStartOfDay().getTime()
@@ -137,9 +137,9 @@ function computeStats(companies: DashCompany[]): DashboardStats {
       if (t >= weekS && t <= weekE)                          thisWeekMeetings++
     }
 
-    if (c.status === '제안서 발송')                          proposalSent++
-    if (c.status === '계약 검토')                            contractReview++
-    if (c.status === '계약 완료') {
+    if (c.status === '제안서발송')                           proposalSent++
+    if (c.status === '계약검토')                             contractReview++
+    if (c.status === '계약완료') {
       contractDone++
       contractDoneAmount += c.contract_amount ?? 0
     }
@@ -185,7 +185,7 @@ function groupBy(
     const key = keyFn(c)
     const row = map.get(key) ?? { label: key, count: 0, contractCount: 0, contractAmount: 0 }
     row.count++
-    if (c.status === '계약 완료') {
+    if (c.status === '계약완료') {
       row.contractCount++
       row.contractAmount += c.contract_amount ?? 0
     }
@@ -207,7 +207,8 @@ function computeCharts(companies: DashCompany[]) {
 // ── 월별 유입 코호트 ───────────────────────────────────────────
 // "6월 DB가 얼마나 가망/미팅/계약까지 갔는지" — DB 질·소싱 채널 판단용
 
-const MEETING_REACHED = new Set(['미팅 예정', '미팅 완료', '제안서 발송', '계약 검토', '계약 완료'])
+// 미팅 단계 이상 도달 (간소화된 퍼널: 제안서발송 → 미팅진행 → 계약검토 → 계약완료)
+const MEETING_REACHED = new Set(['미팅진행', '계약검토', '계약완료'])
 
 function computeCohorts(companies: DashCompany[]): CohortRow[] {
   const map = new Map<string, CohortRow>()
@@ -220,7 +221,7 @@ function computeCohorts(companies: DashCompany[]): CohortRow[] {
     const stage = stageOf(c.status)
     if (stage === '가망' || stage === '고객') row.prospects++
     if (MEETING_REACHED.has(c.status) || c.meeting_at) row.meetings++
-    if (c.status === '계약 완료') row.contracts++
+    if (c.status === '계약완료') row.contracts++
 
     map.set(month, row)
   }

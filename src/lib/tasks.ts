@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Company } from '@/lib/companies'
+import { CLOSED_STATUSES } from '@/lib/constants'
 import { kstTodayRange, kstStartOfDay, kstStartOfMonth, kstDaysAgoEnd, kstDateString } from '@/lib/datetime'
 
 type TaskCompany = Pick<
@@ -17,7 +18,7 @@ type TaskCompany = Pick<
   | 'profiles'
 >
 
-const EXCLUDED_STATUSES = ['계약 완료', '실패', '제외']
+const EXCLUDED_STATUSES = CLOSED_STATUSES
 
 const SELECT = 'id, company_name, category, status, phone, assigned_to, inflow_date, next_action_at, last_contacted_at, meeting_at, profiles(name)'
 
@@ -70,7 +71,7 @@ export async function getFreshInflow(filters: TaskFilters = {}): Promise<TaskCom
     .from('companies')
     .select(SELECT)
     .gte('inflow_date', monthStart)
-    .eq('status', '미연락')
+    .eq('status', '신규문의')
     .order('inflow_date', { ascending: false })
 
   if (filters.assigned_to) q = q.eq('assigned_to', filters.assigned_to)
@@ -120,7 +121,7 @@ export async function getProposalPending(filters: TaskFilters = {}): Promise<Tas
   let q = supabase
     .from('companies')
     .select(SELECT)
-    .eq('status', '제안서 발송')
+    .eq('status', '제안서발송')
     .or(`last_contacted_at.is.null,last_contacted_at.lte.${threshold}`)
     .order('last_contacted_at', { ascending: true, nullsFirst: true })
 

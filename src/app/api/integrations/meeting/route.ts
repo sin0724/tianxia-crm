@@ -35,8 +35,8 @@ function normalizeName(name: string): string {
   return name.toLowerCase().replace(/[\s\(\)\[\]（）【】·•\-_.,'"]/g, '')
 }
 
-// 미팅 등록 시 자동으로 '미팅 예정'으로 올릴 수 있는 이전 단계 상태들
-const PROMOTABLE_STATUSES = ['미연락', '1차 연락 완료', '부재', '답변 대기', '관심 있음']
+// 미팅 등록 시 자동으로 '미팅진행'으로 올릴 수 있는 이전 단계 상태들
+const PROMOTABLE_STATUSES = ['신규문의', '제안서발송']
 
 export async function POST(request: NextRequest) {
   const secret = process.env.INTEGRATION_SECRET ?? process.env.CRON_SECRET
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     if (company) {
       const update: Record<string, string | null> = { meeting_at: meetingAt }
       if (assigneeId && !company.assigned_to) update.assigned_to = assigneeId
-      if (PROMOTABLE_STATUSES.includes(company.status)) update.status = '미팅 예정'
+      if (PROMOTABLE_STATUSES.includes(company.status)) update.status = '미팅진행'
       if (body.memo?.trim()) update.latest_note = body.memo.trim()
 
       const { error } = await supabase.from('companies').update(update).eq('id', company.id)
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       .from('companies')
       .insert({
         company_name: companyName,
-        status: '미팅 예정',
+        status: '미팅진행',
         meeting_at: meetingAt,
         assigned_to: assigneeId,
         latest_note: body.memo?.trim() || null,

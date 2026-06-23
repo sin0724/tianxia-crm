@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendSlackNotification } from '@/lib/slack'
 import type { SlackBlock } from '@/lib/slack'
+import { CLOSED_STATUSES } from '@/lib/constants'
 import {
   kstTodayRange, kstStartOfDay, kstDaysAgoEnd,
   todayLabelKST, fmtDateKST, fmtDateTimeKST,
@@ -32,7 +33,7 @@ type ReminderCompany = {
 }
 
 const SELECT = 'id, company_name, status, next_action_at, meeting_at, last_contacted_at, latest_note, profiles(name)'
-const EXCLUDED = ['계약 완료', '실패', '제외']
+const EXCLUDED = CLOSED_STATUSES
 
 function cast(data: unknown): ReminderCompany[] {
   return (data as unknown as ReminderCompany[]) ?? []
@@ -69,7 +70,7 @@ async function fetchAll(supabase: Supabase) {
   // 제안서 발송 후 3일+ 미답변
   const proposalCutoff = kstDaysAgoEnd(3)
   const { data: proposalPending } = await supabase.from('companies').select(SELECT)
-    .eq('status', '제안서 발송')
+    .eq('status', '제안서발송')
     .or(`last_contacted_at.is.null,last_contacted_at.lte.${proposalCutoff}`)
 
   return {

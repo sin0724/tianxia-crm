@@ -1,16 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth'
-import { kstStartOfMonth, kstStartOfWeek, kstDateString } from '@/lib/datetime'
+import { kstStartOfWeek, kstDateString } from '@/lib/datetime'
 
 // ── 타입 ──────────────────────────────────────────────────────
+// KPI는 모두 "이번 주(1주)" 단위로 집계 (2026-06 담당자 건의 반영)
 
 export interface KpiRow {
   userId: string
   name: string
-  meetingsThisMonth: number // 목표: 12 / 월
-  kolToday: number          // 목표: 3 / 일
-  kolThisWeek: number
-  threadsThisWeek: number   // 목표: 3 / 주
+  kolThisWeek: number      // 목표: 15 / 주
+  threadsThisWeek: number  // 목표: 3 / 주
+  meetingsThisWeek: number // 목표: 3 / 주
 }
 
 export interface KpiEntry {
@@ -55,16 +55,15 @@ export async function getKpiData(profile: Profile): Promise<KpiRow[]> {
   if (targets.length === 0) return []
 
   const ids = targets.map(t => t.id)
-  const monthStart = kstStartOfMonth().toISOString()
-  const weekStartDate = kstDateString(kstStartOfWeek())
-  const today = kstDateString()
+  const weekStart = kstStartOfWeek()
+  const weekStartDate = kstDateString(weekStart)
 
   const [{ data: meetings }, { data: entries }] = await Promise.all([
     supabase
       .from('activities')
       .select('user_id')
       .eq('activity_type', '미팅')
-      .gte('created_at', monthStart)
+      .gte('created_at', weekStart.toISOString())
       .in('user_id', ids),
     supabase
       .from('kpi_entries')
@@ -76,15 +75,14 @@ export async function getKpiData(profile: Profile): Promise<KpiRow[]> {
   const rows = new Map<string, KpiRow>(targets.map(t => [t.id, {
     userId: t.id,
     name: t.name,
-    meetingsThisMonth: 0,
-    kolToday: 0,
     kolThisWeek: 0,
     threadsThisWeek: 0,
+    meetingsThisWeek: 0,
   }]))
 
   for (const m of meetings ?? []) {
     const row = rows.get(m.user_id)
-    if (row) row.meetingsThisMonth++
+    if (row) row.meetingsThisWeek++
   }
 
   for (const e of entries ?? []) {
@@ -92,7 +90,6 @@ export async function getKpiData(profile: Profile): Promise<KpiRow[]> {
     if (!row) continue
     if (e.entry_type === 'KOL 제안') {
       row.kolThisWeek++
-      if (e.entry_date === today) row.kolToday++
     } else if (e.entry_type === '스레드 업로드') {
       row.threadsThisWeek++
     }

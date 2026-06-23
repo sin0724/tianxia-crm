@@ -94,6 +94,16 @@ export async function quickLogActivity(
 
   if (error) return { error: error.message }
 
+  // '없음'(nextDays === 0)을 명시적으로 고른 경우 다음 액션일을 비운다.
+  // 활동 INSERT 트리거가 next_action_at을 COALESCE로 보존하므로,
+  // 기존 값(예: 오늘)이 남아 '오늘 할 일'에서 사라지지 않는 문제를 직접 해소한다.
+  if (nextDays === 0) {
+    await supabase
+      .from('companies')
+      .update({ next_action_at: null })
+      .eq('id', companyId)
+  }
+
   revalidatePath(`/companies/${companyId}`)
   revalidatePath('/companies')
   revalidatePath('/tasks')

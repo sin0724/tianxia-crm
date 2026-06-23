@@ -6,10 +6,10 @@ import { KpiQuickLog } from '@/components/kpi/KpiQuickLog'
 import { createClient } from '@/lib/supabase/server'
 import {
   getTodayActions, getOverdueActions, getTodayMeetings,
-  getLongNoContact, getProposalPending, getFreshInflow,
-  type TaskCompany,
+  getLongNoContact, type TaskCompany,
 } from '@/lib/tasks'
 import { getKpiData, getMyTodayKpiEntries, type KpiRow } from '@/lib/kpi'
+import { CLOSED_STATUSES } from '@/lib/constants'
 import { requireAuth, isAdminOrManager } from '@/lib/auth'
 
 interface PageProps {
@@ -28,9 +28,9 @@ function buildOverviewRows(
     overdue: 0,
     meetings: 0,
     longNoContact: 0,
-    kolToday: k.kolToday,
+    kolThisWeek: k.kolThisWeek,
     threadsThisWeek: k.threadsThisWeek,
-    meetingsThisMonth: k.meetingsThisMonth,
+    meetingsThisWeek: k.meetingsThisWeek,
   }))
   const byId = new Map(rows.map(r => [r.userId, r]))
 
@@ -52,14 +52,13 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const mineOnly = sp.mine === '1'
   const filters = mineOnly ? { assigned_to: profile.id } : {}
 
-  const [todayActions, overdueActions, todayMeetings, longNoContact, proposalPending, freshInflow, kpiRows, todayEntries] =
+  // 장기 미연락은 감독자 팀 현황판 집계에만 쓰고, 목록 섹션으로는 노출하지 않는다.
+  const [todayActions, overdueActions, todayMeetings, longNoContact, kpiRows, todayEntries] =
     await Promise.all([
       getTodayActions(filters),
       getOverdueActions(filters),
       getTodayMeetings(filters),
       getLongNoContact(filters),
-      getProposalPending(filters),
-      getFreshInflow(filters),
       getKpiData(profile),
       profile.role === 'sales' ? getMyTodayKpiEntries(profile.id) : Promise.resolve([]),
     ])
@@ -72,7 +71,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
       .from('companies')
       .select('id', { count: 'exact', head: true })
       .is('assigned_to', null)
-    for (const s of ['계약 완료', '실패', '제외']) q = q.neq('status', s)
+    for (const s of CLOSED_STATUSES) q = q.neq('status', s)
     const { count } = await q
     unassignedCount = count ?? 0
   }
@@ -84,13 +83,6 @@ export default async function TasksPage({ searchParams }: PageProps) {
         meetings: todayMeetings, noContact: longNoContact,
       })
     : []
-
-  // 관리자 전체 보기: 담당자별 장기 미연락은 팀 현황판 숫자로 충분하므로
-  // 목록에는 회사 DB(미배정) 건만 노출
-  const supervisorAllView = isSupervisor && !mineOnly
-  const noContactList = supervisorAllView
-    ? longNoContact.filter(c => !c.assigned_to)
-    : longNoContact
 
   return (
     <>
@@ -145,27 +137,6 @@ export default async function TasksPage({ searchParams }: PageProps) {
           dateLabel="미팅 시간"
           dateKey="meeting_at"
           emptyMessage="오늘 예정된 미팅이 없습니다."
-        />
-        <TaskSection
-          title="이번 달 신규 유입 (미연락)"
-          companies={freshInflow}
-          dateLabel="유입일"
-          dateKey="inflow_date"
-          emptyMessage="이번 달 유입 중 미연락 건이 없습니다."
-        />
-        <TaskSection
-          title={supervisorAllView ? '장기 미연락 — 회사 DB (미배정)' : '장기 미연락 (7일 이상)'}
-          companies={noContactList}
-          dateLabel="마지막 연락"
-          dateKey="last_contacted_at"
-          emptyMessage={supervisorAllView ? '미배정 장기 미연락 건이 없습니다.' : '장기 미연락 거래처가 없습니다.'}
-        />
-        <TaskSection
-          title="제안서 발송 후 미답변 (3일 이상)"
-          companies={proposalPending}
-          dateLabel="마지막 연락"
-          dateKey="last_contacted_at"
-          emptyMessage="팔로우업이 필요한 거래처가 없습니다."
         />
       </main>
     </>

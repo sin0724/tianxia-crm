@@ -8,9 +8,9 @@ export interface RepOverviewRow {
   overdue: number
   meetings: number
   longNoContact: number
-  kolToday: number
+  kolThisWeek: number
   threadsThisWeek: number
-  meetingsThisMonth: number
+  meetingsThisWeek: number
 }
 
 /** 관리자/매니저용 팀 현황판 — 담당자별 오늘 업무량 + KPI 진행 상황 */
@@ -20,7 +20,7 @@ export function TeamOverview({ rows, unassignedCount }: { rows: RepOverviewRow[]
       <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-semibold text-gray-900">팀 현황판</h3>
         <span className="text-xs text-gray-400">
-          KPI 목표: KOL {KPI_TARGETS.kolPerDay}건/일 · 스레드 {KPI_TARGETS.threadsPerWeek}건/주 · 미팅 {KPI_TARGETS.meetingsPerMonth}건/월
+          KPI 목표(주): KOL {KPI_TARGETS.kolPerWeek}건 · 스레드 {KPI_TARGETS.threadsPerWeek}건 · 미팅 {KPI_TARGETS.meetingsPerWeek}건
         </span>
         {unassignedCount !== undefined && unassignedCount > 0 && (
           <Link
@@ -44,9 +44,9 @@ export function TeamOverview({ rows, unassignedCount }: { rows: RepOverviewRow[]
                 <th className="px-4 py-3 text-center whitespace-nowrap">오늘 액션</th>
                 <th className="px-4 py-3 text-center whitespace-nowrap">오늘 미팅</th>
                 <th className="px-4 py-3 text-center whitespace-nowrap">장기 미연락</th>
-                <th className="px-4 py-3 text-center whitespace-nowrap">KOL (오늘)</th>
+                <th className="px-4 py-3 text-center whitespace-nowrap">KOL (주)</th>
                 <th className="px-4 py-3 text-center whitespace-nowrap">스레드 (주)</th>
-                <th className="px-4 py-3 text-center whitespace-nowrap">미팅 (월)</th>
+                <th className="px-4 py-3 text-center whitespace-nowrap">미팅 (주)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -72,9 +72,9 @@ export function TeamOverview({ rows, unassignedCount }: { rows: RepOverviewRow[]
                   <td className={`px-4 py-3 text-center ${r.longNoContact > 0 ? 'text-orange-600' : 'text-gray-300'}`}>
                     {r.longNoContact > 0 ? r.longNoContact : '—'}
                   </td>
-                  <KpiCell value={r.kolToday} target={KPI_TARGETS.kolPerDay} />
+                  <KpiCell value={r.kolThisWeek} target={KPI_TARGETS.kolPerWeek} />
                   <KpiCell value={r.threadsThisWeek} target={KPI_TARGETS.threadsPerWeek} />
-                  <KpiCell value={r.meetingsThisMonth} target={KPI_TARGETS.meetingsPerMonth} />
+                  <KpiCell value={r.meetingsThisWeek} target={KPI_TARGETS.meetingsPerWeek} />
                 </tr>
               ))}
             </tbody>

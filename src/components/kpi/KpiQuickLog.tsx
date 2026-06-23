@@ -97,9 +97,9 @@ export function KpiQuickLog({ myKpi, todayEntries }: KpiQuickLogProps) {
       {myKpi && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <KpiProgress
-            label="KOL 제안 (오늘)"
-            value={myKpi.kolToday}
-            target={KPI_TARGETS.kolPerDay}
+            label="KOL 제안 (이번 주)"
+            value={myKpi.kolThisWeek}
+            target={KPI_TARGETS.kolPerWeek}
           />
           <KpiProgress
             label="스레드 업로드 (이번 주)"
@@ -107,9 +107,9 @@ export function KpiQuickLog({ myKpi, todayEntries }: KpiQuickLogProps) {
             target={KPI_TARGETS.threadsPerWeek}
           />
           <KpiProgress
-            label="미팅 (이번 달)"
-            value={myKpi.meetingsThisMonth}
-            target={KPI_TARGETS.meetingsPerMonth}
+            label="미팅 (이번 주)"
+            value={myKpi.meetingsThisWeek}
+            target={KPI_TARGETS.meetingsPerWeek}
           />
         </div>
       )}
