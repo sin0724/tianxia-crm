@@ -42,15 +42,12 @@ function manToCount(v?: string): number | null {
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 10000) : null
 }
 
-export async function getKols(filters: KolListFilters = {}): Promise<KolListResult> {
-  const supabase = await createClient()
-  const page = Math.max(1, filters.page ?? 1)
-
-  let query = supabase
-    .from('kols')
-    .select('*', { count: 'exact' })
-    .range((page - 1) * KOL_PAGE_SIZE, page * KOL_PAGE_SIZE - 1)
-
+// 정렬·필터 적용 (getKols와 텍스트 복사용 전체 조회가 공유)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyKolFilters<T extends { order: any; contains: any; gte: any; lte: any; or: any }>(
+  query: T,
+  filters: KolListFilters,
+): T {
   switch (filters.sort) {
     case 'followers':
       query = query.order('followers', { ascending: false, nullsFirst: false })
@@ -81,6 +78,20 @@ export async function getKols(filters: KolListFilters = {}): Promise<KolListResu
       `name.ilike."%${safe}%",instagram_handle.ilike."%${safe}%",history.ilike."%${safe}%",rate.ilike."%${safe}%",visit_note.ilike."%${safe}%"`,
     )
   }
+  return query
+}
+
+export async function getKols(filters: KolListFilters = {}): Promise<KolListResult> {
+  const supabase = await createClient()
+  const page = Math.max(1, filters.page ?? 1)
+
+  const query = applyKolFilters(
+    supabase
+      .from('kols')
+      .select('*', { count: 'exact' })
+      .range((page - 1) * KOL_PAGE_SIZE, page * KOL_PAGE_SIZE - 1),
+    filters,
+  )
 
   const { data, count } = await query
   const total = count ?? 0
@@ -91,4 +102,29 @@ export async function getKols(filters: KolListFilters = {}): Promise<KolListResu
     pageCount: Math.max(1, Math.ceil(total / KOL_PAGE_SIZE)),
     now: Date.now(),
   }
+}
+
+// ── 텍스트 복사용 전체 조회 (페이지네이션 무시, 필터·정렬은 동일) ──
+
+export interface KolCopyRow {
+  name: string
+  instagram_handle: string | null
+  followers: number | null
+  visit_note: string | null
+  visit_date: string | null
+}
+
+export const KOL_COPY_LIMIT = 1000
+
+export async function getKolsForCopy(filters: KolListFilters = {}): Promise<KolCopyRow[]> {
+  const supabase = await createClient()
+  const query = applyKolFilters(
+    supabase
+      .from('kols')
+      .select('name, instagram_handle, followers, visit_note, visit_date')
+      .limit(KOL_COPY_LIMIT),
+    filters,
+  )
+  const { data } = await query
+  return (data as KolCopyRow[]) ?? []
 }

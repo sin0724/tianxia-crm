@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { KOL_CATEGORY } from '@/lib/constants'
+import { KolCopyButton } from '@/components/kol/KolCopyButton'
 
 // 팔로워 빠른 필터 (만 단위)
 const FOLLOWER_PRESETS: { label: string; min: string; max: string }[] = [
@@ -134,6 +135,7 @@ export function KolFilters({ total }: { total: number }) {
           )}
 
           <span className="text-sm text-gray-400 whitespace-nowrap">{total}명</span>
+          <KolCopyButton total={total} />
         </div>
       </div>
     </div>
