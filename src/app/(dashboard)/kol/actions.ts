@@ -112,3 +112,19 @@ export async function deleteKol(id: string): Promise<ActionResult | undefined> {
 
   revalidatePath('/kol')
 }
+
+// 선택 삭제 (일괄) — 표의 체크박스로 고른 KOL들을 한 번에 삭제
+export async function deleteKols(ids: string[]): Promise<ActionResult | undefined> {
+  const profile = await requireAdmin()
+  if (!profile) return { error: 'KOL 삭제는 관리자만 가능합니다.' }
+  if (ids.length === 0) return
+
+  const supabase = await createClient()
+  const { data: deleted, error } = await supabase.from('kols').delete().in('id', ids).select('id')
+  if (error) return { error: friendlyError(error.message, error.code) }
+
+  const count = deleted?.length ?? 0
+  revalidatePath('/kol')
+  if (count === 0) return { error: '삭제된 KOL이 없습니다.' }
+  if (count < ids.length) return { error: `${ids.length}명 중 ${count}명만 삭제되었습니다.` }
+}

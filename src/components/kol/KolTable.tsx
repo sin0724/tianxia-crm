@@ -2,7 +2,7 @@
 
 import { useState, useTransition, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { deleteKol } from '@/app/(dashboard)/kol/actions'
+import { deleteKol, deleteKols } from '@/app/(dashboard)/kol/actions'
 import { KolFormModal } from '@/components/kol/KolFormModal'
 import { fmtFollowers } from '@/lib/constants'
 import { fmtDateKST, fmtFullDateKST, kstDateString } from '@/lib/datetime'
@@ -48,6 +48,19 @@ export function KolTable({ kols, isAdmin, categories, now }: KolTableProps) {
       const next = new Set(prev)
       kols.forEach(k => allSelected ? next.delete(k.id) : next.add(k.id))
       return next
+    })
+  }
+
+  function onDeleteSelected() {
+    const targets = selectedOnPage
+    if (targets.length === 0) return
+    if (!confirm(`선택한 ${targets.length}명의 KOL을 삭제할까요?\n히스토리도 함께 삭제되며 되돌릴 수 없습니다.`)) return
+    setError(null)
+    startTransition(async () => {
+      const result = await deleteKols(targets.map(k => k.id))
+      if (result?.error) setError(result.error)
+      setSelectedIds(new Set())
+      router.refresh()
     })
   }
 
@@ -103,6 +116,15 @@ export function KolTable({ kols, isAdmin, categories, now }: KolTableProps) {
               : copyStatus === 'error' ? '복사 실패 — 다시 시도'
               : '📋 선택 복사'}
           </button>
+          {isAdmin && (
+            <button
+              onClick={onDeleteSelected}
+              disabled={isPending}
+              className="px-3 py-1 text-xs font-medium border border-red-200 text-red-600 bg-white rounded-md hover:bg-red-50 disabled:opacity-50 transition-colors"
+            >
+              {isPending ? '삭제 중...' : '🗑 선택 삭제'}
+            </button>
+          )}
           <button
             onClick={() => setSelectedIds(new Set())}
             className="px-2 py-1 text-xs text-gray-500 hover:text-gray-800 transition-colors"
