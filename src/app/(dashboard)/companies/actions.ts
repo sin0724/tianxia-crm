@@ -66,6 +66,45 @@ function preserveTimeIfSameDate(formVal: string | null, prevVal: string | null):
   return formVal === kstDateString(new Date(prevVal)) ? prevVal : formVal
 }
 
+// 상태가 '미팅진행'으로 바뀌면 KPI(주간 미팅) 집계용 '미팅' 활동을 자동 기록한다.
+// - KPI는 담당자 기준이므로 activities.user_id는 assigned_to(없으면 변경한 사람)로 남긴다.
+// - 최근 7일 내 이미 '미팅' 활동이 있으면 건너뛴다 (수동 기록·크론 자동 기록과 중복 방지).
+// - 실패해도 상태 변경 자체는 성공으로 둔다 (KPI 보조 기록이므로).
+async function autoLogMeetingActivity(companyIds: string[], actorId: string): Promise<void> {
+  if (companyIds.length === 0) return
+  try {
+    const supabase = await createClient()
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    const { data: recent } = await supabase
+      .from('activities')
+      .select('company_id')
+      .eq('activity_type', '미팅')
+      .gte('created_at', since)
+      .in('company_id', companyIds)
+    const skip = new Set((recent ?? []).map(a => a.company_id))
+
+    const { data: companies } = await supabase
+      .from('companies')
+      .select('id, assigned_to')
+      .in('id', companyIds)
+
+    const inserts = (companies ?? [])
+      .filter(c => !skip.has(c.id))
+      .map(c => ({
+        company_id:      c.id,
+        user_id:         c.assigned_to ?? actorId,
+        activity_type:   '미팅',
+        activity_result: null,
+        memo:            null, // latest_note를 덮어쓰지 않도록 비워둠
+        next_action_at:  null,
+      }))
+    if (inserts.length > 0) await supabase.from('activities').insert(inserts)
+  } catch {
+    // 자동 기록 실패는 무시
+  }
+}
+
 type NotifCompany = {
   id: string
   company_name: string
@@ -139,6 +178,11 @@ export async function updateCompany(id: string, formData: FormData): Promise<Act
 
   const { error } = await supabase.from('companies').update(updatePayload).eq('id', id)
   if (error) return { error: error.message }
+
+  // 상태가 미팅진행으로 진입하면 미팅 KPI용 활동 자동 기록
+  if (prev && prev.status !== '미팅진행' && data.status === '미팅진행') {
+    await autoLogMeetingActivity([id], profile.id)
+  }
 
   // 알림 조건 판별 후 발송
   if (prev) {
@@ -322,7 +366,7 @@ export async function bulkUpdateCompanies(
   ids: string[],
   changes: { status?: string; category?: string; source?: string; inflow_month?: string },
 ): Promise<ActionResult | undefined> {
-  await requireAuth()
+  const profile = await requireAuth()
   if (ids.length === 0) return
 
   const update: Record<string, string> = {}
@@ -343,12 +387,30 @@ export async function bulkUpdateCompanies(
   if (Object.keys(update).length === 0) return { error: '변경할 항목을 선택해주세요.' }
 
   const supabase = await createClient()
+
+  // 미팅진행으로 새로 진입하는 건 파악 (변경 전에 조회해야 함)
+  let meetingCandidates: string[] = []
+  if (update.status === '미팅진행') {
+    const { data: prevRows } = await supabase
+      .from('companies')
+      .select('id')
+      .in('id', ids)
+      .neq('status', '미팅진행')
+    meetingCandidates = (prevRows ?? []).map(r => r.id)
+  }
+
   const { data: updated, error } = await supabase
     .from('companies')
     .update(update)
     .in('id', ids)
     .select('id')
   if (error) return { error: error.message }
+
+  // 실제로 수정된 것 중 미팅진행 신규 진입 건만 미팅 활동 자동 기록
+  if (meetingCandidates.length > 0) {
+    const updatedIds = new Set((updated ?? []).map(u => u.id))
+    await autoLogMeetingActivity(meetingCandidates.filter(cid => updatedIds.has(cid)), profile.id)
+  }
 
   const count = updated?.length ?? 0
   revalidatePath('/companies')
@@ -364,12 +426,20 @@ export async function bulkUpdateCompanies(
 
 // 칸반 보드: 상태만 변경
 export async function updateCompanyStatus(id: string, status: string): Promise<ActionResult | undefined> {
-  await requireAuth()
+  const profile = await requireAuth()
   if (!(COMPANY_STATUS as readonly string[]).includes(status)) {
     return { error: '유효하지 않은 상태입니다.' }
   }
 
   const supabase = await createClient()
+
+  // 미팅진행 신규 진입 판별용 (변경 전 상태)
+  const { data: prev } = await supabase
+    .from('companies')
+    .select('status')
+    .eq('id', id)
+    .single()
+
   const { data: updated, error } = await supabase
     .from('companies')
     .update({ status })
@@ -378,7 +448,14 @@ export async function updateCompanyStatus(id: string, status: string): Promise<A
   if (error) return { error: error.message }
   if (!updated || updated.length === 0) return { error: '변경 권한이 없습니다.' }
 
+  // 상태가 미팅진행으로 진입하면 미팅 KPI용 활동 자동 기록
+  if (status === '미팅진행' && prev?.status !== '미팅진행') {
+    await autoLogMeetingActivity([id], profile.id)
+  }
+
   revalidatePath('/companies')
   revalidatePath('/companies/board')
   revalidatePath(`/companies/${id}`)
+  revalidatePath('/dashboard')
+  revalidatePath('/tasks')
 }

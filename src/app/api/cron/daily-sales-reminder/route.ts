@@ -105,11 +105,14 @@ async function autoLogCompletedMeetings(supabase: Supabase): Promise<number> {
   const companies = met ?? []
   if (companies.length === 0) return 0
 
+  // 최근 7일 내 '미팅' 활동이 있으면 건너뜀 — 수동 기록뿐 아니라
+  // 상태를 '미팅진행'으로 바꿀 때의 자동 기록과도 중복되지 않게 한다.
+  const dedupeSince = new Date(todayStart.getTime() - 7 * DAY_MS).toISOString()
   const { data: logged } = await supabase
     .from('activities')
     .select('company_id')
     .eq('activity_type', '미팅')
-    .gte('created_at', yStart)
+    .gte('created_at', dedupeSince)
     .in('company_id', companies.map(c => c.id))
   const loggedSet = new Set((logged ?? []).map(a => a.company_id))
 
