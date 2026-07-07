@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { KOL_CATEGORY } from '@/lib/constants'
+import { normalizeHandle } from '@/lib/kol-fields'
 
 interface ActionResult {
   error: string
@@ -18,18 +19,6 @@ export interface KolInput {
   visit_note: string
   visit_date: string     // "YYYY-MM-DD" 또는 빈 값
   history: string
-}
-
-// "@handle" / "https://instagram.com/handle/" / "handle" → "handle" (소문자)
-function normalizeHandle(v: string): string | null {
-  const handle = v
-    .trim()
-    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
-    .split(/[/?#]/)[0]
-    .replace(/^@/, '')
-    .trim()
-    .toLowerCase()
-  return handle || null
 }
 
 interface KolRow {

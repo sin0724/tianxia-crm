@@ -55,13 +55,13 @@ export function parseCSV(text: string): { headers: string[]; rows: string[][] } 
 
 // ── 자동 매핑 감지 ────────────────────────────────────────────
 
-export function autoDetectMapping(csvHeaders: string[]): Record<string, string> {
+export function autoDetectMapping(csvHeaders: string[], fields: CrmField[] = CRM_FIELDS): Record<string, string> {
   const mapping: Record<string, string> = {}
   const norm = (s: string) => s.toLowerCase().replace(/\s/g, '')
   const normalizedHeaders = csvHeaders.map(norm)
   const used = new Set<number>()
 
-  for (const field of CRM_FIELDS) {
+  for (const field of fields) {
     const candidates = [field.label, ...(field.aliases ?? [])].map(norm)
     const idx = normalizedHeaders.findIndex((h, i) => !used.has(i) && candidates.includes(h))
     if (idx !== -1) {

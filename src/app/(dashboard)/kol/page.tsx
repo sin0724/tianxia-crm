@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Header } from '@/components/layout/Header'
 import { KolFilters } from '@/components/kol/KolFilters'
 import { KolTable } from '@/components/kol/KolTable'
@@ -33,7 +34,14 @@ export default async function KolPage({ searchParams }: PageProps) {
           <p className="text-sm text-gray-500">
             인플루언서 아카이브 — 전직원 열람 가능{isAdmin ? ' · 등록/수정은 관리자' : ' (등록/수정은 관리자에게 요청)'}
           </p>
-          {isAdmin && <KolCreateButton />}
+          {isAdmin && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href="/kol/import" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                📥 엑셀 가져오기
+              </Link>
+              <KolCreateButton />
+            </div>
+          )}
         </div>
 
         <KolFilters total={result.total} />
