@@ -116,9 +116,10 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
   // ── 양식 다운로드 ─────────────────────────────────────────────
 
   function downloadTemplate() {
-    const headers = KOL_FIELDS.map(f => f.label)
+    // 이름은 IG 핸들로 자동 대체되므로 양식에서 제외 (컬럼이 있는 파일은 여전히 매핑됨)
+    const headers = KOL_FIELDS.filter(f => f.key !== 'name').map(f => f.label)
     const exampleRow: (string | null)[] = [
-      '김뷰티', '@beauty_kim', 'beauty.kim@example.com', '95000', '뷰티, 라이프스타일',
+      '@beauty_kim', 'beauty.kim@example.com', '95000', '뷰티, 라이프스타일',
       '피드 50 / 릴스 80', '7/12~7/15 방문', '2026-07-12',
       '25.05 A브랜드 릴스 진행 (반응 좋음) / 25.03 B클리닉 방문 후기',
     ]
