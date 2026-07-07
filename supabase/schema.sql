@@ -299,13 +299,17 @@ CREATE OR REPLACE TRIGGER trg_activity_sync_company
 -- Supabase Auth 신규 가입 → profiles 자동 생성
 -- 신규 가입자는 is_active = false로 생성되어 관리자 승인 전까지
 -- 데이터에 접근할 수 없습니다. (설정 > 팀 관리에서 승인)
+-- 주의: 이 트리거는 auth 서비스의 search_path(auth)에서 실행되므로
+-- SET search_path와 스키마 명시(public.profiles)가 없으면 "relation not found"로
+-- 실패해 "Database error creating new user" 오류가 난다.
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
-  INSERT INTO profiles (id, email, name, is_active)
+  INSERT INTO public.profiles (id, email, name, is_active)
   VALUES (
     NEW.id,
     NEW.email,
