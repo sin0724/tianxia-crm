@@ -13,6 +13,7 @@ interface ActionResult {
 export interface KolInput {
   name: string
   instagram: string      // 핸들 또는 URL — 서버에서 핸들로 정규화
+  email: string          // 선택 입력
   followers: string      // 숫자 문자열 (빈 값 허용)
   categories: string[]
   rate: string
@@ -24,6 +25,7 @@ export interface KolInput {
 interface KolRow {
   name: string
   instagram_handle: string | null
+  email: string | null
   followers: number | null
   categories: string[]
   rate: string | null
@@ -50,6 +52,7 @@ function toRow(input: KolInput, validCategories: string[]): ParseResult {
     row: {
       name,
       instagram_handle: handle,
+      email: input.email.trim() || null,
       followers,
       categories: input.categories.filter(c => validCategories.includes(c)),
       rate:       input.rate.trim() || null,

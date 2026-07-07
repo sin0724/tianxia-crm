@@ -4,6 +4,7 @@ export interface Kol {
   id: string
   name: string
   instagram_handle: string | null
+  email: string | null
   followers: number | null
   categories: string[]
   rate: string | null
@@ -82,7 +83,7 @@ function applyKolFilters<T extends { order: any; contains: any; gte: any; lte: a
     // PostgREST or() 구문 보호: 와일드카드 이스케이프 후 값 전체를 따옴표로 감쌈
     const safe = filters.q.replace(/[%_\\]/g, '\\$&').replace(/"/g, '\\"')
     query = query.or(
-      `name.ilike."%${safe}%",instagram_handle.ilike."%${safe}%",history.ilike."%${safe}%",rate.ilike."%${safe}%",visit_note.ilike."%${safe}%"`,
+      `name.ilike."%${safe}%",instagram_handle.ilike."%${safe}%",email.ilike."%${safe}%",history.ilike."%${safe}%",rate.ilike."%${safe}%",visit_note.ilike."%${safe}%"`,
     )
   }
   return query

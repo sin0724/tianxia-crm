@@ -23,6 +23,7 @@ function applyMapping(row: string[], headers: string[], mapping: Record<string, 
   return {
     name:       get('name') ?? '',
     instagram:  get('instagram'),
+    email:      get('email'),
     followers:  get('followers'),
     categories: get('categories'),
     rate:       get('rate'),
@@ -117,7 +118,7 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
   function downloadTemplate() {
     const headers = KOL_FIELDS.map(f => f.label)
     const exampleRow: (string | null)[] = [
-      '김뷰티', '@beauty_kim', '95000', '뷰티, 라이프스타일',
+      '김뷰티', '@beauty_kim', 'beauty.kim@example.com', '95000', '뷰티, 라이프스타일',
       '피드 50 / 릴스 80', '7/12~7/15 방문', '2026-07-12',
       '25.05 A브랜드 릴스 진행 (반응 좋음) / 25.03 B클리닉 방문 후기',
     ]

@@ -673,6 +673,7 @@ CREATE TABLE IF NOT EXISTS kols (
   id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   name             TEXT        NOT NULL,
   instagram_handle TEXT        UNIQUE,   -- '@' 없이 소문자로 정규화 저장 (중복 등록 방지)
+  email            TEXT,                 -- 연락용 이메일 (선택)
   followers        INTEGER,
   categories       TEXT[]      NOT NULL DEFAULT '{}',
   rate             TEXT,                 -- 진행 단가 (자유 입력: "피드 50 / 릴스 80")
@@ -683,6 +684,9 @@ CREATE TABLE IF NOT EXISTS kols (
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- 이메일 컬럼 추가 (기존 DB용, 재실행 안전)
+ALTER TABLE kols ADD COLUMN IF NOT EXISTS email TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_kols_followers  ON kols(followers);
 CREATE INDEX IF NOT EXISTS idx_kols_visit_date ON kols(visit_date);

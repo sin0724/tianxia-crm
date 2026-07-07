@@ -23,6 +23,7 @@ export interface KolDuplicateMatch {
 export interface KolImportRow {
   name: string
   instagram?: string
+  email?: string
   followers?: string
   categories?: string
   rate?: string
@@ -124,6 +125,7 @@ export async function importKols(rows: KolImportRow[]): Promise<KolImportResult>
     const { error } = await supabase.from('kols').insert({
       name,
       instagram_handle: handle,
+      email:            row.email?.trim() || null,
       followers:        parseFollowers(row.followers),
       categories:       parseCategories(row.categories, validCategories),
       rate:             row.rate?.trim()       || null,

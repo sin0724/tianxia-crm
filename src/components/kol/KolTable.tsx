@@ -241,6 +241,14 @@ export function KolTable({ kols, isAdmin, categories, now }: KolTableProps) {
                       <td colSpan={isAdmin ? 9 : 8} className="px-4 py-3">
                         <div className="space-y-2 text-sm">
                           <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-500">
+                            {kol.email && (
+                              <span>
+                                이메일{' '}
+                                <a href={`mailto:${kol.email}`} onClick={e => e.stopPropagation()} className="text-blue-600 hover:underline">
+                                  {kol.email}
+                                </a>
+                              </span>
+                            )}
                             {kol.followers !== null && <span>팔로워 {kol.followers.toLocaleString('ko-KR')}명</span>}
                             {kol.visit_date && (
                               <span>

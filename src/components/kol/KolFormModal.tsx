@@ -19,6 +19,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
   const [form, setForm] = useState<KolInput>({
     name:       kol?.name ?? '',
     instagram:  kol?.instagram_handle ?? '',
+    email:      kol?.email ?? '',
     followers:  kol?.followers != null ? String(kol.followers) : '',
     categories: kol?.categories ?? [],
     rate:       kol?.rate ?? '',
@@ -92,6 +93,15 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
               />
             </Field>
           </div>
+
+          <Field label="이메일 (선택)">
+            <input
+              type="email" value={form.email}
+              onChange={e => set('email', e.target.value)}
+              placeholder="contact@example.com"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </Field>
 
           <Field label="카테고리 (복수 선택)">
             <div className="flex flex-wrap gap-1.5">
