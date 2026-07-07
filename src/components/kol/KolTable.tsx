@@ -253,7 +253,7 @@ export function KolTable({ kols, isAdmin, categories, now }: KolTableProps) {
                             {kol.visit_date && (
                               <span>
                                 방문 대표 날짜 {fmtFullDateKST(kol.visit_date)}
-                                {isVisitExpired(kol.visit_date, todayStr) && <span className="text-gray-400"> (지남 — 리스트에선 숨김)</span>}
+                                {isVisitExpired(kol, todayStr) && <span className="text-gray-400"> (지남 — 리스트에선 숨김)</span>}
                               </span>
                             )}
                             <span>등록 {fmtFullDateKST(kol.created_at)}</span>

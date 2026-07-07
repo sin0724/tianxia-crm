@@ -5,6 +5,8 @@ import { requireAuth } from '@/lib/auth'
 import { parseDate } from '@/lib/csv'
 import { normalizeHandle, parseFollowers, parseCategories } from '@/lib/kol-fields'
 import { getKolCategoryNames } from '@/lib/kol-categories'
+import { parseVisitNote } from '@/lib/visit-note'
+import { kstDateString } from '@/lib/datetime'
 
 // ── 타입 ──────────────────────────────────────────────────────
 
@@ -129,8 +131,17 @@ export async function importKols(rows: KolImportRow[]): Promise<KolImportResult>
       followers:        parseFollowers(row.followers),
       categories:       parseCategories(row.categories, validCategories),
       rate:             row.rate?.trim()       || null,
-      visit_note:       row.visit_note?.trim() || null,
-      visit_date:       parseDate(row.visit_date),
+      ...(() => {
+        // 방문 메모("7월중")를 날짜 범위로 해석 — 명시된 대표 날짜가 있으면 시작일 우선
+        const visit_note = row.visit_note?.trim() || null
+        const explicit = parseDate(row.visit_date)
+        const parsed = parseVisitNote(visit_note, kstDateString())
+        return {
+          visit_note,
+          visit_date:     explicit ?? parsed?.start ?? null,
+          visit_end_date: parsed?.end ?? explicit ?? null,
+        }
+      })(),
       history:          row.history?.trim()    || null,
       created_by:       profile.id,
     })

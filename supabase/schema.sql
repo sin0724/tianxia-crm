@@ -678,7 +678,8 @@ CREATE TABLE IF NOT EXISTS kols (
   categories       TEXT[]      NOT NULL DEFAULT '{}',
   rate             TEXT,                 -- 진행 단가 (자유 입력: "피드 50 / 릴스 80")
   visit_note       TEXT,                 -- 방문 예정 표시용: "7/12~7/15 방문", "7월중 예정"
-  visit_date       DATE,                 -- 방문 예정 정렬/필터용 대표 날짜 (선택)
+  visit_date       DATE,                 -- 방문 예정 시작일 (메모에서 자동 해석 or 직접 입력)
+  visit_end_date   DATE,                 -- 방문 예정 종료일 ("7월중"→7/31) — 필터·지남 판정용
   history          TEXT,                 -- 진행 이력·협업 브랜드 (자유 텍스트, 검색 대상)
   created_by       UUID        REFERENCES profiles(id) ON DELETE SET NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -687,6 +688,11 @@ CREATE TABLE IF NOT EXISTS kols (
 
 -- 이메일 컬럼 추가 (기존 DB용, 재실행 안전)
 ALTER TABLE kols ADD COLUMN IF NOT EXISTS email TEXT;
+
+-- 방문 종료일 컬럼 추가 (기존 DB용, 재실행 안전)
+-- "7월중 방문"처럼 기간 표기 메모를 날짜 범위로 해석해 저장 — 기존 행은
+-- 일일 크론(daily-sales-reminder)이 자동 백필하고, 지난 방문은 자동 정리한다.
+ALTER TABLE kols ADD COLUMN IF NOT EXISTS visit_end_date DATE;
 
 CREATE INDEX IF NOT EXISTS idx_kols_followers  ON kols(followers);
 CREATE INDEX IF NOT EXISTS idx_kols_visit_date ON kols(visit_date);

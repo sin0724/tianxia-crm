@@ -4,9 +4,10 @@ import { sendSlackNotification } from '@/lib/slack'
 import type { SlackBlock } from '@/lib/slack'
 import { CLOSED_STATUSES } from '@/lib/constants'
 import {
-  kstTodayRange, kstStartOfDay, kstDaysAgoEnd,
+  kstTodayRange, kstStartOfDay, kstDaysAgoEnd, kstDateString,
   todayLabelKST, fmtDateKST, fmtDateTimeKST,
 } from '@/lib/datetime'
+import { parseVisitNote } from '@/lib/visit-note'
 
 // ── Admin client (RLS 우회, cron job에는 user session이 없음) ──
 
@@ -132,6 +133,49 @@ async function autoLogCompletedMeetings(supabase: Supabase): Promise<number> {
   return error ? 0 : inserts.length
 }
 
+// ── KOL 방문 예정 정리 ────────────────────────────────────────
+// 1) 메모("7월중 방문")만 있고 날짜가 비어 있는 KOL은 해석해 시작/종료일 백필
+//    → 방문 예정일 필터에 잡히게 된다.
+// 2) 방문 종료일이 지난 KOL은 방문 예정(메모·날짜)을 자동 삭제한다.
+
+async function cleanupKolVisits(supabase: Supabase): Promise<{ backfilled: number; cleared: number }> {
+  const today = kstDateString()
+  const { data } = await supabase
+    .from('kols')
+    .select('id, visit_note, visit_date, visit_end_date')
+    .or('visit_note.not.is.null,visit_date.not.is.null')
+
+  let backfilled = 0
+  let cleared = 0
+  for (const row of data ?? []) {
+    const parsed = parseVisitNote(row.visit_note, today)
+    const start = row.visit_date ?? parsed?.start ?? null
+    const end = row.visit_end_date ?? parsed?.end ?? row.visit_date ?? null
+
+    if (end && end < today) {
+      // 지난 방문 — 방문 예정 필드 자동 삭제
+      const { error } = await supabase
+        .from('kols')
+        .update({ visit_note: null, visit_date: null, visit_end_date: null })
+        .eq('id', row.id)
+      if (!error) cleared++
+      continue
+    }
+
+    // 해석 가능한데 날짜가 비어 있으면 백필
+    const nextStart = row.visit_date ?? start
+    const nextEnd = row.visit_end_date ?? end
+    if (nextStart !== row.visit_date || nextEnd !== row.visit_end_date) {
+      const { error } = await supabase
+        .from('kols')
+        .update({ visit_date: nextStart, visit_end_date: nextEnd })
+        .eq('id', row.id)
+      if (!error) backfilled++
+    }
+  }
+  return { backfilled, cleared }
+}
+
 // ── Block Kit 빌더 ─────────────────────────────────────────────
 
 function sec(text: string): SlackBlock {
@@ -212,6 +256,7 @@ export async function POST(request: NextRequest) {
 
     // 어제 미팅 자동 기록 → 리마인드 집계에 반영되도록 fetchAll보다 먼저 실행
     const autoLogged = await autoLogCompletedMeetings(supabase)
+    const kolVisits = await cleanupKolVisits(supabase)
 
     const data = await fetchAll(supabase)
     const blocks = buildBlocks(data)
@@ -222,7 +267,7 @@ export async function POST(request: NextRequest) {
     })
 
     const summary =
-      `[일일 리마인드] 오늘 액션 ${data.todayActions.length}건 · 미팅 ${data.todayMeetings.length}건 · 연체 ${data.overdue.length}건 · 미연락 ${data.longNoContact.length}건 · 제안 미답변 ${data.proposalPending.length}건 · 미팅 자동기록 ${autoLogged}건`
+      `[일일 리마인드] 오늘 액션 ${data.todayActions.length}건 · 미팅 ${data.todayMeetings.length}건 · 연체 ${data.overdue.length}건 · 미연락 ${data.longNoContact.length}건 · 제안 미답변 ${data.proposalPending.length}건 · 미팅 자동기록 ${autoLogged}건 · KOL 방문 백필 ${kolVisits.backfilled}·정리 ${kolVisits.cleared}건`
 
     await supabase.from('notification_logs').insert({
       notification_type: 'daily_reminder',

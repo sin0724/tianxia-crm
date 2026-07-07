@@ -2,6 +2,7 @@
 
 import { fmtFollowers } from '@/lib/constants'
 import { fmtDateKST } from '@/lib/datetime'
+import { parseVisitNote } from '@/lib/visit-note'
 
 export interface KolCopySource {
   name: string
@@ -11,10 +12,15 @@ export interface KolCopySource {
   visit_date: string | null
 }
 
-// 방문 예정이 지났는지 — 대표 날짜(YYYY-MM-DD) 기준.
-// 날짜 없이 메모만 있으면 지났는지 판단할 수 없으므로 유지한다.
-export function isVisitExpired(visitDate: string | null, todayStr: string): boolean {
-  return visitDate !== null && visitDate < todayStr
+// 방문 예정이 지났는지 — 종료일 기준.
+// 메모("7월중", "7/12~7/15")가 해석되면 그 종료일(7/31, 7/15)을, 아니면 대표 날짜를 쓴다.
+// 해석 불가한 메모("다음 분기쯤")는 판단할 수 없으므로 유지한다.
+export function isVisitExpired(
+  kol: Pick<KolCopySource, 'visit_note' | 'visit_date'>,
+  todayStr: string,
+): boolean {
+  const end = parseVisitNote(kol.visit_note, todayStr)?.end ?? kol.visit_date
+  return end !== null && end < todayStr
 }
 
 // 표시할 방문 예정 텍스트 — 지난 방문은 null (자동으로 지워진 것처럼 표시)
@@ -22,7 +28,7 @@ export function effectiveVisit(
   kol: Pick<KolCopySource, 'visit_note' | 'visit_date'>,
   todayStr: string,
 ): string | null {
-  if (isVisitExpired(kol.visit_date, todayStr)) return null
+  if (isVisitExpired(kol, todayStr)) return null
   return kol.visit_note ?? (kol.visit_date ? fmtDateKST(kol.visit_date) : null)
 }
 

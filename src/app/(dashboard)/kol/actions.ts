@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { normalizeHandle, parseFollowers } from '@/lib/kol-fields'
 import { getKolCategoryNames } from '@/lib/kol-categories'
+import { parseVisitNote } from '@/lib/visit-note'
+import { kstDateString } from '@/lib/datetime'
 
 interface ActionResult {
   error: string
@@ -31,6 +33,7 @@ interface KolRow {
   rate: string | null
   visit_note: string | null
   visit_date: string | null
+  visit_end_date: string | null
   history: string | null
 }
 
@@ -56,10 +59,22 @@ function toRow(input: KolInput, validCategories: string[]): ParseResult {
       followers,
       categories: input.categories.filter(c => validCategories.includes(c)),
       rate:       input.rate.trim() || null,
-      visit_note: input.visit_note.trim() || null,
-      visit_date: /^\d{4}-\d{2}-\d{2}$/.test(input.visit_date) ? input.visit_date : null,
+      ...resolveVisit(input.visit_note, input.visit_date),
       history:    input.history.trim() || null,
     },
+  }
+}
+
+// 방문 예정 메모("7월중", "7/12~7/15")를 날짜 범위로 해석해 시작/종료일을 채운다.
+// 직접 입력한 대표 날짜가 있으면 시작일은 그것을 우선한다.
+function resolveVisit(noteInput: string, dateInput: string) {
+  const visit_note = noteInput.trim() || null
+  const explicit = /^\d{4}-\d{2}-\d{2}$/.test(dateInput) ? dateInput : null
+  const parsed = parseVisitNote(visit_note, kstDateString())
+  return {
+    visit_note,
+    visit_date:     explicit ?? parsed?.start ?? null,
+    visit_end_date: parsed?.end ?? explicit ?? null,
   }
 }
 

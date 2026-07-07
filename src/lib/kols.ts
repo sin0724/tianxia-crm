@@ -10,6 +10,7 @@ export interface Kol {
   rate: string | null
   visit_note: string | null
   visit_date: string | null
+  visit_end_date: string | null
   history: string | null
   created_by: string | null
   created_at: string
@@ -74,10 +75,19 @@ function applyKolFilters<T extends { order: any; contains: any; gte: any; lte: a
   if (min !== null) query = query.gte('followers', min)
   if (max !== null) query = query.lte('followers', max)
 
-  // 방문 대표 날짜 범위 (범위를 걸면 날짜 없는 KOL은 자동 제외)
+  // 방문 예정 날짜 범위 — 기간 겹침 판정 (범위를 걸면 날짜 없는 KOL은 자동 제외)
+  // 예: "7월중"(7/1~7/31) KOL은 "이번 주"(7/7~7/13) 필터에도 걸린다.
   const dateRe = /^\d{4}-\d{2}-\d{2}$/
-  if (filters.visit_from && dateRe.test(filters.visit_from)) query = query.gte('visit_date', filters.visit_from)
-  if (filters.visit_to && dateRe.test(filters.visit_to))     query = query.lte('visit_date', filters.visit_to)
+  if (filters.visit_from && dateRe.test(filters.visit_from)) {
+    // 방문 종료일(없으면 시작일)이 필터 시작일 이후
+    query = query.or(
+      `visit_end_date.gte.${filters.visit_from},and(visit_end_date.is.null,visit_date.gte.${filters.visit_from})`,
+    )
+  }
+  if (filters.visit_to && dateRe.test(filters.visit_to)) {
+    // 방문 시작일이 필터 종료일 이전
+    query = query.lte('visit_date', filters.visit_to)
+  }
 
   if (filters.q) {
     // PostgREST or() 구문 보호: 와일드카드 이스케이프 후 값 전체를 따옴표로 감쌈
