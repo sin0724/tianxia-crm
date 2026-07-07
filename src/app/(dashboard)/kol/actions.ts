@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { KOL_CATEGORY } from '@/lib/constants'
-import { normalizeHandle } from '@/lib/kol-fields'
+import { normalizeHandle, parseFollowers } from '@/lib/kol-fields'
 
 interface ActionResult {
   error: string
@@ -38,11 +38,9 @@ function toRow(input: KolInput): ParseResult {
   const name = input.name.trim()
   if (!name) return { ok: false, error: '이름을 입력하세요.' }
 
-  const followers = input.followers.trim()
-    ? parseInt(input.followers.replace(/[,\s]/g, ''), 10)
-    : null
-  if (followers !== null && (!Number.isFinite(followers) || followers < 0)) {
-    return { ok: false, error: '팔로워 수는 0 이상의 숫자로 입력하세요.' }
+  const followers = parseFollowers(input.followers)
+  if (input.followers.trim() && followers === null) {
+    return { ok: false, error: '팔로워 수를 해석할 수 없습니다. 예: 95000, 95,000, 9.5만' }
   }
 
   return {

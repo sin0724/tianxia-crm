@@ -156,7 +156,7 @@ export function KolImportClient() {
         <p className="font-semibold text-gray-700 mb-2">입력 안내</p>
         <p>• 필수는 <strong>이름</strong>뿐이며, 나머지 컬럼은 있으면 자동 매핑됩니다.</p>
         <p>• 인스타그램은 @핸들·프로필 URL 모두 가능하고, 중복 핸들은 자동으로 걸러집니다.</p>
-        <p>• 팔로워는 &quot;95000&quot;, &quot;95,000&quot;, &quot;9.5만&quot; 모두 인식합니다.</p>
+        <p>• 팔로워는 &quot;95000&quot;, &quot;95,000&quot;, &quot;9.5만&quot;, &quot;1.2만명&quot; 모두 인식합니다.</p>
         <p>• 카테고리는 쉼표로 여러 개 입력 (예: &quot;뷰티, 라이프스타일&quot;)</p>
       </div>
     </div>

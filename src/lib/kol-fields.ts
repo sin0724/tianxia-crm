@@ -27,14 +27,18 @@ export function normalizeHandle(v: string | undefined | null): string | null {
   return handle || null
 }
 
-// "95,000" / "95000명" / "9.5만" → 95000. 해석 불가 시 null (행 자체는 살림)
+// "95,000" / "95000명" / "9.5만" / "1.2만명" / "9.5천" → 95000. 해석 불가 시 null (행 자체는 살림)
 export function parseFollowers(v: string | undefined | null): number | null {
   if (!v) return null
-  const s = v.trim().replace(/[,\s]/g, '')
+  const s = v.trim().replace(/[,\s]/g, '').replace(/명$/, '')
   if (!s) return null
-  const man = s.match(/^(\d+(?:\.\d+)?)만$/)
-  if (man) return Math.round(parseFloat(man[1]) * 10000)
-  const n = parseInt(s.replace(/명$/, ''), 10)
+  const unit = s.match(/^(\d+(?:\.\d+)?)(만|천|[kK])$/)
+  if (unit) {
+    const mult = unit[2] === '만' ? 10000 : 1000
+    return Math.round(parseFloat(unit[1]) * mult)
+  }
+  if (!/^\d+(?:\.\d+)?$/.test(s)) return null
+  const n = Math.round(parseFloat(s))
   return Number.isFinite(n) && n >= 0 ? n : null
 }
 

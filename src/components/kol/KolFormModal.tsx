@@ -85,9 +85,9 @@ export function KolFormModal({ kol, onClose }: KolFormModalProps) {
             </Field>
             <Field label="팔로워 수">
               <input
-                type="text" inputMode="numeric" value={form.followers}
+                type="text" value={form.followers}
                 onChange={e => set('followers', e.target.value)}
-                placeholder="예: 95000"
+                placeholder="예: 95000 또는 1.2만"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </Field>
