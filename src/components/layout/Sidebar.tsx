@@ -15,6 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: '대시보드',   href: '/dashboard', icon: '📊', roles: ['admin', 'manager', 'sales'] },
   { label: '오늘 할 일', href: '/tasks',     icon: '✅', roles: ['admin', 'manager', 'sales'] },
   { label: '거래처 관리', href: '/companies', icon: '🏢', roles: ['admin', 'manager', 'sales'] },
+  { label: 'KOL 리스트', href: '/kol',       icon: '⭐', roles: ['admin', 'manager', 'sales'] },
   { label: '설정',      href: '/settings',  icon: '⚙️', roles: ['admin', 'manager', 'sales'] },
 ]
 
@@ -71,7 +72,7 @@ export function Sidebar({ profile }: SidebarProps) {
 
       {/* 모바일: 하단 탭 바 */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-gray-900 border-t border-gray-700 pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {visibleItems.map((item) => (
             <Link
               key={item.href}

@@ -97,6 +97,40 @@ export const KPI_TARGETS = {
 export const KPI_ENTRY_TYPES = ['KOL 제안', '스레드 업로드'] as const
 export type KpiEntryType = typeof KPI_ENTRY_TYPES[number]
 
+// ── KOL 아카이브 ─────────────────────────────────────────────
+// KOL 콘텐츠 카테고리 — 거래처 업종(병의원/F&B/뷰티/숙박 등)에 매칭해 제안하는 기준.
+// 한 KOL이 여러 카테고리를 가질 수 있다 (kols.categories TEXT[]).
+export const KOL_CATEGORY = [
+  '뷰티', '의료/시술', '맛집/F&B', '패션', '여행/숙박',
+  '리빙', '육아/키즈', '운동/헬스', '라이프스타일', '기타',
+] as const
+
+export type KolCategory = typeof KOL_CATEGORY[number]
+
+export const KOL_CATEGORY_COLOR: Record<string, string> = {
+  '뷰티':         'bg-pink-100 text-pink-700',
+  '의료/시술':    'bg-red-100 text-red-700',
+  '맛집/F&B':     'bg-orange-100 text-orange-700',
+  '패션':         'bg-purple-100 text-purple-700',
+  '여행/숙박':    'bg-sky-100 text-sky-700',
+  '리빙':         'bg-teal-100 text-teal-700',
+  '육아/키즈':    'bg-yellow-100 text-yellow-800',
+  '운동/헬스':    'bg-green-100 text-green-700',
+  '라이프스타일': 'bg-indigo-100 text-indigo-700',
+  '기타':         'bg-gray-100 text-gray-600',
+}
+
+// 팔로워 수 표시: 95000 → "9.5만", 1234567 → "123만", 800 → "800"
+export function fmtFollowers(n: number | null): string {
+  if (n === null || n === undefined) return '—'
+  if (n >= 10000) {
+    const man = n / 10000
+    return `${man >= 100 ? Math.round(man).toLocaleString('ko-KR') : Math.round(man * 10) / 10}만`
+  }
+  if (n >= 1000) return `${Math.round(n / 100) / 10}천`
+  return String(n)
+}
+
 export const STATUS_COLOR: Record<CompanyStatus, string> = {
   '신규문의':   'bg-gray-100 text-gray-600',
   '제안서발송': 'bg-cyan-100 text-cyan-700',

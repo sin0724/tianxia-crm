@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export function Pagination({ page, pageCount, total }: { page: number; pageCount: number; total: number }) {
+export function Pagination({ page, pageCount, total, basePath = '/companies' }: { page: number; pageCount: number; total: number; basePath?: string }) {
   const router = useRouter()
   const sp = useSearchParams()
 
@@ -12,7 +12,7 @@ export function Pagination({ page, pageCount, total }: { page: number; pageCount
     const params = new URLSearchParams(sp.toString())
     if (p <= 1) params.delete('page')
     else params.set('page', String(p))
-    router.push(`/companies?${params}`)
+    router.push(`${basePath}?${params}`)
   }
 
   return (
