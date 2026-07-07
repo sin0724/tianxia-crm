@@ -3,15 +3,15 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createKol, updateKol, type KolInput } from '@/app/(dashboard)/kol/actions'
-import { KOL_CATEGORY, KOL_CATEGORY_COLOR } from '@/lib/constants'
 import type { Kol } from '@/lib/kols'
 
 interface KolFormModalProps {
   kol?: Kol          // 있으면 수정, 없으면 신규 등록
+  categories: { name: string; color: string }[]
   onClose: () => void
 }
 
-export function KolFormModal({ kol, onClose }: KolFormModalProps) {
+export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -95,18 +95,18 @@ export function KolFormModal({ kol, onClose }: KolFormModalProps) {
 
           <Field label="카테고리 (복수 선택)">
             <div className="flex flex-wrap gap-1.5">
-              {KOL_CATEGORY.map(c => {
-                const active = form.categories.includes(c)
+              {categories.map(c => {
+                const active = form.categories.includes(c.name)
                 return (
                   <button
-                    key={c} type="button" onClick={() => toggleCategory(c)}
+                    key={c.name} type="button" onClick={() => toggleCategory(c.name)}
                     className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
                       active
-                        ? `${KOL_CATEGORY_COLOR[c]} border-transparent ring-1 ring-blue-400`
+                        ? `${c.color} border-transparent ring-1 ring-blue-400`
                         : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
                     }`}
                   >
-                    {c}
+                    {c.name}
                   </button>
                 )
               })}

@@ -20,6 +20,8 @@ export interface KolListFilters {
   category?: string
   followers_min?: string // 만 단위 (예: "8" = 8만)
   followers_max?: string
+  visit_from?: string    // 방문 대표 날짜 범위 "YYYY-MM-DD"
+  visit_to?: string
   sort?: string          // 'updated'(기본) | 'followers' | 'visit' | 'name'
   page?: number
 }
@@ -70,6 +72,11 @@ function applyKolFilters<T extends { order: any; contains: any; gte: any; lte: a
   const max = manToCount(filters.followers_max)
   if (min !== null) query = query.gte('followers', min)
   if (max !== null) query = query.lte('followers', max)
+
+  // 방문 대표 날짜 범위 (범위를 걸면 날짜 없는 KOL은 자동 제외)
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/
+  if (filters.visit_from && dateRe.test(filters.visit_from)) query = query.gte('visit_date', filters.visit_from)
+  if (filters.visit_to && dateRe.test(filters.visit_to))     query = query.lte('visit_date', filters.visit_to)
 
   if (filters.q) {
     // PostgREST or() 구문 보호: 와일드카드 이스케이프 후 값 전체를 따옴표로 감쌈

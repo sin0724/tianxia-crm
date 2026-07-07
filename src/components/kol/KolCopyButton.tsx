@@ -3,16 +3,15 @@
 import { useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { fetchKolCopyRows } from '@/app/(dashboard)/kol/copy-actions'
-import type { KolCopyRow } from '@/lib/kols'
-import { fmtFollowers } from '@/lib/constants'
-import { fmtDateKST } from '@/lib/datetime'
+import { buildKolCopyText, copyToClipboard } from '@/lib/kol-copy'
+import { kstDateString } from '@/lib/datetime'
 
-// ── 복사 텍스트 조립 ─────────────────────────────────────────
-// KOL 리스트 (팔로워 3~7만) · 4명
-//
-// 1. https://instagram.com/beauty_kim · 3.2만
-//    방문: 7/12~7/15 방문
+// "2026-07-07" → "07.07"
+function shortDate(s: string): string {
+  return s.slice(5).replace('-', '.')
+}
 
+// 적용된 필터를 헤더 한 줄로 요약: "KOL 리스트 (팔로워 3~7만 · 방문 07.07~07.13) · 12명"
 function buildHeader(sp: URLSearchParams, count: number): string {
   const parts: string[] = []
 
@@ -21,6 +20,12 @@ function buildHeader(sp: URLSearchParams, count: number): string {
   if (min && max)      parts.push(`팔로워 ${min}~${max}만`)
   else if (min)        parts.push(`팔로워 ${min}만~`)
   else if (max)        parts.push(`팔로워 ~${max}만`)
+
+  const vFrom = sp.get('visit_from')
+  const vTo   = sp.get('visit_to')
+  if (vFrom && vTo)    parts.push(`방문 ${shortDate(vFrom)}~${shortDate(vTo)}`)
+  else if (vFrom)      parts.push(`방문 ${shortDate(vFrom)}~`)
+  else if (vTo)        parts.push(`방문 ~${shortDate(vTo)}`)
 
   const category = sp.get('category')
   if (category) parts.push(category)
@@ -32,42 +37,6 @@ function buildHeader(sp: URLSearchParams, count: number): string {
     ? `KOL 리스트 (${parts.join(' · ')}) · ${count}명`
     : `KOL 리스트 · 전체 ${count}명`
 }
-
-function buildCopyText(rows: KolCopyRow[], sp: URLSearchParams): string {
-  const items = rows.map((kol, i) => {
-    const who = kol.instagram_handle
-      ? `https://instagram.com/${kol.instagram_handle}`
-      : kol.name
-    const followers = kol.followers !== null ? ` · ${fmtFollowers(kol.followers)}` : ''
-    const visit = kol.visit_note ?? (kol.visit_date ? fmtDateKST(kol.visit_date) : null)
-
-    const lines = [`${i + 1}. ${who}${followers}`]
-    if (visit) lines.push(`   방문: ${visit}`)
-    return lines.join('\n')
-  })
-
-  return [buildHeader(sp, rows.length), '', items.join('\n\n')].join('\n')
-}
-
-// 클립보드 쓰기 (navigator.clipboard 불가 환경 폴백 포함)
-async function copyToClipboard(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.style.position = 'fixed'
-    ta.style.opacity = '0'
-    document.body.appendChild(ta)
-    ta.select()
-    const ok = document.execCommand('copy')
-    document.body.removeChild(ta)
-    return ok
-  }
-}
-
-// ── 컴포넌트 ──────────────────────────────────────────────────
 
 export function KolCopyButton({ total }: { total: number }) {
   const sp = useSearchParams()
@@ -84,9 +53,12 @@ export function KolCopyButton({ total }: { total: number }) {
           category:      sp.get('category') ?? undefined,
           followers_min: sp.get('followers_min') ?? undefined,
           followers_max: sp.get('followers_max') ?? undefined,
+          visit_from:    sp.get('visit_from') ?? undefined,
+          visit_to:      sp.get('visit_to') ?? undefined,
           sort:          sp.get('sort') ?? undefined,
         })
-        const ok = await copyToClipboard(buildCopyText(rows, sp))
+        const text = buildKolCopyText(rows, buildHeader(sp, rows.length), kstDateString())
+        const ok = await copyToClipboard(text)
         setCopiedCount(rows.length)
         setStatus(ok ? 'copied' : 'error')
       } catch {
@@ -100,7 +72,7 @@ export function KolCopyButton({ total }: { total: number }) {
     <button
       onClick={onCopy}
       disabled={isPending || total === 0}
-      title="필터에 걸린 전체 리스트를 '인스타 링크 · 팔로워 · 방문 예정' 텍스트로 복사 (카톡·슬랙에 붙여넣기)"
+      title="필터에 걸린 전체 리스트를 '인스타 링크 · 팔로워 · 방문 예정' 텍스트로 복사 (일부만 필요하면 표에서 체크 후 선택 복사)"
       className={`px-3 py-1.5 text-sm border rounded-md transition-colors disabled:opacity-40 whitespace-nowrap ${
         status === 'copied'
           ? 'text-green-700 border-green-300 bg-green-50'
@@ -112,7 +84,7 @@ export function KolCopyButton({ total }: { total: number }) {
       {isPending ? '복사 준비 중...'
         : status === 'copied' ? `✓ ${copiedCount}명 복사됨`
         : status === 'error' ? '복사 실패 — 다시 시도'
-        : '📋 텍스트 복사'}
+        : '📋 전체 복사'}
     </button>
   )
 }

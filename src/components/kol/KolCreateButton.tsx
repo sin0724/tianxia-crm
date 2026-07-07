@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { KolFormModal } from '@/components/kol/KolFormModal'
 
-export function KolCreateButton() {
+export function KolCreateButton({ categories }: { categories: { name: string; color: string }[] }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -14,7 +14,7 @@ export function KolCreateButton() {
       >
         + KOL 등록
       </button>
-      {open && <KolFormModal onClose={() => setOpen(false)} />}
+      {open && <KolFormModal categories={categories} onClose={() => setOpen(false)} />}
     </>
   )
 }

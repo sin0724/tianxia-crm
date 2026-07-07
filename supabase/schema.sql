@@ -715,3 +715,58 @@ CREATE POLICY "kols_delete"
   ON kols FOR DELETE
   TO authenticated
   USING (get_my_role() = 'admin');
+
+
+-- ── 11. KOL 카테고리 관리 ────────────────────────────────────
+-- 카테고리를 하드코딩 대신 테이블로 관리 — 관리자가 설정 없이
+-- 추가/이름 변경/삭제/순서 변경 가능. kols.categories에는 이름이
+-- 그대로 저장되므로, 이름 변경/삭제 시 앱에서 kols 배열도 함께 갱신한다.
+
+CREATE TABLE IF NOT EXISTS kol_categories (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT        NOT NULL UNIQUE,
+  color      TEXT        NOT NULL DEFAULT 'bg-gray-100 text-gray-600',  -- Tailwind 클래스 (팔레트에서 선택)
+  sort_order INTEGER     NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE kol_categories ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "kol_categories_select" ON kol_categories;
+CREATE POLICY "kol_categories_select"
+  ON kol_categories FOR SELECT
+  TO authenticated
+  USING (get_my_role() IS NOT NULL);
+
+DROP POLICY IF EXISTS "kol_categories_insert" ON kol_categories;
+CREATE POLICY "kol_categories_insert"
+  ON kol_categories FOR INSERT
+  TO authenticated
+  WITH CHECK (get_my_role() = 'admin');
+
+DROP POLICY IF EXISTS "kol_categories_update" ON kol_categories;
+CREATE POLICY "kol_categories_update"
+  ON kol_categories FOR UPDATE
+  TO authenticated
+  USING (get_my_role() = 'admin')
+  WITH CHECK (get_my_role() = 'admin');
+
+DROP POLICY IF EXISTS "kol_categories_delete" ON kol_categories;
+CREATE POLICY "kol_categories_delete"
+  ON kol_categories FOR DELETE
+  TO authenticated
+  USING (get_my_role() = 'admin');
+
+-- 기존 하드코딩 카테고리 시드 (이미 있으면 건너뜀)
+INSERT INTO kol_categories (name, color, sort_order) VALUES
+  ('뷰티',         'bg-pink-100 text-pink-700',     1),
+  ('의료/시술',    'bg-red-100 text-red-700',       2),
+  ('맛집/F&B',     'bg-orange-100 text-orange-700', 3),
+  ('패션',         'bg-purple-100 text-purple-700', 4),
+  ('여행/숙박',    'bg-sky-100 text-sky-700',       5),
+  ('리빙',         'bg-teal-100 text-teal-700',     6),
+  ('육아/키즈',    'bg-yellow-100 text-yellow-800', 7),
+  ('운동/헬스',    'bg-green-100 text-green-700',   8),
+  ('라이프스타일', 'bg-indigo-100 text-indigo-700', 9),
+  ('기타',         'bg-gray-100 text-gray-600',     10)
+ON CONFLICT (name) DO NOTHING;

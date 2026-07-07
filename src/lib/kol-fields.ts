@@ -43,10 +43,10 @@ export function parseFollowers(v: string | undefined | null): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null
 }
 
-// "뷰티, 라이프스타일" / "뷰티/패션" → KOL_CATEGORY에 있는 값만 추출
-export function parseCategories(v: string | undefined | null): string[] {
+// "뷰티, 라이프스타일" / "뷰티/패션" → 유효 카테고리 목록에 있는 값만 추출
+// valid 미지정 시 기본 목록 사용 (DB 카테고리는 호출부에서 넘긴다)
+export function parseCategories(v: string | undefined | null, valid: readonly string[] = KOL_CATEGORY): string[] {
   if (!v) return []
-  const valid = KOL_CATEGORY as readonly string[]
   const out = new Set<string>()
   for (const raw of v.split(/[,|;·\n]+/)) {
     const t = raw.trim()

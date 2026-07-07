@@ -1,11 +1,13 @@
 import Link from 'next/link'
 import { Header } from '@/components/layout/Header'
 import { KolImportClient } from '@/components/kol/KolImportClient'
+import { getKolCategoryNames } from '@/lib/kol-categories'
 import { requireRole } from '@/lib/auth'
 
 export default async function KolImportPage() {
   // 등록/수정과 동일하게 가져오기도 admin 전용
   await requireRole(['admin'])
+  const categoryNames = await getKolCategoryNames()
 
   return (
     <>
@@ -16,7 +18,7 @@ export default async function KolImportPage() {
             ← KOL 리스트
           </Link>
         </div>
-        <KolImportClient />
+        <KolImportClient categoryNames={categoryNames} />
       </main>
     </>
   )

@@ -34,7 +34,7 @@ function applyMapping(row: string[], headers: string[], mapping: Record<string, 
 
 // ── 컴포넌트 ──────────────────────────────────────────────────
 
-export function KolImportClient() {
+export function KolImportClient({ categoryNames }: { categoryNames: string[] }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [step, setStep]               = useState<Step>('upload')
   const [headers, setHeaders]         = useState<string[]>([])
@@ -299,7 +299,7 @@ export function KolImportClient() {
                   </td>
                   <td className="px-3 py-2 text-gray-600">{mapped.instagram || '—'}</td>
                   <td className="px-3 py-2 text-gray-600">{fmtFollowers(parseFollowers(mapped.followers))}</td>
-                  <td className="px-3 py-2 text-gray-600">{parseCategories(mapped.categories).join(', ') || '—'}</td>
+                  <td className="px-3 py-2 text-gray-600">{parseCategories(mapped.categories, categoryNames).join(', ') || '—'}</td>
                   <td className="px-3 py-2 text-gray-600 max-w-[140px] truncate">{mapped.rate || '—'}</td>
                   <td className="px-3 py-2">
                     {dupe

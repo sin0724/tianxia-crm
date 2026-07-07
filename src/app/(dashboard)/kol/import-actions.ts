@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { parseDate } from '@/lib/csv'
 import { normalizeHandle, parseFollowers, parseCategories } from '@/lib/kol-fields'
+import { getKolCategoryNames } from '@/lib/kol-categories'
 
 // ── 타입 ──────────────────────────────────────────────────────
 
@@ -101,6 +102,7 @@ export async function importKols(rows: KolImportRow[]): Promise<KolImportResult>
 
   const supabase = await createClient()
   const result: KolImportResult = { inserted: 0, errors: [] }
+  const validCategories = await getKolCategoryNames()
   // 파일 안에서 같은 핸들이 두 번 나오는 경우도 잡는다
   const seenHandles = new Set<string>()
 
@@ -123,7 +125,7 @@ export async function importKols(rows: KolImportRow[]): Promise<KolImportResult>
       name,
       instagram_handle: handle,
       followers:        parseFollowers(row.followers),
-      categories:       parseCategories(row.categories),
+      categories:       parseCategories(row.categories, validCategories),
       rate:             row.rate?.trim()       || null,
       visit_note:       row.visit_note?.trim() || null,
       visit_date:       parseDate(row.visit_date),

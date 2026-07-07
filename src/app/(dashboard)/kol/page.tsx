@@ -3,8 +3,10 @@ import { Header } from '@/components/layout/Header'
 import { KolFilters } from '@/components/kol/KolFilters'
 import { KolTable } from '@/components/kol/KolTable'
 import { KolCreateButton } from '@/components/kol/KolCreateButton'
+import { KolCategoryManager } from '@/components/kol/KolCategoryManager'
 import { Pagination } from '@/components/companies/Pagination'
 import { getKols, type KolListFilters } from '@/lib/kols'
+import { getKolCategories } from '@/lib/kol-categories'
 import { requireAuth } from '@/lib/auth'
 
 interface PageProps {
@@ -19,12 +21,15 @@ export default async function KolPage({ searchParams }: PageProps) {
     category:      sp.category,
     followers_min: sp.followers_min,
     followers_max: sp.followers_max,
+    visit_from:    sp.visit_from,
+    visit_to:      sp.visit_to,
     sort:          sp.sort,
     page:          sp.page ? parseInt(sp.page, 10) || 1 : 1,
   }
 
-  const result = await getKols(filters)
+  const [result, categories] = await Promise.all([getKols(filters), getKolCategories()])
   const isAdmin = profile.role === 'admin'
+  const categoryItems = categories.map(c => ({ id: c.id, name: c.name, color: c.color }))
 
   return (
     <>
@@ -36,16 +41,17 @@ export default async function KolPage({ searchParams }: PageProps) {
           </p>
           {isAdmin && (
             <div className="flex flex-wrap items-center gap-2">
+              <KolCategoryManager categories={categoryItems} />
               <Link href="/kol/import" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
                 📥 엑셀 가져오기
               </Link>
-              <KolCreateButton />
+              <KolCreateButton categories={categoryItems} />
             </div>
           )}
         </div>
 
-        <KolFilters total={result.total} />
-        <KolTable kols={result.kols} isAdmin={isAdmin} now={result.now} />
+        <KolFilters total={result.total} categoryNames={categoryItems.map(c => c.name)} />
+        <KolTable kols={result.kols} isAdmin={isAdmin} categories={categoryItems} now={result.now} />
         <Pagination page={result.page} pageCount={result.pageCount} total={result.total} basePath="/kol" />
       </main>
     </>

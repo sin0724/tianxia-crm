@@ -3,8 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
-import { KOL_CATEGORY } from '@/lib/constants'
 import { normalizeHandle, parseFollowers } from '@/lib/kol-fields'
+import { getKolCategoryNames } from '@/lib/kol-categories'
 
 interface ActionResult {
   error: string
@@ -34,7 +34,7 @@ interface KolRow {
 
 type ParseResult = { ok: false; error: string } | { ok: true; row: KolRow }
 
-function toRow(input: KolInput): ParseResult {
+function toRow(input: KolInput, validCategories: string[]): ParseResult {
   const handle = normalizeHandle(input.instagram)
   // 이름이 비어 있으면 IG 핸들을 이름으로 사용
   const name = input.name.trim() || handle
@@ -51,7 +51,7 @@ function toRow(input: KolInput): ParseResult {
       name,
       instagram_handle: handle,
       followers,
-      categories: input.categories.filter(c => (KOL_CATEGORY as readonly string[]).includes(c)),
+      categories: input.categories.filter(c => validCategories.includes(c)),
       rate:       input.rate.trim() || null,
       visit_note: input.visit_note.trim() || null,
       visit_date: /^\d{4}-\d{2}-\d{2}$/.test(input.visit_date) ? input.visit_date : null,
@@ -77,7 +77,7 @@ export async function createKol(input: KolInput): Promise<ActionResult | undefin
   const profile = await requireAdmin()
   if (!profile) return { error: 'KOL 등록은 관리자만 가능합니다.' }
 
-  const parsed = toRow(input)
+  const parsed = toRow(input, await getKolCategoryNames())
   if (!parsed.ok) return { error: parsed.error }
 
   const supabase = await createClient()
@@ -91,7 +91,7 @@ export async function updateKol(id: string, input: KolInput): Promise<ActionResu
   const profile = await requireAdmin()
   if (!profile) return { error: 'KOL 수정은 관리자만 가능합니다.' }
 
-  const parsed = toRow(input)
+  const parsed = toRow(input, await getKolCategoryNames())
   if (!parsed.ok) return { error: parsed.error }
 
   const supabase = await createClient()
