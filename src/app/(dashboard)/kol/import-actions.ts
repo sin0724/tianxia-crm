@@ -107,19 +107,20 @@ export async function importKols(rows: KolImportRow[]): Promise<KolImportResult>
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
 
-    if (!row.name?.trim()) {
-      result.errors.push({ idx: i + 1, name: '(빈 값)', reason: '이름 누락' })
+    const handle = normalizeHandle(row.instagram)
+    // 이름이 비어 있으면 IG 핸들을 이름으로 사용
+    const name = row.name?.trim() || handle
+    if (!name) {
+      result.errors.push({ idx: i + 1, name: '(빈 값)', reason: '이름·인스타그램 모두 누락' })
       continue
     }
-
-    const handle = normalizeHandle(row.instagram)
     if (handle && seenHandles.has(handle)) {
-      result.errors.push({ idx: i + 1, name: row.name, reason: `파일 내 IG 핸들 중복 (@${handle})` })
+      result.errors.push({ idx: i + 1, name, reason: `파일 내 IG 핸들 중복 (@${handle})` })
       continue
     }
 
     const { error } = await supabase.from('kols').insert({
-      name:             row.name.trim(),
+      name,
       instagram_handle: handle,
       followers:        parseFollowers(row.followers),
       categories:       parseCategories(row.categories),
@@ -134,7 +135,7 @@ export async function importKols(rows: KolImportRow[]): Promise<KolImportResult>
       const reason = error.code === '23505'
         ? `이미 등록된 IG 핸들 (@${handle})`
         : error.message
-      result.errors.push({ idx: i + 1, name: row.name, reason })
+      result.errors.push({ idx: i + 1, name, reason })
     } else {
       result.inserted++
       if (handle) seenHandles.add(handle)

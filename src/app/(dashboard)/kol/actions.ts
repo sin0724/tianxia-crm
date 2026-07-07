@@ -35,8 +35,10 @@ interface KolRow {
 type ParseResult = { ok: false; error: string } | { ok: true; row: KolRow }
 
 function toRow(input: KolInput): ParseResult {
-  const name = input.name.trim()
-  if (!name) return { ok: false, error: '이름을 입력하세요.' }
+  const handle = normalizeHandle(input.instagram)
+  // 이름이 비어 있으면 IG 핸들을 이름으로 사용
+  const name = input.name.trim() || handle
+  if (!name) return { ok: false, error: '이름 또는 인스타그램을 입력하세요.' }
 
   const followers = parseFollowers(input.followers)
   if (input.followers.trim() && followers === null) {
@@ -47,7 +49,7 @@ function toRow(input: KolInput): ParseResult {
     ok: true,
     row: {
       name,
-      instagram_handle: normalizeHandle(input.instagram),
+      instagram_handle: handle,
       followers,
       categories: input.categories.filter(c => (KOL_CATEGORY as readonly string[]).includes(c)),
       rate:       input.rate.trim() || null,

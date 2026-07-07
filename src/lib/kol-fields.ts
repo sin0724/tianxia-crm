@@ -4,7 +4,8 @@ import type { CrmField } from '@/lib/csv'
 import { KOL_CATEGORY } from '@/lib/constants'
 
 export const KOL_FIELDS: CrmField[] = [
-  { key: 'name',       label: '이름',           required: true,  aliases: ['활동명', 'KOL명', 'kol', '이름(활동명)', '계정명', '이름/활동명'] },
+  // 이름 또는 인스타그램 중 하나만 있으면 됨 (이름이 비면 IG 핸들로 대체)
+  { key: 'name',       label: '이름',           required: false, aliases: ['활동명', 'KOL명', 'kol', '이름(활동명)', '계정명', '이름/활동명'] },
   { key: 'instagram',  label: '인스타그램',     required: false, aliases: ['ig', 'ig링크', 'ig 링크', '인스타', '인스타링크', '인스타 링크', '인스타그램 링크', 'instagram', '핸들', '계정', 'url', '링크'] },
   { key: 'followers',  label: '팔로워',         required: false, aliases: ['팔로워수', '팔로워 수', 'followers', '팔로워(명)'] },
   { key: 'categories', label: '카테고리',       required: false, aliases: ['분류', '장르', '카테고리(복수)', '주제'] },
@@ -14,12 +15,12 @@ export const KOL_FIELDS: CrmField[] = [
   { key: 'history',    label: '히스토리',       required: false, aliases: ['진행이력', '진행 이력', '협업브랜드', '협업 브랜드', '이력', '메모', '비고', '특이사항'] },
 ]
 
-// "@handle" / "https://instagram.com/handle/" / "handle" → "handle" (소문자)
+// "@handle" / "https://instagram.com/handle/" / "www.instagram.com/handle?igsh=…" / "handle" → "handle" (소문자)
 export function normalizeHandle(v: string | undefined | null): string | null {
   if (!v) return null
   const handle = v
     .trim()
-    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
+    .replace(/^(https?:\/\/)?(www\.)?instagram\.com\//i, '')
     .split(/[/?#]/)[0]
     .replace(/^@/, '')
     .trim()

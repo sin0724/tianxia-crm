@@ -65,9 +65,9 @@ export function KolFormModal({ kol, onClose }: KolFormModalProps) {
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
           </div>
 
-          <Field label="이름 *">
+          <Field label="이름 (비우면 IG 핸들 사용)">
             <input
-              type="text" required value={form.name} autoFocus
+              type="text" required={!form.instagram.trim()} value={form.name} autoFocus
               onChange={e => set('name', e.target.value)}
               placeholder="활동명 또는 본명"
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

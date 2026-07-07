@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { parseCSV, autoDetectMapping, generateCSV } from '@/lib/csv'
-import { KOL_FIELDS, parseFollowers, parseCategories } from '@/lib/kol-fields'
+import { KOL_FIELDS, parseFollowers, parseCategories, normalizeHandle } from '@/lib/kol-fields'
 import { fmtFollowers } from '@/lib/constants'
 import { checkKolDuplicates, importKols } from '@/app/(dashboard)/kol/import-actions'
 import type { KolDuplicateMatch, KolImportResult, KolImportRow } from '@/app/(dashboard)/kol/import-actions'
@@ -72,8 +72,8 @@ export function KolImportClient() {
   // ── Step 2: 매핑 확인 후 미리보기 진행 ────────────────────
 
   function handleGoPreview() {
-    if (!mapping.name) {
-      setFileError('필수 항목 매핑 필요: 이름')
+    if (!mapping.name && !mapping.instagram) {
+      setFileError('이름 또는 인스타그램 중 하나는 매핑이 필요합니다.')
       return
     }
     setFileError(null)
@@ -83,7 +83,9 @@ export function KolImportClient() {
 
     const candidates = rows.map((row, idx) => {
       const mapped = applyMapping(row, headers, mapping)
-      return { idx, name: mapped.name, instagram: mapped.instagram }
+      // 이름이 비면 IG 핸들이 이름이 되므로 중복 검사도 같은 기준으로
+      const name = mapped.name || normalizeHandle(mapped.instagram) || ''
+      return { idx, name, instagram: mapped.instagram }
     })
 
     startTransition(async () => {
@@ -154,7 +156,7 @@ export function KolImportClient() {
 
       <div className="mt-6 bg-gray-50 rounded-lg p-4 text-xs text-gray-500 space-y-1">
         <p className="font-semibold text-gray-700 mb-2">입력 안내</p>
-        <p>• 필수는 <strong>이름</strong>뿐이며, 나머지 컬럼은 있으면 자동 매핑됩니다.</p>
+        <p>• <strong>이름 또는 인스타그램</strong> 중 하나만 있으면 되고, 이름이 비면 IG 핸들이 이름으로 들어갑니다.</p>
         <p>• 인스타그램은 @핸들·프로필 URL 모두 가능하고, 중복 핸들은 자동으로 걸러집니다.</p>
         <p>• 팔로워는 &quot;95000&quot;, &quot;95,000&quot;, &quot;9.5만&quot;, &quot;1.2만명&quot; 모두 인식합니다.</p>
         <p>• 카테고리는 쉼표로 여러 개 입력 (예: &quot;뷰티, 라이프스타일&quot;)</p>
@@ -288,7 +290,13 @@ export function KolImportClient() {
                     />
                   </td>
                   <td className="px-3 py-2 text-gray-400">{idx + 1}</td>
-                  <td className="px-3 py-2 font-medium text-gray-900">{mapped.name || '—'}</td>
+                  <td className="px-3 py-2 font-medium text-gray-900">
+                    {mapped.name || (
+                      normalizeHandle(mapped.instagram)
+                        ? <span className="text-gray-500">{normalizeHandle(mapped.instagram)} <span className="text-[10px] text-gray-400">(핸들)</span></span>
+                        : '—'
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-gray-600">{mapped.instagram || '—'}</td>
                   <td className="px-3 py-2 text-gray-600">{fmtFollowers(parseFollowers(mapped.followers))}</td>
                   <td className="px-3 py-2 text-gray-600">{parseCategories(mapped.categories).join(', ') || '—'}</td>
