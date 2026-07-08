@@ -12,6 +12,8 @@ import { sendSlackNotification } from '@/lib/slack'
 // 필요 환경변수:
 //   META_PAGE_ACCESS_TOKEN  leads_retrieval 권한이 있는 페이지 액세스 토큰
 //   META_LEAD_FORM_IDS      (선택) 동기화할 폼 ID CSV — 기본값은 현재 운영 중인 3개 폼
+//   META_LEAD_ASSIGNEE      (선택) 자동 배정 담당자 이름 또는 이메일 — 회사 DB처럼
+//                           이 사람 앞으로 등록해두고 수동 배분하는 흐름을 지원한다
 //
 // 중복 방지: companies.meta_lead_id(unique)로 이미 등록된 리드는 건너뜀.
 // 메타는 리드를 90일까지만 제공하므로 크론이 며칠 멈춰도 유실 없이 따라잡는다.
@@ -186,6 +188,20 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createAdminClient()
 
+    // 자동 배정 담당자 조회 (이름 또는 이메일, 미설정/미일치 시 미배정)
+    let assignedTo: string | null = null
+    const assigneeKey = process.env.META_LEAD_ASSIGNEE?.trim().toLowerCase()
+    if (assigneeKey) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, email')
+        .eq('is_active', true)
+      assignedTo = (profiles ?? []).find(
+        p => p.name.toLowerCase() === assigneeKey || p.email.toLowerCase() === assigneeKey,
+      )?.id ?? null
+      if (!assignedTo) errors.push(`assignee not found: ${process.env.META_LEAD_ASSIGNEE}`)
+    }
+
     // 이미 등록된 리드 제외
     const ids = leads.map(l => l.id)
     const { data: existing } = ids.length
@@ -203,7 +219,7 @@ export async function POST(request: NextRequest) {
       const mapped = mapLead(lead)
       const { data: created, error } = await supabase
         .from('companies')
-        .insert(mapped)
+        .insert({ ...mapped, assigned_to: assignedTo })
         .select('id')
         .single()
       if (error) {
