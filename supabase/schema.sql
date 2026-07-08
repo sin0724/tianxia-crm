@@ -771,6 +771,15 @@ CREATE POLICY "kol_categories_delete"
   TO authenticated
   USING (get_my_role() = 'admin');
 
+-- ── 12. 메타 리드 동기화 (2026-07) ────────────────────────────
+-- 메타 인스턴트 폼 리드를 크론(/api/cron/sync-meta-leads)으로 가져올 때
+-- 같은 리드가 두 번 등록되지 않도록 리드 ID를 저장한다. (재실행 안전)
+
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS meta_lead_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_meta_lead_id
+  ON companies(meta_lead_id) WHERE meta_lead_id IS NOT NULL;
+
+
 -- 기존 하드코딩 카테고리 시드 (이미 있으면 건너뜀)
 INSERT INTO kol_categories (name, color, sort_order) VALUES
   ('뷰티',         'bg-pink-100 text-pink-700',     1),
