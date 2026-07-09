@@ -168,7 +168,7 @@ export function KolFilters({ total, categoryNames }: { total: number; categoryNa
             <input
               type="text" value={q}
               onChange={e => setQ(e.target.value)}
-              placeholder="이름, IG 핸들, 협업 브랜드, 히스토리 검색..."
+              placeholder="이름, IG 핸들·링크, 협업 브랜드, 히스토리 검색..."
               className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">

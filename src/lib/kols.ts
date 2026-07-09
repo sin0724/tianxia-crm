@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { normalizeHandle } from '@/lib/kol-fields'
 
 export interface Kol {
   id: string
@@ -90,8 +91,15 @@ function applyKolFilters<T extends { order: any; contains: any; gte: any; lte: a
   }
 
   if (filters.q) {
+    // 인스타그램 전체 URL("https://www.instagram.com/yenpeiju/")이나 "@핸들"을
+    // 그대로 붙여넣어도 핸들만 추출해 검색되게 한다
+    const raw = filters.q.trim()
+    const q =
+      /^(https?:\/\/)?(www\.)?instagram\.com\//i.test(raw) || raw.startsWith('@')
+        ? (normalizeHandle(raw) ?? raw)
+        : raw
     // PostgREST or() 구문 보호: 와일드카드 이스케이프 후 값 전체를 따옴표로 감쌈
-    const safe = filters.q.replace(/[%_\\]/g, '\\$&').replace(/"/g, '\\"')
+    const safe = q.replace(/[%_\\]/g, '\\$&').replace(/"/g, '\\"')
     query = query.or(
       `name.ilike."%${safe}%",instagram_handle.ilike."%${safe}%",email.ilike."%${safe}%",history.ilike."%${safe}%",rate.ilike."%${safe}%",visit_note.ilike."%${safe}%"`,
     )
