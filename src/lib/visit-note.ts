@@ -1,4 +1,4 @@
-// 방문 예정 자유 표기("7월중 방문", "8월말", "7/12~7/15") → 날짜 범위 해석
+// 방문 예정 자유 표기("7월중 방문", "8월말", "7/12~7/15", "7.23", "7-23", "2026-07-23") → 날짜 범위 해석
 // 서버(저장·크론 백필)와 클라이언트(지남 판정) 양쪽에서 사용하는 순수 함수.
 
 export interface VisitRange {
@@ -24,8 +24,26 @@ function toDate(year: number, month: number, day: number): string | null {
 function parseSegment(s: string, year: number): VisitRange | null {
   if (!s) return null
 
-  // 1) 기간: "7/12~7/15", "7.12 - 7.15", "7/12~15" (뒤쪽 월 생략 허용)
-  const range = s.match(/(\d{1,2})[/.](\d{1,2})\s*[~\-]\s*(?:(\d{1,2})[/.])?(\d{1,2})/)
+  // 0) 연도 포함: "2026-07-23", "2026.7.23 ~ 2026.7.25", "2026/7/23~8/1", "2026-07-23~25"
+  const withYear = s.match(
+    /(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?:\s*[~\-]\s*(?:(\d{4})[./-])?(?:(\d{1,2})[./-])?(\d{1,2}))?/,
+  )
+  if (withYear) {
+    const y1 = parseInt(withYear[1], 10)
+    const m1 = parseInt(withYear[2], 10)
+    const start = toDate(y1, m1, parseInt(withYear[3], 10))
+    const end = withYear[6]
+      ? toDate(
+          withYear[4] ? parseInt(withYear[4], 10) : y1,
+          withYear[5] ? parseInt(withYear[5], 10) : m1,
+          parseInt(withYear[6], 10),
+        )
+      : start
+    if (start && end) return end >= start ? { start, end } : { start, end: start }
+  }
+
+  // 1) 기간: "7/12~7/15", "7.12 - 7.15", "7-12~7-15", "7/12~15" (뒤쪽 월 생략 허용)
+  const range = s.match(/(\d{1,2})[/.\-](\d{1,2})\s*[~\-]\s*(?:(\d{1,2})[/.\-])?(\d{1,2})/)
   if (range) {
     const m1 = parseInt(range[1], 10), d1 = parseInt(range[2], 10)
     const m2 = range[3] ? parseInt(range[3], 10) : m1
@@ -36,7 +54,7 @@ function parseSegment(s: string, year: number): VisitRange | null {
   }
 
   // 2) 열린 기간: "7/19~" — 종료 미정이므로 그 달 말일까지로 본다
-  const openEnded = s.match(/(\d{1,2})[/.](\d{1,2})\s*[~\-](?!\s*\d)/)
+  const openEnded = s.match(/(\d{1,2})[/.\-](\d{1,2})\s*[~\-](?!\s*\d)/)
   if (openEnded) {
     const m = parseInt(openEnded[1], 10)
     const start = toDate(year, m, parseInt(openEnded[2], 10))
@@ -44,8 +62,8 @@ function parseSegment(s: string, year: number): VisitRange | null {
     if (start && end) return { start, end }
   }
 
-  // 3) "7월 12일" / "7월12일~15일"
-  const koDay = s.match(/(\d{1,2})월\s*(\d{1,2})일(?:\s*[~\-]\s*(\d{1,2})일)?/)
+  // 3) "7월 12일" / "7월12일~15일" / "7월 23", "7월12~15" (일 생략 허용)
+  const koDay = s.match(/(\d{1,2})월\s*(\d{1,2})일?(?:\s*[~\-]\s*(\d{1,2})일?)?/)
   if (koDay) {
     const m = parseInt(koDay[1], 10)
     const d1 = parseInt(koDay[2], 10)
@@ -80,8 +98,8 @@ function parseSegment(s: string, year: number): VisitRange | null {
     if (start && end) return { start, end }
   }
 
-  // 6) 단일 날짜: "7/20", "7.20"
-  const single = s.match(/(\d{1,2})[/.](\d{1,2})/)
+  // 6) 단일 날짜: "7/20", "7.20", "7-20"
+  const single = s.match(/(\d{1,2})[/.\-](\d{1,2})/)
   if (single) {
     const d = toDate(year, parseInt(single[1], 10), parseInt(single[2], 10))
     if (d) return { start: d, end: d }
@@ -90,7 +108,7 @@ function parseSegment(s: string, year: number): VisitRange | null {
   return null
 }
 
-// 연도 표기가 없는 자유 메모는 기준일(todayStr)의 연도로 해석한다.
+// 연도가 명시된 표기("2026-07-23")는 그 연도로, 없는 자유 메모는 기준일(todayStr)의 연도로 해석한다.
 // "1월 방문"을 12월에 적는 해넘김 케이스는 드물어 단순화 — 지난 날짜로 해석되면
 // 지남 처리되므로 최소한 잘못된 미래 일정으로 남지는 않는다.
 // "6/27~7/1 부산 / 7월중 제주"처럼 여러 일정이 있으면 전체를 아우르는 범위로 합친다
