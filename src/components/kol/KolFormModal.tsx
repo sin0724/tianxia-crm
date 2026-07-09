@@ -38,11 +38,29 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
       : [...form.categories, c])
   }
 
-  function onSubmit(e: React.FormEvent) {
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
+    // 한글 IME 조합 중("2.3만"의 "만" 등) 바로 저장하면 state에 마지막 글자가 빠질 수 있어
+    // 제출 시점의 DOM 값을 읽는다. 카테고리는 버튼 토글이라 state 그대로 사용.
+    const fd = new FormData(e.currentTarget)
+    const text = (key: keyof KolInput, fallback: string) => {
+      const v = fd.get(key)
+      return typeof v === 'string' ? v : fallback
+    }
+    const payload: KolInput = {
+      ...form,
+      name:       text('name', form.name),
+      instagram:  text('instagram', form.instagram),
+      email:      text('email', form.email),
+      followers:  text('followers', form.followers),
+      rate:       text('rate', form.rate),
+      visit_note: text('visit_note', form.visit_note),
+      visit_date: text('visit_date', form.visit_date),
+      history:    text('history', form.history),
+    }
     startTransition(async () => {
-      const result = kol ? await updateKol(kol.id, form) : await createKol(form)
+      const result = kol ? await updateKol(kol.id, payload) : await createKol(payload)
       if (result?.error) {
         setError(result.error)
         return
@@ -68,7 +86,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
 
           <Field label="이름 (비우면 IG 핸들 사용)">
             <input
-              type="text" required={!form.instagram.trim()} value={form.name} autoFocus
+              type="text" name="name" required={!form.instagram.trim()} value={form.name} autoFocus
               onChange={e => set('name', e.target.value)}
               placeholder="활동명 또는 본명"
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -78,7 +96,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
           <div className="grid grid-cols-2 gap-3">
             <Field label="인스타그램">
               <input
-                type="text" value={form.instagram}
+                type="text" name="instagram" value={form.instagram}
                 onChange={e => set('instagram', e.target.value)}
                 placeholder="@핸들 또는 프로필 URL"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -86,7 +104,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
             </Field>
             <Field label="팔로워 수">
               <input
-                type="text" value={form.followers}
+                type="text" name="followers" value={form.followers}
                 onChange={e => set('followers', e.target.value)}
                 placeholder="예: 95000 또는 1.2만"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -96,7 +114,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
 
           <Field label="이메일 (선택)">
             <input
-              type="email" value={form.email}
+              type="email" name="email" value={form.email}
               onChange={e => set('email', e.target.value)}
               placeholder="contact@example.com"
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -125,7 +143,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
 
           <Field label="진행 단가">
             <input
-              type="text" value={form.rate}
+              type="text" name="rate" value={form.rate}
               onChange={e => set('rate', e.target.value)}
               placeholder="예: 피드 50 / 릴스 80"
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -135,7 +153,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
           <div className="grid grid-cols-2 gap-3">
             <Field label="방문 예정 (표시용)">
               <input
-                type="text" value={form.visit_note}
+                type="text" name="visit_note" value={form.visit_note}
                 onChange={e => set('visit_note', e.target.value)}
                 placeholder="예: 7/12~7/15 방문, 7월중 예정"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -143,7 +161,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
             </Field>
             <Field label="대표 날짜 (정렬용, 선택)">
               <input
-                type="date" value={form.visit_date}
+                type="date" name="visit_date" value={form.visit_date}
                 onChange={e => set('visit_date', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -152,7 +170,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
 
           <Field label="히스토리 (진행 이력 · 협업 브랜드)">
             <textarea
-              value={form.history} rows={4}
+              name="history" value={form.history} rows={4}
               onChange={e => set('history', e.target.value)}
               placeholder={'예)\n25.05 A브랜드 릴스 진행 (반응 좋음)\n25.03 B클리닉 방문 시술 후기'}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

@@ -30,6 +30,7 @@ export function normalizeHandle(v: string | undefined | null): string | null {
 }
 
 // "95,000" / "95000명" / "9.5만" / "1.2만명" / "9.5천" → 95000. 해석 불가 시 null (행 자체는 살림)
+// 단위 없는 소수("2.3")는 "2.3만"에서 단위가 잘린 입력이므로 거부한다 — 팔로워 수는 소수가 될 수 없다
 export function parseFollowers(v: string | undefined | null): number | null {
   if (!v) return null
   const s = v.trim().replace(/[,\s]/g, '').replace(/명$/, '')
@@ -39,7 +40,7 @@ export function parseFollowers(v: string | undefined | null): number | null {
     const mult = unit[2] === '만' ? 10000 : 1000
     return Math.round(parseFloat(unit[1]) * mult)
   }
-  if (!/^\d+(?:\.\d+)?$/.test(s)) return null
+  if (!/^\d+(?:\.0*)?$/.test(s)) return null
   const n = Math.round(parseFloat(s))
   return Number.isFinite(n) && n >= 0 ? n : null
 }
