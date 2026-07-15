@@ -779,6 +779,41 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS meta_lead_id TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_meta_lead_id
   ON companies(meta_lead_id) WHERE meta_lead_id IS NOT NULL;
 
+-- ── 13. 삭제된 메타 리드 재등록 방지 (2026-07) ─────────────────
+-- 메타는 리드를 90일간 계속 내려주는데, 거래처를 지우면 meta_lead_id
+-- 기록도 함께 사라져 다음 크론 때 같은 리드가 '신규'로 다시 등록된다.
+-- 삭제 시 트리거로 리드 ID를 남겨 두고, 크론이 이 목록을 건너뛴다.
+
+CREATE TABLE IF NOT EXISTS deleted_meta_leads (
+  meta_lead_id TEXT PRIMARY KEY,
+  company_name TEXT,
+  deleted_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 정책 없이 RLS만 켠다: service role(크론)과 아래 SECURITY DEFINER
+-- 트리거만 접근하면 되므로 일반 사용자 경로는 모두 차단.
+ALTER TABLE deleted_meta_leads ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION remember_deleted_meta_lead()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF OLD.meta_lead_id IS NOT NULL THEN
+    INSERT INTO deleted_meta_leads (meta_lead_id, company_name)
+    VALUES (OLD.meta_lead_id, OLD.company_name)
+    ON CONFLICT (meta_lead_id) DO NOTHING;
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER trg_remember_deleted_meta_lead
+  AFTER DELETE ON companies
+  FOR EACH ROW EXECUTE FUNCTION remember_deleted_meta_lead();
+
 
 -- 기존 하드코딩 카테고리 시드 (이미 있으면 건너뜀)
 INSERT INTO kol_categories (name, color, sort_order) VALUES

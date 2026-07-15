@@ -16,6 +16,8 @@ import { sendSlackNotification } from '@/lib/slack'
 //                           이 사람 앞으로 등록해두고 수동 배분하는 흐름을 지원한다
 //
 // 중복 방지: companies.meta_lead_id(unique)로 이미 등록된 리드는 건너뜀.
+// 삭제된 거래처의 리드는 deleted_meta_leads(삭제 트리거가 기록)에 남아
+// 재등록되지 않는다.
 // 메타는 리드를 90일까지만 제공하므로 크론이 며칠 멈춰도 유실 없이 따라잡는다.
 
 const DEFAULT_FORM_IDS = [
@@ -202,12 +204,15 @@ export async function POST(request: NextRequest) {
       if (!assignedTo) errors.push(`assignee not found: ${process.env.META_LEAD_ASSIGNEE}`)
     }
 
-    // 이미 등록된 리드 제외
+    // 이미 등록됐거나 사용자가 삭제한 리드 제외
     const ids = leads.map(l => l.id)
-    const { data: existing } = ids.length
-      ? await supabase.from('companies').select('meta_lead_id').in('meta_lead_id', ids)
-      : { data: [] }
-    const known = new Set((existing ?? []).map(r => r.meta_lead_id))
+    const [{ data: existing }, { data: removed }] = ids.length
+      ? await Promise.all([
+          supabase.from('companies').select('meta_lead_id').in('meta_lead_id', ids),
+          supabase.from('deleted_meta_leads').select('meta_lead_id').in('meta_lead_id', ids),
+        ])
+      : [{ data: [] }, { data: [] }]
+    const known = new Set([...(existing ?? []), ...(removed ?? [])].map(r => r.meta_lead_id))
     const fresh = leads
       .filter(l => !known.has(l.id))
       .sort((a, b) => a.created_time.localeCompare(b.created_time))
