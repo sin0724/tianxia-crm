@@ -19,6 +19,12 @@ interface ActionResult {
   error: string
 }
 
+// 배분 결과 — 담당자별 배분 건수를 UI에 그대로 보여줘 형평성 확인에 쓴다
+export interface AssignResult {
+  error?: string
+  summary?: { name: string; count: number }[]
+}
+
 const NOTIF_SELECT = 'id, company_name, category, source, status, meeting_at, latest_note, contract_amount, profiles(name)' as const
 
 // datetime-local("YYYY-MM-DDTHH:mm") 값은 KST로 입력된 것이므로 +09:00을 명시.
@@ -267,7 +273,7 @@ export async function deleteCompanies(ids: string[]): Promise<ActionResult | und
 export async function assignCompanies(
   ids: string[],
   assigneeId: string | 'auto',
-): Promise<ActionResult | undefined> {
+): Promise<AssignResult | undefined> {
   const profile = await requireAuth()
   if (!isAdminOrManager(profile.role)) {
     return { error: '거래처 배분은 관리자/매니저만 가능합니다.' }
@@ -311,6 +317,7 @@ export async function assignCompanies(
   const assignedAt = new Date().toISOString() // 배정 시각 — "신규 배정 DB" 식별용
 
   let assignedTotal = 0
+  const summary: { name: string; count: number }[] = []
   for (const assignee of assignees) {
     const companyIds = byAssignee.get(assignee.id)!
     if (companyIds.length === 0) continue
@@ -325,6 +332,7 @@ export async function assignCompanies(
     const assigned = updated ?? []
     assignedTotal += assigned.length
     if (assigned.length === 0) continue
+    summary.push({ name: assignee.name, count: assigned.length })
 
     // 다음 액션일이 비어 있는 건만 내일로 설정 (기존 일정은 보존)
     await supabase
@@ -349,13 +357,15 @@ export async function assignCompanies(
   }
 
   revalidatePath('/companies')
+  revalidatePath('/companies/assignments')
   revalidatePath('/tasks')
   revalidatePath('/dashboard')
 
   if (assignedTotal === 0) return { error: '배분된 거래처가 없습니다.' }
   if (assignedTotal < ids.length) {
-    return { error: `${ids.length}건 중 ${assignedTotal}건만 배분되었습니다.` }
+    return { error: `${ids.length}건 중 ${assignedTotal}건만 배분되었습니다.`, summary }
   }
+  return { summary }
 }
 
 /**

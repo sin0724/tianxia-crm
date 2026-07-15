@@ -183,6 +183,89 @@ export async function getCompany(id: string): Promise<Company | null> {
   return (data as Company) ?? null
 }
 
+// ── 배분 현황 (admin/manager) ─────────────────────────────────
+// 형평성 확인용: 담당자별 보유 거래처 수와, assigned_at(배정 시각)으로
+// 묶은 배분 회차별 내역. 별도 로그 테이블 없이 companies에 찍힌
+// 마지막 배정 기록으로 계산하므로, 이후 재배정된 건은 새 담당자
+// 쪽 회차로 옮겨져 보인다.
+
+export interface AssigneeLoad {
+  id: string
+  name: string
+  total: number       // 보유 거래처 수
+  uncontacted: number // 배정 후 아직 연락 전 (신규 배정)
+}
+
+export interface AssignmentBatch {
+  assignedAt: string
+  total: number
+  perAssignee: { name: string; count: number }[]
+}
+
+export interface AssignmentOverview {
+  unassigned: number
+  loads: AssigneeLoad[]
+  batches: AssignmentBatch[]
+}
+
+export async function getAssignmentOverview(): Promise<AssignmentOverview> {
+  const supabase = await createClient()
+  const [{ data: rows }, { data: profiles }] = await Promise.all([
+    supabase.from('companies').select('assigned_to, assigned_at, last_contacted_at').limit(10000),
+    supabase.from('profiles').select('id, name, role, is_active').order('name'),
+  ])
+
+  const nameById = new Map((profiles ?? []).map(p => [p.id, p.name]))
+
+  let unassigned = 0
+  const totals = new Map<string, { total: number; uncontacted: number }>()
+  const batchMap = new Map<string, Map<string, number>>() // assigned_at → (담당자 → 건수)
+
+  for (const r of rows ?? []) {
+    if (!r.assigned_to) {
+      unassigned++
+      continue
+    }
+    const t = totals.get(r.assigned_to) ?? { total: 0, uncontacted: 0 }
+    t.total++
+    if (r.assigned_at && !r.last_contacted_at) t.uncontacted++
+    totals.set(r.assigned_to, t)
+
+    if (r.assigned_at) {
+      const perAssignee = batchMap.get(r.assigned_at) ?? new Map<string, number>()
+      perAssignee.set(r.assigned_to, (perAssignee.get(r.assigned_to) ?? 0) + 1)
+      batchMap.set(r.assigned_at, perAssignee)
+    }
+  }
+
+  // 활성 영업사원은 0건이어도 표시 (배분에서 빠진 사람이 보이도록)
+  const loadIds = new Set([
+    ...totals.keys(),
+    ...(profiles ?? []).filter(p => p.is_active && p.role === 'sales').map(p => p.id),
+  ])
+  const loads: AssigneeLoad[] = [...loadIds]
+    .map(id => ({
+      id,
+      name: nameById.get(id) ?? '(알 수 없음)',
+      total: totals.get(id)?.total ?? 0,
+      uncontacted: totals.get(id)?.uncontacted ?? 0,
+    }))
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'ko'))
+
+  const batches: AssignmentBatch[] = [...batchMap.entries()]
+    .map(([assignedAt, perAssignee]) => ({
+      assignedAt,
+      total: [...perAssignee.values()].reduce((s, n) => s + n, 0),
+      perAssignee: [...perAssignee.entries()]
+        .map(([id, count]) => ({ name: nameById.get(id) ?? '(알 수 없음)', count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ko')),
+    }))
+    .sort((a, b) => b.assignedAt.localeCompare(a.assignedAt))
+    .slice(0, 50)
+
+  return { unassigned, loads, batches }
+}
+
 export async function getProfiles(): Promise<ProfileOption[]> {
   const supabase = await createClient()
   const { data } = await supabase

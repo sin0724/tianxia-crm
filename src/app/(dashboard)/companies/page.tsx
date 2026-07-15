@@ -41,6 +41,11 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-gray-500">거래처 목록</p>
           <div className="flex flex-wrap items-center gap-2">
+            {(profile.role === 'admin' || profile.role === 'manager') && (
+              <Link href="/companies/assignments" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                ⚖️ 배분 현황
+              </Link>
+            )}
             <Link href="/companies/board" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
               📋 보드 보기
             </Link>

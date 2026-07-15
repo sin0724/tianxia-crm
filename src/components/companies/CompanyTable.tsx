@@ -113,7 +113,12 @@ export function CompanyTable({
       }
       setSelectedIds(new Set())
       setAssignee('')
-      setAssignedMsg(`${ids.length}건 배분 완료 — 담당자에게 알림을 보냈습니다.`)
+      const detail = result?.summary?.map(s => `${s.name} ${s.count}건`).join(' · ')
+      setAssignedMsg(
+        detail
+          ? `${ids.length}건 배분 완료 — ${detail} · 담당자에게 알림을 보냈습니다.`
+          : `${ids.length}건 배분 완료 — 담당자에게 알림을 보냈습니다.`,
+      )
     })
   }
 
