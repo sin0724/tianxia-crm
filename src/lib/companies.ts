@@ -206,6 +206,8 @@ export interface AssignmentOverview {
   unassigned: number
   loads: AssigneeLoad[]
   batches: AssignmentBatch[]
+  /** 최근 50회(batches) 동안 담당자별로 받은 총 건수 — 형평성 요약 */
+  recentTotals: { name: string; count: number }[]
 }
 
 export async function getAssignmentOverview(): Promise<AssignmentOverview> {
@@ -263,7 +265,18 @@ export async function getAssignmentOverview(): Promise<AssignmentOverview> {
     .sort((a, b) => b.assignedAt.localeCompare(a.assignedAt))
     .slice(0, 50)
 
-  return { unassigned, loads, batches }
+  // 최근 50회 합계 — 담당자별 누적 배분 건수
+  const recentByName = new Map<string, number>()
+  for (const b of batches) {
+    for (const p of b.perAssignee) {
+      recentByName.set(p.name, (recentByName.get(p.name) ?? 0) + p.count)
+    }
+  }
+  const recentTotals = [...recentByName.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ko'))
+
+  return { unassigned, loads, batches, recentTotals }
 }
 
 export async function getProfiles(): Promise<ProfileOption[]> {

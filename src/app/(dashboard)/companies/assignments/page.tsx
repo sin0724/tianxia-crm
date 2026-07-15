@@ -6,6 +6,7 @@ import { getAssignmentOverview } from '@/lib/companies'
 // 배분 현황 (admin/manager 전용)
 // 담당자별 보유 거래처와 배분 회차별 내역을 보여줘
 // "누구한테 몇 건씩 갔는지"를 한눈에 확인할 수 있게 한다.
+// 배분 이력·합계는 admin에게만 노출된다.
 
 function fmtDateTime(s: string) {
   return new Date(s).toLocaleString('ko-KR', {
@@ -16,8 +17,9 @@ function fmtDateTime(s: string) {
 }
 
 export default async function AssignmentsPage() {
-  await requireRole(['admin', 'manager'])
-  const { unassigned, loads, batches } = await getAssignmentOverview()
+  const profile = await requireRole(['admin', 'manager'])
+  const isAdmin = profile.role === 'admin'
+  const { unassigned, loads, batches, recentTotals } = await getAssignmentOverview()
   const maxLoad = Math.max(1, ...loads.map(l => l.total))
 
   return (
@@ -92,7 +94,27 @@ export default async function AssignmentsPage() {
           </div>
         </section>
 
-        {/* 배분 이력 */}
+        {/* 담당자별 배분 합계 + 배분 이력 (admin 전용) */}
+        {isAdmin && (
+        <>
+        <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <h2 className="px-4 py-3 text-sm font-semibold text-gray-900 border-b border-gray-200">
+            담당자별 배분 합계 <span className="font-normal text-gray-400">— 최근 50회 기준</span>
+          </h2>
+          {recentTotals.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-gray-400">배분 이력이 없습니다.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2 px-4 py-3">
+              {recentTotals.map(t => (
+                <span key={t.name} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full text-sm">
+                  <span className="font-medium text-gray-900">{t.name}</span>
+                  <span className="text-blue-700 font-semibold tabular-nums">{t.count}건</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+
         <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <h2 className="px-4 py-3 text-sm font-semibold text-gray-900 border-b border-gray-200">
             배분 이력 <span className="font-normal text-gray-400">— 배정 시각 기준, 최근 50회</span>
@@ -128,6 +150,8 @@ export default async function AssignmentsPage() {
           이력은 거래처에 남은 마지막 배정 기록으로 계산됩니다. 이후 다른 담당자에게 재배정된 건은
           새 배정 회차로 옮겨져 집계되며, 삭제된 거래처는 이력에서 빠집니다.
         </p>
+        </>
+        )}
       </main>
     </>
   )
