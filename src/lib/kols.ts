@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { normalizeHandle } from '@/lib/kol-fields'
+import { kstStartOfDay } from '@/lib/datetime'
 
 export interface Kol {
   id: string
@@ -128,6 +129,17 @@ export async function getKols(filters: KolListFilters = {}): Promise<KolListResu
     pageCount: Math.max(1, Math.ceil(total / KOL_PAGE_SIZE)),
     now: Date.now(),
   }
+}
+
+// ── 오늘(KST) 새로 추가된 KOL 수 — 팝업 공지용 ──
+// created_at 기본값이 NOW()이므로 개별 등록·일괄 임포트 모두 집계된다.
+export async function countKolsAddedToday(): Promise<number> {
+  const supabase = await createClient()
+  const { count } = await supabase
+    .from('kols')
+    .select('id', { count: 'exact', head: true })
+    .gte('created_at', kstStartOfDay().toISOString())
+  return count ?? 0
 }
 
 // ── 텍스트 복사용 전체 조회 (페이지네이션 무시, 필터·정렬은 동일) ──
