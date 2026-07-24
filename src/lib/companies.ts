@@ -173,6 +173,20 @@ export async function getNewAssignedCount(): Promise<number> {
   return count ?? 0
 }
 
+/**
+ * 오늘(KST) 나에게 새로 배분된 거래처 수 — 배분 팝업 공지용.
+ * assigned_to로 명시 필터하므로 전체가 보이는 admin/manager도 "본인 배분분"만 집계된다.
+ */
+export async function countCompaniesAssignedToMeToday(userId: string): Promise<number> {
+  const supabase = await createClient()
+  const { count } = await supabase
+    .from('companies')
+    .select('id', { count: 'exact', head: true })
+    .eq('assigned_to', userId)
+    .gte('assigned_at', kstStartOfDay().toISOString())
+  return count ?? 0
+}
+
 export async function getCompany(id: string): Promise<Company | null> {
   const supabase = await createClient()
   const { data } = await supabase
