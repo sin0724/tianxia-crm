@@ -128,8 +128,13 @@ export async function createCompany(formData: FormData): Promise<ActionResult | 
   const data = extractData(formData)
   if (!data.company_name) return { error: '상호명은 필수입니다.' }
 
-  // sales 유저가 담당자를 지정하지 않으면 본인으로 자동 배정
-  const assigned_to = data.assigned_to ?? (profile.role === 'sales' ? profile.id : null)
+  // 담당자 선택값 처리:
+  // - 'none' → 명시적 미배정(배분 대기). sales 유저여도 본인 자동 배정하지 않음.
+  // - 빈 값  → 미지정. sales 유저면 본인으로 자동 배정, 그 외엔 미배정.
+  const assigned_to =
+    data.assigned_to === 'none'
+      ? null
+      : data.assigned_to ?? (profile.role === 'sales' ? profile.id : null)
 
   // INSERT 후 SELECT RLS 충돌 방지: UUID를 미리 생성해 select() 없이 삽입
   const id = randomUUID()
@@ -159,6 +164,9 @@ export async function updateCompany(id: string, formData: FormData): Promise<Act
   const profile = await requireAuth()
   const data = extractData(formData)
   if (!data.company_name) return { error: '상호명은 필수입니다.' }
+
+  // 폼의 '미배정(배분 대기)' 센티넬은 실제 값으로는 null로 저장
+  if (data.assigned_to === 'none') data.assigned_to = null
 
   const supabase = await createClient()
 

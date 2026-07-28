@@ -28,10 +28,46 @@ function isNewAssigned(c: Company) {
   return !!c.assigned_at && !c.last_contacted_at
 }
 
+// 배분된 거래처: 배정 시각(assigned_at)이 찍힌 건 = 배분을 통해 담당자에게 넘어온 거래처
+function isAssigned(c: Company) {
+  return !!c.assigned_at
+}
+
 function NewBadge() {
   return (
     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-600 text-white leading-none">
       NEW
+    </span>
+  )
+}
+
+// 담당자별로 배분 뱃지 색을 다르게 해 한눈에 구분되도록 (담당자 id 해시 → 팔레트)
+const ASSIGN_COLORS = [
+  'bg-purple-100 text-purple-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-amber-100 text-amber-700',
+  'bg-sky-100 text-sky-700',
+  'bg-rose-100 text-rose-700',
+  'bg-indigo-100 text-indigo-700',
+  'bg-teal-100 text-teal-700',
+  'bg-orange-100 text-orange-700',
+]
+
+function assignColor(key: string) {
+  let h = 0
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
+  return ASSIGN_COLORS[h % ASSIGN_COLORS.length]
+}
+
+// 배분됨 표시 — 담당자별 색상으로 구분. 담당자 미배정(재배분 후 해제 등)이면 회색.
+function AssignBadge({ assignedTo, name }: { assignedTo: string | null; name?: string | null }) {
+  const color = assignedTo ? assignColor(assignedTo) : 'bg-gray-100 text-gray-600'
+  return (
+    <span
+      title={name ? `${name}에게 배분됨` : '배분됨'}
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold leading-none ${color}`}
+    >
+      배분
     </span>
   )
 }
@@ -341,6 +377,7 @@ export function CompanyTable({
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 min-w-0">
                     {isNewAssigned(c) && <NewBadge />}
+                    {isAssigned(c) && <AssignBadge assignedTo={c.assigned_to} name={c.profiles?.name} />}
                     <Link href={`/companies/${c.id}`} className="font-medium text-gray-900 truncate hover:text-blue-600">
                       {c.company_name}
                     </Link>
@@ -456,7 +493,12 @@ export function CompanyTable({
                   <Td>{c.region}</Td>
                   <Td>{c.source}</Td>
                   <Td>{fmtMonth(c.inflow_date)}</Td>
-                  <Td>{c.profiles?.name}</Td>
+                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      {c.profiles?.name ?? '—'}
+                      {isAssigned(c) && <AssignBadge assignedTo={c.assigned_to} name={c.profiles?.name} />}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <StatusBadge status={c.status} />
                   </td>

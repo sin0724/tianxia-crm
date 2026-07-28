@@ -144,6 +144,7 @@ export function CompanyForm({
           <Field label="담당자">
             <select name="assigned_to" defaultValue={d.assigned_to ?? ''} className={inputCls}>
               <option value="">선택</option>
+              <option value="none">미배정 (배분 대기)</option>
               {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </Field>
