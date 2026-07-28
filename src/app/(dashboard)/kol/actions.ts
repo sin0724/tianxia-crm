@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, canManageKol } from '@/lib/auth'
 import { normalizeHandle, parseFollowers } from '@/lib/kol-fields'
 import { getKolCategoryNames } from '@/lib/kol-categories'
 import { parseVisitNote } from '@/lib/visit-note'
@@ -78,22 +78,22 @@ function resolveVisit(noteInput: string, dateInput: string) {
   }
 }
 
-// RLS도 admin만 쓰기를 허용하지만, 친절한 에러를 위해 앱 레벨에서도 확인한다.
-async function requireAdmin() {
+// RLS도 KOL 관리 권한자만 쓰기를 허용하지만, 친절한 에러를 위해 앱 레벨에서도 확인한다.
+async function requireKolManager() {
   const profile = await requireAuth()
-  if (profile.role !== 'admin') return null
+  if (!canManageKol(profile)) return null
   return profile
 }
 
 function friendlyError(message: string, code?: string): string {
   if (code === '23505') return '이미 등록된 인스타그램 핸들입니다. 기존 KOL을 검색해보세요.'
-  if (code === '42501' || /row-level security/i.test(message)) return 'KOL 등록/수정은 관리자만 가능합니다.'
+  if (code === '42501' || /row-level security/i.test(message)) return 'KOL 등록/수정은 관리자 또는 KOL 담당자만 가능합니다.'
   return message
 }
 
 export async function createKol(input: KolInput): Promise<ActionResult | undefined> {
-  const profile = await requireAdmin()
-  if (!profile) return { error: 'KOL 등록은 관리자만 가능합니다.' }
+  const profile = await requireKolManager()
+  if (!profile) return { error: 'KOL 등록은 관리자 또는 KOL 담당자만 가능합니다.' }
 
   const parsed = toRow(input, await getKolCategoryNames())
   if (!parsed.ok) return { error: parsed.error }
@@ -106,8 +106,8 @@ export async function createKol(input: KolInput): Promise<ActionResult | undefin
 }
 
 export async function updateKol(id: string, input: KolInput): Promise<ActionResult | undefined> {
-  const profile = await requireAdmin()
-  if (!profile) return { error: 'KOL 수정은 관리자만 가능합니다.' }
+  const profile = await requireKolManager()
+  if (!profile) return { error: 'KOL 수정은 관리자 또는 KOL 담당자만 가능합니다.' }
 
   const parsed = toRow(input, await getKolCategoryNames())
   if (!parsed.ok) return { error: parsed.error }
@@ -120,8 +120,8 @@ export async function updateKol(id: string, input: KolInput): Promise<ActionResu
 }
 
 export async function deleteKol(id: string): Promise<ActionResult | undefined> {
-  const profile = await requireAdmin()
-  if (!profile) return { error: 'KOL 삭제는 관리자만 가능합니다.' }
+  const profile = await requireKolManager()
+  if (!profile) return { error: 'KOL 삭제는 관리자 또는 KOL 담당자만 가능합니다.' }
 
   const supabase = await createClient()
   const { data: deleted, error } = await supabase.from('kols').delete().eq('id', id).select('id')
@@ -133,8 +133,8 @@ export async function deleteKol(id: string): Promise<ActionResult | undefined> {
 
 // 선택 삭제 (일괄) — 표의 체크박스로 고른 KOL들을 한 번에 삭제
 export async function deleteKols(ids: string[]): Promise<ActionResult | undefined> {
-  const profile = await requireAdmin()
-  if (!profile) return { error: 'KOL 삭제는 관리자만 가능합니다.' }
+  const profile = await requireKolManager()
+  if (!profile) return { error: 'KOL 삭제는 관리자 또는 KOL 담당자만 가능합니다.' }
   if (ids.length === 0) return
 
   const supabase = await createClient()

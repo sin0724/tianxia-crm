@@ -29,7 +29,13 @@ export async function updateProfileName(name: string): Promise<{ error?: string 
 
 export async function updateMemberAccess(
   targetId: string,
-  changes: { name?: string; role?: 'admin' | 'manager' | 'sales'; is_active?: boolean; team?: string | null },
+  changes: {
+    name?: string
+    role?: 'admin' | 'manager' | 'sales'
+    is_active?: boolean
+    team?: string | null
+    can_manage_kol?: boolean
+  },
 ): Promise<{ error?: string }> {
   const profile = await requireAuth()
   if (profile.role !== 'admin') return { error: '관리자만 변경할 수 있습니다.' }
@@ -53,6 +59,10 @@ export async function updateMemberAccess(
   if (!updated || updated.length === 0) return { error: '변경되지 않았습니다.' }
 
   revalidatePath('/settings')
+  if (changes.can_manage_kol !== undefined || changes.role !== undefined) {
+    // KOL 페이지의 등록/수정 버튼 노출 조건이 바뀜
+    revalidatePath('/kol')
+  }
   if (changes.name !== undefined) {
     // 이름은 거래처 담당자 표기·할 일·대시보드 곳곳에 쓰임
     revalidatePath('/companies')

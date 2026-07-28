@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, canManageKol } from '@/lib/auth'
 import { parseDate } from '@/lib/csv'
 import { normalizeHandle, parseFollowers, parseCategories } from '@/lib/kol-fields'
 import { getKolCategoryNames } from '@/lib/kol-categories'
@@ -99,8 +99,8 @@ export async function checkKolDuplicates(
 
 export async function importKols(rows: KolImportRow[]): Promise<KolImportResult> {
   const profile = await requireAuth()
-  if (profile.role !== 'admin') {
-    return { inserted: 0, errors: [{ idx: 0, name: '—', reason: 'KOL 등록은 관리자만 가능합니다.' }] }
+  if (!canManageKol(profile)) {
+    return { inserted: 0, errors: [{ idx: 0, name: '—', reason: 'KOL 등록은 관리자 또는 KOL 담당자만 가능합니다.' }] }
   }
 
   const supabase = await createClient()

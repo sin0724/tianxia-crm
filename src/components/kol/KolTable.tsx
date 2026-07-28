@@ -13,13 +13,14 @@ const STALE_DAYS = 21 // 3주 이상 미갱신이면 리스트에서 표시
 
 interface KolTableProps {
   kols: Kol[]
-  isAdmin: boolean
+  /** KOL 관리 권한 — admin 또는 admin이 지정한 KOL 담당자 */
+  canEdit: boolean
   categories: { name: string; color: string }[]
   /** 서버 렌더 시각(ms) — 렌더 중 Date.now() 호출을 피하기 위해 서버에서 내려준다 */
   now: number
 }
 
-export function KolTable({ kols, isAdmin, categories, now }: KolTableProps) {
+export function KolTable({ kols, canEdit, categories, now }: KolTableProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -116,7 +117,7 @@ export function KolTable({ kols, isAdmin, categories, now }: KolTableProps) {
               : copyStatus === 'error' ? '복사 실패 — 다시 시도'
               : '📋 선택 복사'}
           </button>
-          {isAdmin && (
+          {canEdit && (
             <button
               onClick={onDeleteSelected}
               disabled={isPending}
@@ -154,7 +155,7 @@ export function KolTable({ kols, isAdmin, categories, now }: KolTableProps) {
               <th className="px-3 py-2.5 font-medium">방문 예정</th>
               <th className="px-3 py-2.5 font-medium">히스토리</th>
               <th className="px-3 py-2.5 font-medium">최신화</th>
-              {isAdmin && <th className="px-3 py-2.5" />}
+              {canEdit && <th className="px-3 py-2.5" />}
             </tr>
           </thead>
           <tbody>
@@ -217,7 +218,7 @@ export function KolTable({ kols, isAdmin, categories, now }: KolTableProps) {
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <UpdatedAt value={kol.updated_at} now={now} />
                     </td>
-                    {isAdmin && (
+                    {canEdit && (
                       <td className="px-3 py-2.5 whitespace-nowrap text-right">
                         <button
                           onClick={e => { e.stopPropagation(); setEditing(kol) }}
@@ -238,7 +239,7 @@ export function KolTable({ kols, isAdmin, categories, now }: KolTableProps) {
 
                   {expanded && (
                     <tr className="border-b border-gray-100 bg-blue-50/30">
-                      <td colSpan={isAdmin ? 9 : 8} className="px-4 py-3">
+                      <td colSpan={canEdit ? 9 : 8} className="px-4 py-3">
                         <div className="space-y-2 text-sm">
                           <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-500">
                             {kol.email && (

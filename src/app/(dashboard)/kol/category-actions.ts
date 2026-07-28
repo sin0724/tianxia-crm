@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, canManageKol } from '@/lib/auth'
 
 interface ActionResult {
   error: string
@@ -22,16 +22,16 @@ const COLOR_PALETTE = [
   'bg-gray-100 text-gray-600',
 ]
 
-async function requireAdmin() {
+async function requireKolManager() {
   const profile = await requireAuth()
-  if (profile.role !== 'admin') return null
+  if (!canManageKol(profile)) return null
   return profile
 }
 
 function friendlyError(message: string, code?: string): string {
   if (code === '42P01') return '카테고리 테이블이 아직 없습니다. Supabase SQL 편집기에서 schema.sql의 "11. KOL 카테고리 관리" 섹션을 실행해주세요.'
   if (code === '23505') return '이미 있는 카테고리 이름입니다.'
-  if (code === '42501' || /row-level security/i.test(message)) return '카테고리 관리는 관리자만 가능합니다.'
+  if (code === '42501' || /row-level security/i.test(message)) return '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.'
   return message
 }
 
@@ -53,7 +53,7 @@ async function propagateToKols(oldName: string, newName: string | null): Promise
 }
 
 export async function createKolCategory(name: string): Promise<ActionResult | undefined> {
-  if (!(await requireAdmin())) return { error: '카테고리 관리는 관리자만 가능합니다.' }
+  if (!(await requireKolManager())) return { error: '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.' }
   const trimmed = name.trim()
   if (!trimmed) return { error: '카테고리 이름을 입력하세요.' }
 
@@ -79,7 +79,7 @@ export async function createKolCategory(name: string): Promise<ActionResult | un
 }
 
 export async function renameKolCategory(id: string, newName: string): Promise<ActionResult | undefined> {
-  if (!(await requireAdmin())) return { error: '카테고리 관리는 관리자만 가능합니다.' }
+  if (!(await requireKolManager())) return { error: '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.' }
   const trimmed = newName.trim()
   if (!trimmed) return { error: '카테고리 이름을 입력하세요.' }
 
@@ -103,7 +103,7 @@ export async function renameKolCategory(id: string, newName: string): Promise<Ac
 }
 
 export async function deleteKolCategory(id: string): Promise<ActionResult | undefined> {
-  if (!(await requireAdmin())) return { error: '카테고리 관리는 관리자만 가능합니다.' }
+  if (!(await requireKolManager())) return { error: '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.' }
 
   const supabase = await createClient()
   const { data: row, error: selErr } = await supabase
@@ -124,7 +124,7 @@ export async function deleteKolCategory(id: string): Promise<ActionResult | unde
 }
 
 export async function moveKolCategory(id: string, direction: 'up' | 'down'): Promise<ActionResult | undefined> {
-  if (!(await requireAdmin())) return { error: '카테고리 관리는 관리자만 가능합니다.' }
+  if (!(await requireKolManager())) return { error: '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.' }
 
   const supabase = await createClient()
   const { data, error: selErr } = await supabase

@@ -14,7 +14,7 @@ export default async function SettingsPage() {
     const supabase = await createClient()
     const { data } = await supabase
       .from('profiles')
-      .select('id, name, email, role, team, is_active')
+      .select('id, name, email, role, team, is_active, can_manage_kol')
       .order('is_active', { ascending: true })
       .order('name')
     members = (data as Member[]) ?? []
@@ -45,6 +45,7 @@ export default async function SettingsPage() {
               <h2 className="text-sm font-semibold text-gray-900 mb-1">팀 관리</h2>
               <p className="text-sm text-gray-400 mb-4">
                 신규 가입자 승인, 권한 변경, 계정 비활성화를 할 수 있습니다.
+                &lsquo;KOL 관리&rsquo;를 켜면 관리자가 아니어도 KOL 리스트를 등록·수정할 수 있습니다.
               </p>
               <TeamManagement members={members} myId={profile.id} />
             </div>

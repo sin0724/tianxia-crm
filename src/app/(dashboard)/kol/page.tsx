@@ -7,7 +7,7 @@ import { KolCategoryManager } from '@/components/kol/KolCategoryManager'
 import { Pagination } from '@/components/companies/Pagination'
 import { getKols, type KolListFilters } from '@/lib/kols'
 import { getKolCategories } from '@/lib/kol-categories'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, canManageKol } from '@/lib/auth'
 
 interface PageProps {
   searchParams: Promise<Record<string, string | undefined>>
@@ -28,7 +28,7 @@ export default async function KolPage({ searchParams }: PageProps) {
   }
 
   const [result, categories] = await Promise.all([getKols(filters), getKolCategories()])
-  const isAdmin = profile.role === 'admin'
+  const canEdit = canManageKol(profile)
   const categoryItems = categories.map(c => ({ id: c.id, name: c.name, color: c.color }))
 
   return (
@@ -37,9 +37,9 @@ export default async function KolPage({ searchParams }: PageProps) {
       <main className="flex-1 p-4 sm:p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-gray-500">
-            인플루언서 아카이브 — 전직원 열람 가능{isAdmin ? ' · 등록/수정은 관리자' : ' (등록/수정은 관리자에게 요청)'}
+            인플루언서 아카이브 — 전직원 열람 가능{canEdit ? ' · 등록/수정 권한 있음' : ' (등록/수정은 KOL 담당자에게 요청)'}
           </p>
-          {isAdmin && (
+          {canEdit && (
             <div className="flex flex-wrap items-center gap-2">
               <KolCategoryManager categories={categoryItems} />
               <Link href="/kol/import" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
@@ -51,7 +51,7 @@ export default async function KolPage({ searchParams }: PageProps) {
         </div>
 
         <KolFilters total={result.total} categoryNames={categoryItems.map(c => c.name)} />
-        <KolTable kols={result.kols} isAdmin={isAdmin} categories={categoryItems} now={result.now} />
+        <KolTable kols={result.kols} canEdit={canEdit} categories={categoryItems} now={result.now} />
         <Pagination page={result.page} pageCount={result.pageCount} total={result.total} basePath="/kol" />
       </main>
     </>

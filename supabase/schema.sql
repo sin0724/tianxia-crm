@@ -224,6 +224,26 @@ AS $$
   );
 $$;
 
+-- KOL 관리 권한 — role과 별개로 admin이 특정 담당자에게만 켜 주는 플래그.
+-- KOL 리스트 등록/수정/삭제, 엑셀 가져오기, 카테고리 관리에 쓰인다.
+-- (기존 DB용, 재실행 안전)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS can_manage_kol BOOLEAN NOT NULL DEFAULT false;
+
+-- admin은 항상 보유. 함수명을 컬럼명과 다르게 둬 참조 모호성을 피한다.
+CREATE OR REPLACE FUNCTION is_kol_manager()
+RETURNS BOOLEAN
+LANGUAGE SQL
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM profiles p
+    WHERE p.id = auth.uid()
+      AND p.is_active = true
+      AND (p.role = 'admin' OR p.can_manage_kol)
+  );
+$$;
+
 
 -- ── 5. TRIGGERS ─────────────────────────────────────────────
 
@@ -250,7 +270,7 @@ CREATE OR REPLACE TRIGGER trg_notification_settings_updated_at
   BEFORE UPDATE ON notification_settings
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- role / is_active 변경은 admin만 가능 (권한 상승 방지)
+-- role / is_active / can_manage_kol 변경은 admin만 가능 (권한 상승 방지)
 -- auth 컨텍스트가 없는 경우(service role, SQL Editor)는 허용
 CREATE OR REPLACE FUNCTION protect_profile_fields()
 RETURNS TRIGGER
@@ -259,10 +279,12 @@ SECURITY DEFINER
 AS $$
 BEGIN
   IF auth.uid() IS NOT NULL
-     AND (NEW.role IS DISTINCT FROM OLD.role OR NEW.is_active IS DISTINCT FROM OLD.is_active)
+     AND (NEW.role IS DISTINCT FROM OLD.role
+          OR NEW.is_active IS DISTINCT FROM OLD.is_active
+          OR NEW.can_manage_kol IS DISTINCT FROM OLD.can_manage_kol)
      AND COALESCE(get_my_role()::text, '') <> 'admin'
   THEN
-    RAISE EXCEPTION 'role/is_active는 관리자만 변경할 수 있습니다.';
+    RAISE EXCEPTION 'role/is_active/can_manage_kol은 관리자만 변경할 수 있습니다.';
   END IF;
   RETURN NEW;
 END;
@@ -666,7 +688,8 @@ DO $$ BEGIN DROP TYPE IF EXISTS company_status; EXCEPTION WHEN dependent_objects
 
 
 -- ── 10. KOL 아카이브 ─────────────────────────────────────────
--- 인플루언서(KOL) 리스트 — 전직원 열람, 등록/수정/삭제는 admin만.
+-- 인플루언서(KOL) 리스트 — 전직원 열람, 등록/수정/삭제는 KOL 관리 권한 보유자만
+-- (admin 또는 profiles.can_manage_kol이 켜진 담당자 → is_kol_manager()).
 -- 히스토리(진행 이력·협업 브랜드)는 자유 텍스트로 두고 ilike 검색으로 커버한다.
 
 CREATE TABLE IF NOT EXISTS kols (
@@ -715,20 +738,20 @@ DROP POLICY IF EXISTS "kols_insert" ON kols;
 CREATE POLICY "kols_insert"
   ON kols FOR INSERT
   TO authenticated
-  WITH CHECK (get_my_role() = 'admin');
+  WITH CHECK (is_kol_manager());
 
 DROP POLICY IF EXISTS "kols_update" ON kols;
 CREATE POLICY "kols_update"
   ON kols FOR UPDATE
   TO authenticated
-  USING (get_my_role() = 'admin')
-  WITH CHECK (get_my_role() = 'admin');
+  USING (is_kol_manager())
+  WITH CHECK (is_kol_manager());
 
 DROP POLICY IF EXISTS "kols_delete" ON kols;
 CREATE POLICY "kols_delete"
   ON kols FOR DELETE
   TO authenticated
-  USING (get_my_role() = 'admin');
+  USING (is_kol_manager());
 
 
 -- ── 11. KOL 카테고리 관리 ────────────────────────────────────
@@ -756,20 +779,20 @@ DROP POLICY IF EXISTS "kol_categories_insert" ON kol_categories;
 CREATE POLICY "kol_categories_insert"
   ON kol_categories FOR INSERT
   TO authenticated
-  WITH CHECK (get_my_role() = 'admin');
+  WITH CHECK (is_kol_manager());
 
 DROP POLICY IF EXISTS "kol_categories_update" ON kol_categories;
 CREATE POLICY "kol_categories_update"
   ON kol_categories FOR UPDATE
   TO authenticated
-  USING (get_my_role() = 'admin')
-  WITH CHECK (get_my_role() = 'admin');
+  USING (is_kol_manager())
+  WITH CHECK (is_kol_manager());
 
 DROP POLICY IF EXISTS "kol_categories_delete" ON kol_categories;
 CREATE POLICY "kol_categories_delete"
   ON kol_categories FOR DELETE
   TO authenticated
-  USING (get_my_role() = 'admin');
+  USING (is_kol_manager());
 
 -- ── 12. 메타 리드 동기화 (2026-07) ────────────────────────────
 -- 메타 인스턴트 폼 리드를 크론(/api/cron/sync-meta-leads)으로 가져올 때

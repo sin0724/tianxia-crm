@@ -11,6 +11,7 @@ export interface Member {
   role: 'admin' | 'manager' | 'sales'
   team: string | null
   is_active: boolean
+  can_manage_kol: boolean
 }
 
 const ROLE_LABEL = { admin: '관리자', manager: '매니저', sales: '영업' } as const
@@ -166,6 +167,20 @@ export function TeamManagement({ members, myId }: { members: Member[]; myId: str
                   <option key={r} value={r}>{ROLE_LABEL[r]}</option>
                 ))}
               </select>
+              {/* 관리자는 항상 KOL 관리 권한을 가지므로 켜진 채로 고정 */}
+              <label
+                className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer"
+                title="KOL 리스트 등록·수정·삭제, 엑셀 가져오기, 카테고리 관리 권한"
+              >
+                <input
+                  type="checkbox"
+                  checked={m.role === 'admin' || m.can_manage_kol}
+                  onChange={e => apply(m.id, { can_manage_kol: e.target.checked })}
+                  disabled={isPending || m.role === 'admin'}
+                  className="w-3.5 h-3.5 accent-blue-600 disabled:opacity-50"
+                />
+                KOL 관리
+              </label>
               {m.id !== myId && (
                 <button
                   onClick={() => apply(m.id, { is_active: false })}
