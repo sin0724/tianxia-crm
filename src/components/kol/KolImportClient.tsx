@@ -3,8 +3,8 @@
 import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { parseCSV, autoDetectMapping, generateCSV } from '@/lib/csv'
-import { KOL_FIELDS, parseFollowers, parseCategories, normalizeHandle } from '@/lib/kol-fields'
-import { fmtFollowers } from '@/lib/constants'
+import { KOL_FIELDS, parseFollowers, parseCategories, normalizeHandle, resolveKolFee } from '@/lib/kol-fields'
+import { fmtFollowers, fmtMoney } from '@/lib/constants'
 import { checkKolDuplicates, importKols } from '@/app/(dashboard)/kol/import-actions'
 import type { KolDuplicateMatch, KolImportResult, KolImportRow } from '@/app/(dashboard)/kol/import-actions'
 
@@ -27,6 +27,11 @@ function applyMapping(row: string[], headers: string[], mapping: Record<string, 
     followers:  get('followers'),
     categories: get('categories'),
     rate:       get('rate'),
+    fee_amount:        get('fee_amount'),
+    fee_currency:      get('fee_currency'),
+    deliverables:      get('deliverables'),
+    rs_rate:           get('rs_rate'),
+    gonggu_categories: get('gonggu_categories'),
     visit_note: get('visit_note'),
     visit_date: get('visit_date'),
     history:    get('history'),
@@ -118,9 +123,12 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
   function downloadTemplate() {
     // 이름은 IG 핸들로 자동 대체되므로 양식에서 제외 (컬럼이 있는 파일은 여전히 매핑됨)
     const headers = KOL_FIELDS.filter(f => f.key !== 'name').map(f => f.label)
+    // KOL_FIELDS(이름 제외) 순서와 반드시 일치해야 한다
     const exampleRow: (string | null)[] = [
       '@beauty_kim', 'beauty.kim@example.com', '95000', '뷰티, 라이프스타일',
-      '피드 50 / 릴스 80', '7/12~7/15 방문', '2026-07-12',
+      '',  // 진행 단가(원문) — 신규 입력은 아래 고정비/통화/제공 항목 사용
+      '13300', 'NTD', '릴스 1개, 스토리 5개 이상, 바이오링크 3일', '15', '뷰티, 헬스·건기식',
+      '7/12~7/15 방문', '2026-07-12',
       '25.05 A브랜드 릴스 진행 (반응 좋음) / 25.03 B클리닉 방문 후기',
     ]
     const csv = generateCSV(headers, [exampleRow])
@@ -162,6 +170,9 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
         <p>• 인스타그램은 @핸들·프로필 URL 모두 가능하고, 중복 핸들은 자동으로 걸러집니다.</p>
         <p>• 팔로워는 &quot;95000&quot;, &quot;95,000&quot;, &quot;9.5만&quot;, &quot;1.2만명&quot; 모두 인식합니다.</p>
         <p>• 카테고리는 쉼표로 여러 개 입력 (예: &quot;뷰티, 라이프스타일&quot;)</p>
+        <p>• <strong>고정비</strong>는 금액만(13300), <strong>통화</strong>는 &quot;NTD&quot; 또는 &quot;원&quot; — 통화가 없으면 NTD로 봅니다.</p>
+        <p>• <strong>제공 항목</strong>은 쉼표로 구분 (예: &quot;릴스 1개, 스토리 5개 이상&quot;), <strong>RS 요율</strong>은 0~100.</p>
+        <p>• 고정비/제공 항목 컬럼이 없으면 <strong>진행 단가(원문)</strong>에서 자동 분해하고, 애매한 건은 목록에 &quot;원문 확인 필요&quot;로 표시됩니다.</p>
       </div>
     </div>
   )
@@ -268,7 +279,9 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
                 <th className="px-3 py-2 text-left">인스타그램</th>
                 <th className="px-3 py-2 text-left">팔로워</th>
                 <th className="px-3 py-2 text-left">카테고리</th>
-                <th className="px-3 py-2 text-left">단가</th>
+                <th className="px-3 py-2 text-left">고정비</th>
+                <th className="px-3 py-2 text-left">RS</th>
+                <th className="px-3 py-2 text-left">제공 항목</th>
                 <th className="px-3 py-2 text-left">중복 여부</th>
               </tr>
             </thead>
@@ -302,7 +315,24 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
                   <td className="px-3 py-2 text-gray-600">{mapped.instagram || '—'}</td>
                   <td className="px-3 py-2 text-gray-600">{fmtFollowers(parseFollowers(mapped.followers))}</td>
                   <td className="px-3 py-2 text-gray-600">{parseCategories(mapped.categories, categoryNames).join(', ') || '—'}</td>
-                  <td className="px-3 py-2 text-gray-600 max-w-[140px] truncate">{mapped.rate || '—'}</td>
+                  {(() => {
+                    // 저장 로직과 같은 함수로 미리보기 — 새 컬럼이 없으면 원문에서 분해한 값이 보인다
+                    const fee = resolveKolFee(mapped)
+                    return (
+                      <>
+                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
+                          {fee.fee_amount != null ? fmtMoney(fee.fee_amount, fee.fee_currency) : '—'}
+                          {fee.rate_needs_review && <span className="ml-1 text-orange-600">⚠</span>}
+                        </td>
+                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
+                          {fee.rs_rate != null ? `${fee.rs_rate}%` : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-gray-600 max-w-[160px] truncate" title={fee.deliverables.join(' · ')}>
+                          {fee.deliverables.join(' · ') || '—'}
+                        </td>
+                      </>
+                    )
+                  })()}
                   <td className="px-3 py-2">
                     {dupe
                       ? <span className="text-orange-600">⚠ {dupe.matchedField} ({dupe.existingName})</span>

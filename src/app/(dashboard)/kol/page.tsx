@@ -5,7 +5,7 @@ import { KolTable } from '@/components/kol/KolTable'
 import { KolCreateButton } from '@/components/kol/KolCreateButton'
 import { KolCategoryManager } from '@/components/kol/KolCategoryManager'
 import { Pagination } from '@/components/companies/Pagination'
-import { getKols, type KolListFilters } from '@/lib/kols'
+import { getKols, getKolGongguSales, type KolListFilters } from '@/lib/kols'
 import { getKolCategories } from '@/lib/kol-categories'
 import { requireAuth, canManageKol } from '@/lib/auth'
 
@@ -17,17 +17,25 @@ export default async function KolPage({ searchParams }: PageProps) {
   const profile = await requireAuth()
   const sp = await searchParams
   const filters: KolListFilters = {
-    q:             sp.q,
-    category:      sp.category,
-    followers_min: sp.followers_min,
-    followers_max: sp.followers_max,
-    visit_from:    sp.visit_from,
-    visit_to:      sp.visit_to,
-    sort:          sp.sort,
-    page:          sp.page ? parseInt(sp.page, 10) || 1 : 1,
+    q:               sp.q,
+    category:        sp.category,
+    gonggu_category: sp.gonggu_category,
+    deliverable:     sp.deliverable,
+    followers_min:   sp.followers_min,
+    followers_max:   sp.followers_max,
+    fee_min:         sp.fee_min,
+    fee_max:         sp.fee_max,
+    fee_cur:         sp.fee_cur,
+    needs_review:    sp.needs_review,
+    visit_from:      sp.visit_from,
+    visit_to:        sp.visit_to,
+    sort:            sp.sort,
+    page:            sp.page ? parseInt(sp.page, 10) || 1 : 1,
   }
 
   const [result, categories] = await Promise.all([getKols(filters), getKolCategories()])
+  // 행 펼치기에서 바로 보여주기 위해 현재 페이지 KOL들의 공구매출 이력을 함께 조회
+  const salesByKol = await getKolGongguSales(result.kols.map(k => k.id))
   const canEdit = canManageKol(profile)
   const categoryItems = categories.map(c => ({ id: c.id, name: c.name, color: c.color }))
 
@@ -51,7 +59,13 @@ export default async function KolPage({ searchParams }: PageProps) {
         </div>
 
         <KolFilters total={result.total} categoryNames={categoryItems.map(c => c.name)} />
-        <KolTable kols={result.kols} canEdit={canEdit} categories={categoryItems} now={result.now} />
+        <KolTable
+          kols={result.kols}
+          canEdit={canEdit}
+          categories={categoryItems}
+          salesByKol={salesByKol}
+          now={result.now}
+        />
         <Pagination page={result.page} pageCount={result.pageCount} total={result.total} basePath="/kol" />
       </main>
     </>

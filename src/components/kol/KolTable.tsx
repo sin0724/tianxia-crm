@@ -4,9 +4,11 @@ import { useState, useTransition, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { deleteKol, deleteKols } from '@/app/(dashboard)/kol/actions'
 import { KolFormModal } from '@/components/kol/KolFormModal'
-import { fmtFollowers } from '@/lib/constants'
+import { KolGongguSalesPanel } from '@/components/kol/KolGongguSalesPanel'
+import { fmtFollowers, fmtMoney, fmtMoneyCompact, GONGGU_CATEGORY_COLOR } from '@/lib/constants'
 import { fmtDateKST, fmtFullDateKST, kstDateString } from '@/lib/datetime'
 import { effectiveVisit, isVisitExpired, buildKolCopyText, copyToClipboard } from '@/lib/kol-copy'
+import type { KolGongguSale } from '@/lib/kol-gonggu-sales'
 import type { Kol } from '@/lib/kols'
 
 const STALE_DAYS = 21 // 3주 이상 미갱신이면 리스트에서 표시
@@ -16,11 +18,13 @@ interface KolTableProps {
   /** KOL 관리 권한 — admin 또는 admin이 지정한 KOL 담당자 */
   canEdit: boolean
   categories: { name: string; color: string }[]
+  /** 현재 페이지 KOL들의 공구매출 이력 (kol_id → 이력) */
+  salesByKol: Record<string, KolGongguSale[]>
   /** 서버 렌더 시각(ms) — 렌더 중 Date.now() 호출을 피하기 위해 서버에서 내려준다 */
   now: number
 }
 
-export function KolTable({ kols, canEdit, categories, now }: KolTableProps) {
+export function KolTable({ kols, canEdit, categories, salesByKol, now }: KolTableProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -151,7 +155,10 @@ export function KolTable({ kols, canEdit, categories, now }: KolTableProps) {
               <th className="px-4 py-2.5 font-medium">이름</th>
               <th className="px-3 py-2.5 font-medium">카테고리</th>
               <th className="px-3 py-2.5 font-medium">팔로워</th>
-              <th className="px-3 py-2.5 font-medium">진행 단가</th>
+              <th className="px-3 py-2.5 font-medium">고정비</th>
+              <th className="px-3 py-2.5 font-medium">RS</th>
+              <th className="px-3 py-2.5 font-medium">제공 항목</th>
+              <th className="px-3 py-2.5 font-medium">누적 공구매출</th>
               <th className="px-3 py-2.5 font-medium">방문 예정</th>
               <th className="px-3 py-2.5 font-medium">히스토리</th>
               <th className="px-3 py-2.5 font-medium">최신화</th>
@@ -200,8 +207,29 @@ export function KolTable({ kols, canEdit, categories, now }: KolTableProps) {
                     <td className="px-3 py-2.5 font-medium text-gray-700 whitespace-nowrap">
                       {fmtFollowers(kol.followers)}
                     </td>
-                    <td className="px-3 py-2.5 text-gray-600 max-w-[160px] truncate" title={kol.rate ?? undefined}>
-                      {kol.rate ?? '—'}
+                    <td className="px-3 py-2.5">
+                      <div className="whitespace-nowrap font-medium text-gray-700">
+                        {kol.fee_amount != null ? fmtMoney(Number(kol.fee_amount), kol.fee_currency) : '—'}
+                      </div>
+                      {kol.rate_needs_review && (
+                        <span
+                          title={kol.rate ? `원문: ${kol.rate}` : undefined}
+                          className="mt-0.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 whitespace-nowrap"
+                        >
+                          원문 확인 필요
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">
+                      {kol.rs_rate != null ? `${Number(kol.rs_rate)}%` : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-600 max-w-[180px] truncate" title={kol.deliverables.join(' · ')}>
+                      {kol.deliverables.length > 0
+                        ? kol.deliverables.join(' · ')
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <GongguTotal kol={kol} />
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {(() => {
@@ -239,8 +267,8 @@ export function KolTable({ kols, canEdit, categories, now }: KolTableProps) {
 
                   {expanded && (
                     <tr className="border-b border-gray-100 bg-blue-50/30">
-                      <td colSpan={canEdit ? 9 : 8} className="px-4 py-3">
-                        <div className="space-y-2 text-sm">
+                      <td colSpan={canEdit ? 12 : 11} className="px-4 py-3">
+                        <div className="space-y-3 text-sm">
                           <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-500">
                             {kol.email && (
                               <span>
@@ -260,9 +288,55 @@ export function KolTable({ kols, canEdit, categories, now }: KolTableProps) {
                             <span>등록 {fmtFullDateKST(kol.created_at)}</span>
                             <span>최신화 {fmtFullDateKST(kol.updated_at)}</span>
                           </div>
-                          {kol.rate && (
-                            <p className="text-gray-700"><span className="text-xs text-gray-400 mr-2">진행 단가</span>{kol.rate}</p>
-                          )}
+                          {/* 진행 조건 — 현재 계약 조건 (히스토리와 분리) */}
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+                              <span className="text-gray-500">
+                                고정비{' '}
+                                <span className="font-medium text-gray-800">
+                                  {kol.fee_amount != null ? fmtMoney(Number(kol.fee_amount), kol.fee_currency) : '—'}
+                                </span>
+                              </span>
+                              <span className="text-gray-500">
+                                RS 요율{' '}
+                                <span className="font-medium text-gray-800">
+                                  {kol.rs_rate != null ? `${Number(kol.rs_rate)}%` : '—'}
+                                </span>
+                              </span>
+                            </div>
+                            {kol.deliverables.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-xs text-gray-400">제공 항목</span>
+                                {kol.deliverables.map(d => (
+                                  <span key={d} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                                    {d}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {kol.gonggu_categories.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-xs text-gray-400">공구 카테고리</span>
+                                {kol.gonggu_categories.map(c => (
+                                  <span key={c} className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${GONGGU_CATEGORY_COLOR[c] ?? 'bg-gray-100 text-gray-600'}`}>
+                                    {c}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {kol.rate_needs_review && kol.rate && (
+                              <p className="text-[11px] text-amber-700">
+                                기존 단가 원문 — 확인 후 위 항목으로 정리해 주세요: <span className="text-amber-900">{kol.rate}</span>
+                              </p>
+                            )}
+                          </div>
+
+                          <KolGongguSalesPanel
+                            kolId={kol.id}
+                            sales={salesByKol[kol.id] ?? []}
+                            canEdit={canEdit}
+                          />
+
                           <div>
                             <p className="text-xs text-gray-400 mb-1">히스토리 (진행 이력 · 협업 브랜드)</p>
                             <p className="whitespace-pre-wrap text-gray-700">
@@ -281,6 +355,20 @@ export function KolTable({ kols, canEdit, categories, now }: KolTableProps) {
       </div>
 
       {editing && <KolFormModal kol={editing} categories={categories} onClose={() => setEditing(null)} />}
+    </div>
+  )
+}
+
+// 누적 공구매출 — 통화가 섞이면 단순 합산이 틀리므로 통화별로 나눠 표기한다
+function GongguTotal({ kol }: { kol: Kol }) {
+  const twd = Number(kol.gonggu_sales_twd ?? 0)
+  const krw = Number(kol.gonggu_sales_krw ?? 0)
+  if (twd === 0 && krw === 0) return <span className="text-gray-300">—</span>
+  return (
+    <div className="whitespace-nowrap">
+      {twd > 0 && <div className="font-medium text-gray-900">{fmtMoney(twd, 'TWD')}</div>}
+      {krw > 0 && <div className="font-medium text-gray-900">{fmtMoneyCompact(krw, 'KRW')}</div>}
+      <div className="text-[11px] text-gray-400">{Number(kol.gonggu_sales_count ?? 0)}건</div>
     </div>
   )
 }

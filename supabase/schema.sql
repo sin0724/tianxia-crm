@@ -838,6 +838,225 @@ CREATE OR REPLACE TRIGGER trg_remember_deleted_meta_lead
   FOR EACH ROW EXECUTE FUNCTION remember_deleted_meta_lead();
 
 
+-- ── 14. KOL 진행 조건 · 공구매출 이력 (2026-07) ────────────────
+-- 자유 텍스트 rate("13,300 NTD / 릴스 1개, 스토리 5개 이상, 바이오링크 3일")는
+-- 금액·통화·제공 항목이 한 문장에 섞여 정렬·필터·예산 계산이 불가능하다.
+-- 셋으로 분리하고, rate는 원문 보존용으로 남긴다 (파싱 검증용이며
+-- gonggu-admin이 읽는 컬럼이므로 이름 변경·삭제·타입 변경 금지).
+-- 신규 입력은 아래 컬럼만 사용한다.
+
+-- 14-a. 고정비 · RS 요율 · 제공 항목 · 공구 카테고리 (모두 컬럼 "추가"만)
+
+ALTER TABLE kols ADD COLUMN IF NOT EXISTS fee_amount        NUMERIC;
+ALTER TABLE kols ADD COLUMN IF NOT EXISTS fee_currency      TEXT NOT NULL DEFAULT 'TWD';
+ALTER TABLE kols ADD COLUMN IF NOT EXISTS deliverables      TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE kols ADD COLUMN IF NOT EXISTS rs_rate           NUMERIC;
+ALTER TABLE kols ADD COLUMN IF NOT EXISTS gonggu_categories TEXT[] NOT NULL DEFAULT '{}';
+-- rate 원문 파싱이 실패했거나 애매한 건 — 목록에 "원문 확인 필요" 배지를 띄운다.
+-- 담당자가 진행 조건을 저장하면 앱에서 FALSE로 내린다.
+ALTER TABLE kols ADD COLUMN IF NOT EXISTS rate_needs_review BOOLEAN NOT NULL DEFAULT FALSE;
+
+COMMENT ON COLUMN kols.rate              IS '[레거시] 진행 단가 원문 — 보존용. 신규 입력은 fee_amount/fee_currency/deliverables 사용';
+COMMENT ON COLUMN kols.fee_amount        IS '고정비 금액 — 판매량과 무관하게 지급하는 정액';
+COMMENT ON COLUMN kols.fee_currency      IS '고정비 통화: TWD(대만달러, 기본) | KRW(원)';
+COMMENT ON COLUMN kols.deliverables      IS '제공 항목: {"릴스 1개","스토리 5개 이상","바이오링크 3일"}';
+COMMENT ON COLUMN kols.rs_rate           IS 'RS 요율(%) — 판매액 대비 KOL 몫. 0~100. 고정비와 독립(하나만 채워도 정상)';
+COMMENT ON COLUMN kols.categories        IS 'KOL 콘텐츠 장르 (kol_categories 마스터 기준)';
+COMMENT ON COLUMN kols.gonggu_categories IS '이 KOL로 돌릴 수 있는 공구 품목 — gonggu-admin GONGGU_CATEGORIES와 동일 목록';
+
+ALTER TABLE kols DROP CONSTRAINT IF EXISTS kols_fee_currency_check;
+ALTER TABLE kols ADD  CONSTRAINT kols_fee_currency_check
+  CHECK (fee_currency IN ('TWD','KRW'));
+
+ALTER TABLE kols DROP CONSTRAINT IF EXISTS kols_fee_amount_check;
+ALTER TABLE kols ADD  CONSTRAINT kols_fee_amount_check
+  CHECK (fee_amount IS NULL OR fee_amount >= 0);
+
+ALTER TABLE kols DROP CONSTRAINT IF EXISTS kols_rs_rate_check;
+ALTER TABLE kols ADD  CONSTRAINT kols_rs_rate_check
+  CHECK (rs_rate IS NULL OR (rs_rate >= 0 AND rs_rate <= 100));
+
+CREATE INDEX IF NOT EXISTS idx_kols_fee_amount        ON kols(fee_amount);
+CREATE INDEX IF NOT EXISTS idx_kols_deliverables      ON kols USING GIN (deliverables);
+CREATE INDEX IF NOT EXISTS idx_kols_gonggu_categories ON kols USING GIN (gonggu_categories);
+
+
+-- 14-b. 통화 환산 기준 환율
+-- 통화가 섞인 값을 "비교"할 때만 쓴다 (고정비 금액순 정렬·범위 필터, 누적 공구매출 정렬).
+-- 표시는 항상 원문 통화 그대로. 값을 바꿀 때 src/lib/constants.ts의 TWD_TO_KRW도
+-- 같은 값으로 수정해야 화면에 명시되는 환율과 정렬 기준이 어긋나지 않는다.
+
+CREATE OR REPLACE FUNCTION twd_to_krw_rate()
+RETURNS NUMERIC
+LANGUAGE sql
+IMMUTABLE PARALLEL SAFE
+AS $$ SELECT 44::NUMERIC $$;
+
+
+-- 14-c. 공구매출 이력
+-- 이 KOL이 이전에 진행한 공동구매의 판매 실적. 우리 시스템 밖에서 진행한 건
+-- (다른 회사 공구 등)도 기입할 수 있다. 한 KOL이 여러 번 진행하므로 단일 숫자가
+-- 아니라 이력으로 관리한다 — "언제 · 무엇을 · 얼마"가 있어야 섭외 판단이 된다.
+-- 용어는 "공구매출"로 고정 (gonggu-admin의 캠페인 실적과 혼동 방지).
+
+CREATE TABLE IF NOT EXISTS kol_gonggu_sales (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  kol_id     UUID        NOT NULL REFERENCES kols(id) ON DELETE CASCADE,
+  title      TEXT        NOT NULL,               -- 공구명
+  brand      TEXT,                               -- 진행 브랜드/업체
+  sale_date  DATE,                               -- 진행일
+  amount     NUMERIC     NOT NULL DEFAULT 0,     -- 공구매출 금액
+  currency   TEXT        NOT NULL DEFAULT 'TWD', -- 'TWD' | 'KRW' (대만 공구는 NTD로 기입)
+  quantity   INTEGER,                            -- 판매 수량
+  notes      TEXT,                               -- 반응, 재구매율 등
+  created_by UUID        REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE  kol_gonggu_sales        IS 'KOL 공구매출 이력 (외부 진행 건 포함)';
+COMMENT ON COLUMN kol_gonggu_sales.amount IS '공구매출 금액 — currency 기준';
+
+ALTER TABLE kol_gonggu_sales DROP CONSTRAINT IF EXISTS kol_gonggu_sales_currency_check;
+ALTER TABLE kol_gonggu_sales ADD  CONSTRAINT kol_gonggu_sales_currency_check
+  CHECK (currency IN ('TWD','KRW'));
+
+ALTER TABLE kol_gonggu_sales DROP CONSTRAINT IF EXISTS kol_gonggu_sales_amount_check;
+ALTER TABLE kol_gonggu_sales ADD  CONSTRAINT kol_gonggu_sales_amount_check
+  CHECK (amount >= 0);
+
+ALTER TABLE kol_gonggu_sales DROP CONSTRAINT IF EXISTS kol_gonggu_sales_quantity_check;
+ALTER TABLE kol_gonggu_sales ADD  CONSTRAINT kol_gonggu_sales_quantity_check
+  CHECK (quantity IS NULL OR quantity >= 0);
+
+CREATE INDEX IF NOT EXISTS idx_kol_gonggu_sales_kol_id ON kol_gonggu_sales(kol_id);
+CREATE INDEX IF NOT EXISTS idx_kol_gonggu_sales_date   ON kol_gonggu_sales(sale_date);
+
+ALTER TABLE kol_gonggu_sales ENABLE ROW LEVEL SECURITY;
+
+-- kols와 동일한 정책: 열람은 전직원, 쓰기는 KOL 관리 권한자만
+DROP POLICY IF EXISTS "kol_gonggu_sales_select" ON kol_gonggu_sales;
+CREATE POLICY "kol_gonggu_sales_select"
+  ON kol_gonggu_sales FOR SELECT
+  TO authenticated
+  USING (get_my_role() IS NOT NULL);
+
+DROP POLICY IF EXISTS "kol_gonggu_sales_insert" ON kol_gonggu_sales;
+CREATE POLICY "kol_gonggu_sales_insert"
+  ON kol_gonggu_sales FOR INSERT
+  TO authenticated
+  WITH CHECK (is_kol_manager());
+
+DROP POLICY IF EXISTS "kol_gonggu_sales_update" ON kol_gonggu_sales;
+CREATE POLICY "kol_gonggu_sales_update"
+  ON kol_gonggu_sales FOR UPDATE
+  TO authenticated
+  USING (is_kol_manager())
+  WITH CHECK (is_kol_manager());
+
+DROP POLICY IF EXISTS "kol_gonggu_sales_delete" ON kol_gonggu_sales;
+CREATE POLICY "kol_gonggu_sales_delete"
+  ON kol_gonggu_sales FOR DELETE
+  TO authenticated
+  USING (is_kol_manager());
+
+
+-- 14-d. 목록 조회용 뷰 — 누적 공구매출 합계 + 비교용 환산액
+-- 정렬(고정비순·누적 공구매출순)과 제공 항목 부분 검색은 집계·문자열이 필요해
+-- 뷰에서 계산한다. 누적액은 통화별로 나눠 담고(gonggu_sales_twd/krw), 정렬용
+-- 환산 합계(_krw_total)는 twd_to_krw_rate() 기준 — 화면에 환율을 명시한다.
+-- 쓰기는 항상 kols / kol_gonggu_sales 테이블에 직접 한다.
+-- security_invoker: 뷰 조회자의 RLS를 그대로 적용 (PostgreSQL 15+)
+
+DROP VIEW IF EXISTS kols_with_gonggu;
+CREATE VIEW kols_with_gonggu WITH (security_invoker = on) AS
+SELECT
+  k.*,
+  -- 제공 항목 부분 검색용("릴스"로 찾기) — 배열은 ilike가 안 되므로 문자열로 펼침
+  array_to_string(k.deliverables, ' | ')                                     AS deliverables_text,
+  CASE k.fee_currency WHEN 'TWD' THEN k.fee_amount * twd_to_krw_rate()
+                                 ELSE k.fee_amount END                       AS fee_amount_krw,
+  COALESCE(s.total_twd, 0)                                                   AS gonggu_sales_twd,
+  COALESCE(s.total_krw, 0)                                                   AS gonggu_sales_krw,
+  COALESCE(s.total_krw, 0) + COALESCE(s.total_twd, 0) * twd_to_krw_rate()    AS gonggu_sales_krw_total,
+  COALESCE(s.sale_count, 0)                                                  AS gonggu_sales_count,
+  s.last_sale_date                                                           AS gonggu_sales_last_date
+FROM kols k
+LEFT JOIN (
+  SELECT
+    kol_id,
+    SUM(CASE WHEN currency = 'TWD' THEN amount ELSE 0 END) AS total_twd,
+    SUM(CASE WHEN currency = 'KRW' THEN amount ELSE 0 END) AS total_krw,
+    COUNT(*)                                              AS sale_count,
+    MAX(sale_date)                                        AS last_sale_date
+  FROM kol_gonggu_sales
+  GROUP BY kol_id
+) s ON s.kol_id = k.id;
+
+GRANT SELECT ON kols_with_gonggu TO authenticated, service_role;
+
+
+-- 14-e. rate 원문 → fee_amount / fee_currency / deliverables 1회 백필
+-- 자유 텍스트라 100% 파싱은 불가능하므로, 애매한 건은 rate_needs_review로 표시해
+-- 사람이 정리하게 한다. 이미 한 번 실행됐으면(파싱 결과가 하나라도 있으면) 건너뛴다.
+--   · 금액: 첫 숫자 토큰에서 콤마 제거 (13,300 → 13300)
+--   · 통화: NTD/NT$/TWD/元 → TWD, KRW/₩/원 → KRW, 없으면 TWD(기본) + 확인 필요
+--   · 제공 항목: "/" 뒤를 쉼표로 분리해 각각 배열 원소로
+
+DO $$
+DECLARE
+  touched INTEGER;
+BEGIN
+  IF EXISTS (SELECT 1 FROM kols WHERE fee_amount IS NOT NULL OR rate_needs_review) THEN
+    RAISE NOTICE 'kols.rate 백필 건너뜀 — 이미 실행된 흔적이 있습니다.';
+    RETURN;
+  END IF;
+
+  WITH src AS (
+    -- "/" 앞이 금액부, 뒤가 제공 항목부
+    SELECT id, rate,
+           CASE WHEN position('/' IN rate) > 0
+                THEN left(rate, position('/' IN rate) - 1)
+                ELSE rate END AS head
+      FROM kols
+     WHERE rate IS NOT NULL AND btrim(rate) <> ''
+  ), parsed AS (
+    SELECT
+      id, rate,
+      -- 금액부의 첫 숫자 토큰 (소수점 이하 무시) × 만/천 단위 배수
+      NULLIF(replace(COALESCE(substring(head FROM '[0-9][0-9,]*'), ''), ',', ''), '')::NUMERIC
+        * CASE WHEN head ~ '[0-9][0-9,]*\s*만' THEN 10000
+               WHEN head ~ '[0-9][0-9,]*\s*천' THEN 1000
+               ELSE 1 END                                                AS amount,
+      CASE
+        WHEN rate ~* '(NTD|NT\$|TWD|元)' THEN 'TWD'
+        WHEN rate ~* '(KRW|₩)'           THEN 'KRW'
+        WHEN rate ~  '[0-9]\s*만?\s*원'  THEN 'KRW'
+        ELSE 'TWD'
+      END                                                                AS currency,
+      (rate ~* '(NTD|NT\$|TWD|元|KRW|₩)' OR rate ~ '[0-9]\s*만?\s*원')   AS has_currency,
+      CASE WHEN position('/' IN rate) > 0 THEN COALESCE((
+        SELECT array_agg(btrim(t) ORDER BY ord)
+        FROM unnest(string_to_array(substring(rate FROM position('/' IN rate) + 1), ','))
+             WITH ORDINALITY AS u(t, ord)
+        WHERE btrim(t) <> ''
+      ), '{}'::TEXT[]) ELSE '{}'::TEXT[] END                             AS items
+      FROM src
+  )
+  UPDATE kols k SET
+    fee_amount        = p.amount,
+    fee_currency      = p.currency,
+    deliverables      = p.items,
+    -- 금액을 못 읽었거나 / 통화 표기가 없거나 / 금액이 비정상적으로 작으면
+    -- ("피드 50"처럼 단위가 생략된 표기) 사람이 원문을 확인해야 한다
+    rate_needs_review = (p.amount IS NULL OR NOT p.has_currency OR p.amount < 1000)
+  FROM parsed p
+  WHERE k.id = p.id;
+
+  GET DIAGNOSTICS touched = ROW_COUNT;
+  RAISE NOTICE 'kols.rate 백필 완료 — %건 처리', touched;
+END $$;
+
+
 -- 기존 하드코딩 카테고리 시드 (이미 있으면 건너뜀)
 INSERT INTO kol_categories (name, color, sort_order) VALUES
   ('뷰티',         'bg-pink-100 text-pink-700',     1),

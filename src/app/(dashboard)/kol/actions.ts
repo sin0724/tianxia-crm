@@ -3,10 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, canManageKol } from '@/lib/auth'
-import { normalizeHandle, parseFollowers } from '@/lib/kol-fields'
+import { normalizeHandle, parseFollowers, parseAmount, sanitizeDeliverables } from '@/lib/kol-fields'
 import { getKolCategoryNames } from '@/lib/kol-categories'
 import { parseVisitNote } from '@/lib/visit-note'
 import { kstDateString } from '@/lib/datetime'
+import { GONGGU_CATEGORY, isCurrency, type Currency } from '@/lib/constants'
 
 interface ActionResult {
   error: string
@@ -18,7 +19,12 @@ export interface KolInput {
   email: string          // 선택 입력
   followers: string      // 숫자 문자열 (빈 값 허용)
   categories: string[]
-  rate: string
+  // ── 진행 조건 ── (레거시 rate 원문은 폼에서 수정하지 않고 보존한다)
+  fee_amount: string        // 고정비 금액 (빈 값 허용)
+  fee_currency: string      // 'TWD' | 'KRW'
+  deliverables: string[]    // 제공 항목 칩
+  rs_rate: string           // RS 요율(%) 0~100
+  gonggu_categories: string[]
   visit_note: string
   visit_date: string     // "YYYY-MM-DD" 또는 빈 값
   history: string
@@ -30,7 +36,13 @@ interface KolRow {
   email: string | null
   followers: number | null
   categories: string[]
-  rate: string | null
+  fee_amount: number | null
+  fee_currency: Currency
+  deliverables: string[]
+  rs_rate: number | null
+  gonggu_categories: string[]
+  /** 담당자가 진행 조건을 저장했으면 원문 확인이 끝난 것으로 본다 */
+  rate_needs_review: boolean
   visit_note: string | null
   visit_date: string | null
   visit_end_date: string | null
@@ -50,6 +62,21 @@ function toRow(input: KolInput, validCategories: string[]): ParseResult {
     return { ok: false, error: '팔로워 수를 해석할 수 없습니다. 예: 95000, 95,000, 9.5만' }
   }
 
+  const fee_amount = parseAmount(input.fee_amount)
+  if (input.fee_amount.trim() && fee_amount === null) {
+    return { ok: false, error: '고정비를 해석할 수 없습니다. 예: 13300, 13,300' }
+  }
+
+  // 고정비만 받는 KOL, RS만 받는 KOL, 둘 다인 KOL이 모두 있어 두 값은 독립적이다
+  const rsRaw = input.rs_rate.trim().replace(/[%％\s]/g, '')
+  let rs_rate: number | null = null
+  if (rsRaw) {
+    const n = Number(rsRaw)
+    if (!Number.isFinite(n)) return { ok: false, error: 'RS 요율은 숫자로 입력하세요. 예: 15' }
+    if (n < 0 || n > 100)   return { ok: false, error: 'RS 요율은 0~100 사이로 입력하세요.' }
+    rs_rate = Math.round(n * 100) / 100
+  }
+
   return {
     ok: true,
     row: {
@@ -58,7 +85,12 @@ function toRow(input: KolInput, validCategories: string[]): ParseResult {
       email: input.email.trim() || null,
       followers,
       categories: input.categories.filter(c => validCategories.includes(c)),
-      rate:       input.rate.trim() || null,
+      fee_amount,
+      fee_currency: isCurrency(input.fee_currency) ? input.fee_currency : 'TWD',
+      deliverables: sanitizeDeliverables(input.deliverables),
+      rs_rate,
+      gonggu_categories: input.gonggu_categories.filter(c => (GONGGU_CATEGORY as readonly string[]).includes(c)),
+      rate_needs_review: false,
       ...resolveVisit(input.visit_note, input.visit_date),
       history:    input.history.trim() || null,
     },

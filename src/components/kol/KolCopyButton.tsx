@@ -27,8 +27,23 @@ function buildHeader(sp: URLSearchParams, count: number): string {
   else if (vFrom)      parts.push(`방문 ${shortDate(vFrom)}~`)
   else if (vTo)        parts.push(`방문 ~${shortDate(vTo)}`)
 
+  const feeMin = sp.get('fee_min')
+  const feeMax = sp.get('fee_max')
+  const feeCur = sp.get('fee_cur') === 'KRW' ? '원' : 'NTD'
+  if (feeMin && feeMax) parts.push(`고정비 ${feeMin}~${feeMax}${feeCur}`)
+  else if (feeMin)      parts.push(`고정비 ${feeMin}${feeCur}~`)
+  else if (feeMax)      parts.push(`고정비 ~${feeMax}${feeCur}`)
+
   const category = sp.get('category')
   if (category) parts.push(category)
+
+  const gonggu = sp.get('gonggu_category')
+  if (gonggu) parts.push(`공구 ${gonggu}`)
+
+  const deliverable = sp.get('deliverable')
+  if (deliverable) parts.push(`제공 ${deliverable}`)
+
+  if (sp.get('needs_review') === '1') parts.push('원문 확인 필요')
 
   const q = sp.get('q')
   if (q) parts.push(`"${q}"`)
@@ -49,13 +64,19 @@ export function KolCopyButton({ total }: { total: number }) {
     startTransition(async () => {
       try {
         const rows = await fetchKolCopyRows({
-          q:             sp.get('q') ?? undefined,
-          category:      sp.get('category') ?? undefined,
-          followers_min: sp.get('followers_min') ?? undefined,
-          followers_max: sp.get('followers_max') ?? undefined,
-          visit_from:    sp.get('visit_from') ?? undefined,
-          visit_to:      sp.get('visit_to') ?? undefined,
-          sort:          sp.get('sort') ?? undefined,
+          q:               sp.get('q') ?? undefined,
+          category:        sp.get('category') ?? undefined,
+          gonggu_category: sp.get('gonggu_category') ?? undefined,
+          deliverable:     sp.get('deliverable') ?? undefined,
+          followers_min:   sp.get('followers_min') ?? undefined,
+          followers_max:   sp.get('followers_max') ?? undefined,
+          fee_min:         sp.get('fee_min') ?? undefined,
+          fee_max:         sp.get('fee_max') ?? undefined,
+          fee_cur:         sp.get('fee_cur') ?? undefined,
+          needs_review:    sp.get('needs_review') ?? undefined,
+          visit_from:      sp.get('visit_from') ?? undefined,
+          visit_to:        sp.get('visit_to') ?? undefined,
+          sort:            sp.get('sort') ?? undefined,
         })
         const text = buildKolCopyText(rows, buildHeader(sp, rows.length), kstDateString())
         const ok = await copyToClipboard(text)

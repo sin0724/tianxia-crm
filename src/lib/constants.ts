@@ -120,6 +120,70 @@ export const KOL_CATEGORY_COLOR: Record<string, string> = {
   '기타':         'bg-gray-100 text-gray-600',
 }
 
+// ── KOL 진행 조건 (고정비 · RS 요율 · 제공 항목) ────────────────
+// 대만 KOL은 NTD, 국내 KOL은 원화로 단가를 받는다. 숫자만 저장하면 13,300이
+// 원인지 대만달러인지 알 수 없어 예산 계산이 40배 이상 틀어지므로 통화를 함께 둔다.
+export const CURRENCIES = ['TWD', 'KRW'] as const
+export type Currency = typeof CURRENCIES[number]
+
+// DB에는 ISO 코드(TWD)로 저장하고, 화면에는 현장에서 쓰는 표기(NTD)로 보여준다.
+export const CURRENCY_LABEL: Record<Currency, string> = { TWD: 'NTD', KRW: '원' }
+
+// 통화가 섞인 값을 "비교"할 때만 쓰는 기준 환율 (정렬·범위 필터·누적 합산 환산).
+// 표시는 항상 원문 통화 그대로. 값을 바꿀 때 supabase/schema.sql의
+// twd_to_krw_rate()도 같은 값으로 수정해야 정렬 기준과 화면 표기가 일치한다.
+export const TWD_TO_KRW = 44
+export const FX_NOTE = `NT$1 = ${TWD_TO_KRW}원 기준`
+
+export function isCurrency(v: string | null | undefined): v is Currency {
+  return v === 'TWD' || v === 'KRW'
+}
+
+// 13300 + TWD → "NT$13,300" / 8000 + KRW → "8,000원"
+export function fmtMoney(amount: number | null | undefined, currency: string): string {
+  if (amount === null || amount === undefined) return '—'
+  const n = amount.toLocaleString('ko-KR')
+  return currency === 'KRW' ? `${n}원` : `NT$${n}`
+}
+
+// 누적 공구매출처럼 큰 금액용 — 원화만 만 단위로 줄인다 (12000000 → "1,200만원")
+export function fmtMoneyCompact(amount: number | null | undefined, currency: string): string {
+  if (amount === null || amount === undefined) return '—'
+  if (currency === 'KRW' && amount >= 10000) {
+    const man = Math.round(amount / 1000) / 10
+    return `${man.toLocaleString('ko-KR')}만원`
+  }
+  return fmtMoney(amount, currency)
+}
+
+// 공구 카테고리 — "이 KOL로 어떤 공구 품목을 돌릴 수 있는지".
+// KOL 콘텐츠 장르(KOL_CATEGORY)와 축이 달라 별도 컬럼(kols.gonggu_categories)이다.
+// gonggu-admin의 types/database.ts GONGGU_CATEGORIES와 동일하게 유지해야
+// 양쪽 필터가 맞는다 — 값을 바꾸려면 두 프로젝트를 함께 수정.
+export const GONGGU_CATEGORY = [
+  '뷰티', '헬스·건기식', '패션', '식품', '리빙', '유아', '반려동물', '디지털', '기타',
+] as const
+
+export type GongguCategory = typeof GONGGU_CATEGORY[number]
+
+export const GONGGU_CATEGORY_COLOR: Record<string, string> = {
+  '뷰티':        'bg-pink-100 text-pink-700',
+  '헬스·건기식': 'bg-green-100 text-green-700',
+  '패션':        'bg-purple-100 text-purple-700',
+  '식품':        'bg-orange-100 text-orange-700',
+  '리빙':        'bg-teal-100 text-teal-700',
+  '유아':        'bg-yellow-100 text-yellow-800',
+  '반려동물':    'bg-amber-100 text-amber-800',
+  '디지털':      'bg-sky-100 text-sky-700',
+  '기타':        'bg-gray-100 text-gray-600',
+}
+
+// 제공 항목 빠른 추가 프리셋 — 누르면 "릴스 "까지 입력되고 수량만 타이핑하면 된다.
+// 프리셋에 없는 항목도 자유 입력할 수 있다 ("5개 이상", "3일" 같은 뉘앙스 보존).
+export const DELIVERABLE_PRESETS = [
+  '릴스', '스토리', '피드', '쓰레드', '유튜브', '틱톡', '바이오링크',
+] as const
+
 // 팔로워 수 표시: 95000 → "9.5만", 1234567 → "123만", 800 → "800"
 export function fmtFollowers(n: number | null): string {
   if (n === null || n === undefined) return '—'

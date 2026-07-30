@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, canManageKol } from '@/lib/auth'
 import { parseDate } from '@/lib/csv'
-import { normalizeHandle, parseFollowers, parseCategories } from '@/lib/kol-fields'
+import { normalizeHandle, parseFollowers, parseCategories, resolveKolFee } from '@/lib/kol-fields'
 import { getKolCategoryNames } from '@/lib/kol-categories'
 import { parseVisitNote } from '@/lib/visit-note'
 import { kstDateString } from '@/lib/datetime'
@@ -28,7 +28,12 @@ export interface KolImportRow {
   email?: string
   followers?: string
   categories?: string
-  rate?: string
+  rate?: string              // 레거시 원문 — 아래 진행 조건이 비면 여기서 분해
+  fee_amount?: string
+  fee_currency?: string
+  deliverables?: string
+  rs_rate?: string
+  gonggu_categories?: string
   visit_note?: string
   visit_date?: string
   history?: string
@@ -130,7 +135,8 @@ export async function importKols(rows: KolImportRow[]): Promise<KolImportResult>
       email:            row.email?.trim() || null,
       followers:        parseFollowers(row.followers),
       categories:       parseCategories(row.categories, validCategories),
-      rate:             row.rate?.trim()       || null,
+      rate:             row.rate?.trim()       || null,  // 원문 보존
+      ...resolveKolFee(row),
       ...(() => {
         // 방문 메모("7월중")를 날짜 범위로 해석 — 명시된 대표 날짜가 있으면 시작일 우선
         const visit_note = row.visit_note?.trim() || null

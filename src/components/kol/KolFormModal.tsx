@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createKol, updateKol, type KolInput } from '@/app/(dashboard)/kol/actions'
+import {
+  CURRENCIES, CURRENCY_LABEL, DELIVERABLE_PRESETS, GONGGU_CATEGORY, GONGGU_CATEGORY_COLOR,
+} from '@/lib/constants'
 import type { Kol } from '@/lib/kols'
 
 interface KolFormModalProps {
@@ -15,49 +18,57 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  // 제공 항목 입력창에 남아 있는 미확정 텍스트 — 저장 시 함께 반영한다
+  const [deliverableDraft, setDeliverableDraft] = useState('')
 
   const [form, setForm] = useState<KolInput>({
-    name:       kol?.name ?? '',
-    instagram:  kol?.instagram_handle ?? '',
-    email:      kol?.email ?? '',
-    followers:  kol?.followers != null ? String(kol.followers) : '',
-    categories: kol?.categories ?? [],
-    rate:       kol?.rate ?? '',
-    visit_note: kol?.visit_note ?? '',
-    visit_date: kol?.visit_date ?? '',
-    history:    kol?.history ?? '',
+    name:         kol?.name ?? '',
+    instagram:    kol?.instagram_handle ?? '',
+    email:        kol?.email ?? '',
+    followers:    kol?.followers != null ? String(kol.followers) : '',
+    categories:   kol?.categories ?? [],
+    fee_amount:   kol?.fee_amount != null ? String(kol.fee_amount) : '',
+    fee_currency: kol?.fee_currency === 'KRW' ? 'KRW' : 'TWD',
+    deliverables: kol?.deliverables ?? [],
+    rs_rate:      kol?.rs_rate != null ? String(kol.rs_rate) : '',
+    gonggu_categories: kol?.gonggu_categories ?? [],
+    visit_note:   kol?.visit_note ?? '',
+    visit_date:   kol?.visit_date ?? '',
+    history:      kol?.history ?? '',
   })
 
   function set<K extends keyof KolInput>(key: K, value: KolInput[K]) {
     setForm(prev => ({ ...prev, [key]: value }))
   }
 
-  function toggleCategory(c: string) {
-    set('categories', form.categories.includes(c)
-      ? form.categories.filter(v => v !== c)
-      : [...form.categories, c])
+  function toggleIn(key: 'categories' | 'gonggu_categories', c: string) {
+    set(key, form[key].includes(c) ? form[key].filter(v => v !== c) : [...form[key], c])
   }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
     // 한글 IME 조합 중("2.3만"의 "만" 등) 바로 저장하면 state에 마지막 글자가 빠질 수 있어
-    // 제출 시점의 DOM 값을 읽는다. 카테고리는 버튼 토글이라 state 그대로 사용.
+    // 제출 시점의 DOM 값을 읽는다. 칩·카테고리는 버튼 토글이라 state 그대로 사용.
     const fd = new FormData(e.currentTarget)
     const text = (key: keyof KolInput, fallback: string) => {
       const v = fd.get(key)
       return typeof v === 'string' ? v : fallback
     }
+    const draft = deliverableDraft.trim()
     const payload: KolInput = {
       ...form,
-      name:       text('name', form.name),
-      instagram:  text('instagram', form.instagram),
-      email:      text('email', form.email),
-      followers:  text('followers', form.followers),
-      rate:       text('rate', form.rate),
-      visit_note: text('visit_note', form.visit_note),
-      visit_date: text('visit_date', form.visit_date),
-      history:    text('history', form.history),
+      name:         text('name', form.name),
+      instagram:    text('instagram', form.instagram),
+      email:        text('email', form.email),
+      followers:    text('followers', form.followers),
+      fee_amount:   text('fee_amount', form.fee_amount),
+      fee_currency: text('fee_currency', form.fee_currency),
+      rs_rate:      text('rs_rate', form.rs_rate),
+      deliverables: draft ? [...form.deliverables, draft] : form.deliverables,
+      visit_note:   text('visit_note', form.visit_note),
+      visit_date:   text('visit_date', form.visit_date),
+      history:      text('history', form.history),
     }
     startTransition(async () => {
       const result = kol ? await updateKol(kol.id, payload) : await createKol(payload)
@@ -121,13 +132,13 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
             />
           </Field>
 
-          <Field label="카테고리 (복수 선택)">
+          <Field label="카테고리 — 콘텐츠 장르 (복수 선택)">
             <div className="flex flex-wrap gap-1.5">
               {categories.map(c => {
                 const active = form.categories.includes(c.name)
                 return (
                   <button
-                    key={c.name} type="button" onClick={() => toggleCategory(c.name)}
+                    key={c.name} type="button" onClick={() => toggleIn('categories', c.name)}
                     className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
                       active
                         ? `${c.color} border-transparent ring-1 ring-blue-400`
@@ -141,14 +152,87 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
             </div>
           </Field>
 
-          <Field label="진행 단가">
-            <input
-              type="text" name="rate" value={form.rate}
-              onChange={e => set('rate', e.target.value)}
-              placeholder="예: 피드 50 / 릴스 80"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </Field>
+          {/* ── 진행 조건 ─────────────────────────────────────── */}
+          <fieldset className="border border-gray-200 rounded-lg p-3.5 space-y-3">
+            <legend className="px-1 text-xs font-semibold text-gray-700">진행 조건</legend>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="고정비 (판매량과 무관한 정액)">
+                <div className="flex gap-1.5">
+                  <input
+                    type="text" name="fee_amount" value={form.fee_amount} inputMode="numeric"
+                    onChange={e => set('fee_amount', e.target.value)}
+                    placeholder="예: 13,300"
+                    className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <select
+                    name="fee_currency" value={form.fee_currency} aria-label="고정비 통화"
+                    onChange={e => set('fee_currency', e.target.value)}
+                    className="px-2 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {CURRENCIES.map(c => (
+                      <option key={c} value={c}>{CURRENCY_LABEL[c]}</option>
+                    ))}
+                  </select>
+                </div>
+              </Field>
+              <Field label="RS 요율 (판매액 대비 KOL 몫)">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number" name="rs_rate" value={form.rs_rate} min="0" max="100" step="0.1"
+                    onChange={e => set('rs_rate', e.target.value)}
+                    placeholder="예: 15"
+                    className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-500">%</span>
+                </div>
+              </Field>
+            </div>
+            <p className="text-[11px] text-gray-400">
+              고정비만 받는 KOL, RS만 받는 KOL, 둘 다 받는 KOL이 모두 있습니다 — 하나만 채워도 됩니다.
+            </p>
+
+            <Field label="제공 항목">
+              <ChipInput
+                values={form.deliverables}
+                onChange={v => set('deliverables', v)}
+                draft={deliverableDraft}
+                onDraftChange={setDeliverableDraft}
+                presets={DELIVERABLE_PRESETS}
+                placeholder="직접 입력 (예: 릴스 1개)"
+              />
+            </Field>
+
+            <Field label="공구 카테고리 — 이 KOL로 돌릴 수 있는 품목">
+              <div className="flex flex-wrap gap-1.5">
+                {GONGGU_CATEGORY.map(c => {
+                  const active = form.gonggu_categories.includes(c)
+                  return (
+                    <button
+                      key={c} type="button" onClick={() => toggleIn('gonggu_categories', c)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        active
+                          ? `${GONGGU_CATEGORY_COLOR[c]} border-transparent ring-1 ring-blue-400`
+                          : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+
+            {/* 레거시 원문 — 새 필드로 옮겨 적을 때 참고용. 수정 없이 보존한다 */}
+            {kol?.rate && (
+              <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
+                <p className="text-[11px] font-medium text-amber-800">
+                  기존 단가 원문{kol.rate_needs_review && ' — 위 항목으로 정리해 주세요'}
+                </p>
+                <p className="mt-0.5 text-xs text-amber-900 whitespace-pre-wrap">{kol.rate}</p>
+              </div>
+            )}
+          </fieldset>
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="방문 예정 (표시용)">
@@ -190,6 +274,94 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// 칩(태그) 입력 — 프리셋을 누르면 "릴스 "까지 채워지고 커서가 뒤에 놓여
+// 수량만 타이핑하면 된다 ("릴스 1개"). 프리셋에 없는 항목도 자유 입력 가능.
+function ChipInput({
+  values, onChange, draft, onDraftChange, presets, placeholder,
+}: {
+  values: string[]
+  onChange: (v: string[]) => void
+  draft: string
+  onDraftChange: (v: string) => void
+  presets: readonly string[]
+  placeholder: string
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function add(raw: string) {
+    const t = raw.trim().replace(/\s+/g, ' ')
+    onDraftChange('')
+    if (!t || values.includes(t)) return
+    onChange([...values, t])
+  }
+
+  function quickAdd(preset: string) {
+    const next = `${preset} `
+    onDraftChange(next)
+    const el = inputRef.current
+    if (el) {
+      // state 반영을 기다리지 않고 바로 커서를 끝에 둔다
+      el.value = next
+      el.focus()
+      el.setSelectionRange(next.length, next.length)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      {values.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {values.map(v => (
+            <span key={v} className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+              {v}
+              <button
+                type="button" onClick={() => onChange(values.filter(x => x !== v))}
+                aria-label={`${v} 삭제`}
+                className="text-blue-400 hover:text-blue-700 leading-none"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="text-[11px] text-gray-400 mr-0.5">빠른 추가</span>
+        {presets.map(p => (
+          <button
+            key={p} type="button" onClick={() => quickAdd(p)}
+            className="px-2 py-0.5 text-[11px] text-gray-600 border border-gray-200 rounded-full hover:bg-gray-50 transition-colors"
+          >
+            +{p}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-1.5">
+        <input
+          ref={inputRef} type="text" value={draft} placeholder={placeholder}
+          onChange={e => onDraftChange(e.target.value)}
+          onKeyDown={e => {
+            if (e.key !== 'Enter') return
+            // IME 조합 확정용 Enter는 그대로 넘긴다
+            if (e.nativeEvent.isComposing) return
+            e.preventDefault()  // 폼 제출 방지
+            add(draft)
+          }}
+          className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <button
+          type="button" onClick={() => add(draft)}
+          className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+        >
+          추가
+        </button>
       </div>
     </div>
   )
