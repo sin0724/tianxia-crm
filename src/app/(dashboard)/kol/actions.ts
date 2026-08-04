@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, canManageKol } from '@/lib/auth'
+import { logKolAudit, diffKolFields, summarizeChanges, describeKol, summarizeNames } from '@/lib/kol-audit'
 import { normalizeHandle, parseFollowers, parseAmount, sanitizeDeliverables } from '@/lib/kol-fields'
 import { getKolCategoryNames } from '@/lib/kol-categories'
 import { parseVisitNote } from '@/lib/visit-note'
@@ -131,8 +132,21 @@ export async function createKol(input: KolInput): Promise<ActionResult | undefin
   if (!parsed.ok) return { error: parsed.error }
 
   const supabase = await createClient()
-  const { error } = await supabase.from('kols').insert({ ...parsed.row, created_by: profile.id })
+  const { data: created, error } = await supabase
+    .from('kols')
+    .insert({ ...parsed.row, created_by: profile.id })
+    .select('id')
+    .single()
   if (error) return { error: friendlyError(error.message, error.code) }
+
+  await logKolAudit({
+    actor:      profile,
+    action:     'create',
+    targetId:   created?.id ?? null,
+    targetName: parsed.row.name,
+    summary:    describeKol(parsed.row),
+    details:    { after: parsed.row },
+  })
 
   revalidatePath('/kol')
 }
@@ -145,8 +159,23 @@ export async function updateKol(id: string, input: KolInput): Promise<ActionResu
   if (!parsed.ok) return { error: parsed.error }
 
   const supabase = await createClient()
-  const { error } = await supabase.from('kols').update(parsed.row).eq('id', id)
+  // 로그에 "무엇이 어떻게 바뀌었는지"를 남기려면 수정 전 값이 필요하다
+  const { data: before } = await supabase.from('kols').select('*').eq('id', id).single()
+
+  // RLS에 막히면 에러 없이 0건이 되므로, 실제로 바뀐 행이 있을 때만 로그를 남긴다
+  const { data: updated, error } = await supabase.from('kols').update(parsed.row).eq('id', id).select('id')
   if (error) return { error: friendlyError(error.message, error.code) }
+  if (!updated || updated.length === 0) return { error: '수정할 수 없는 KOL입니다.' }
+
+  const changes = diffKolFields(before, parsed.row)
+  await logKolAudit({
+    actor:      profile,
+    action:     'update',
+    targetId:   id,
+    targetName: parsed.row.name,
+    summary:    summarizeChanges(changes),
+    details:    { changes },
+  })
 
   revalidatePath('/kol')
 }
@@ -156,9 +185,20 @@ export async function deleteKol(id: string): Promise<ActionResult | undefined> {
   if (!profile) return { error: 'KOL 삭제는 관리자 또는 KOL 담당자만 가능합니다.' }
 
   const supabase = await createClient()
-  const { data: deleted, error } = await supabase.from('kols').delete().eq('id', id).select('id')
+  // 삭제된 행을 그대로 돌려받아 로그에 스냅샷으로 남긴다 (복구 판단 근거)
+  const { data: deleted, error } = await supabase.from('kols').delete().eq('id', id).select('*')
   if (error) return { error: friendlyError(error.message, error.code) }
   if (!deleted || deleted.length === 0) return { error: '삭제할 수 없는 KOL입니다.' }
+
+  const row = deleted[0]
+  await logKolAudit({
+    actor:      profile,
+    action:     'delete',
+    targetId:   id,
+    targetName: row.name,
+    summary:    describeKol(row),
+    details:    { deleted: row },
+  })
 
   revalidatePath('/kol')
 }
@@ -170,10 +210,21 @@ export async function deleteKols(ids: string[]): Promise<ActionResult | undefine
   if (ids.length === 0) return
 
   const supabase = await createClient()
-  const { data: deleted, error } = await supabase.from('kols').delete().in('id', ids).select('id')
+  const { data: deleted, error } = await supabase.from('kols').delete().in('id', ids).select('*')
   if (error) return { error: friendlyError(error.message, error.code) }
 
   const count = deleted?.length ?? 0
+  if (count > 0) {
+    const names = deleted!.map(r => r.name as string)
+    await logKolAudit({
+      actor:     profile,
+      action:    'bulk_delete',
+      summary:   `${count}명 삭제 — ${summarizeNames(names)}`,
+      itemCount: count,
+      details:   { deleted },
+    })
+  }
+
   revalidatePath('/kol')
   if (count === 0) return { error: '삭제된 KOL이 없습니다.' }
   if (count < ids.length) return { error: `${ids.length}명 중 ${count}명만 삭제되었습니다.` }

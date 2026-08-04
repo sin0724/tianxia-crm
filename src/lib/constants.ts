@@ -195,6 +195,40 @@ export function fmtFollowers(n: number | null): string {
   return String(n)
 }
 
+// ── KOL 변경 로그 ────────────────────────────────────────────
+// 서버(기록·조회)와 클라이언트(필터 UI)가 함께 쓰는 표기. DB의
+// kol_audit_logs.action / target_type CHECK 제약과 값이 일치해야 한다.
+
+export const KOL_LOG_ACTIONS = ['create', 'update', 'delete', 'bulk_delete', 'import', 'export'] as const
+export type KolLogAction = typeof KOL_LOG_ACTIONS[number]
+
+export const KOL_LOG_ACTION_LABEL: Record<KolLogAction, string> = {
+  create:      '등록',
+  update:      '수정',
+  delete:      '삭제',
+  bulk_delete: '일괄 삭제',
+  import:      '가져오기',
+  export:      '내보내기',
+}
+
+export const KOL_LOG_ACTION_COLOR: Record<KolLogAction, string> = {
+  create:      'bg-emerald-100 text-emerald-800',
+  update:      'bg-blue-100 text-blue-700',
+  delete:      'bg-red-100 text-red-600',
+  bulk_delete: 'bg-red-200 text-red-800',
+  import:      'bg-purple-100 text-purple-700',
+  export:      'bg-gray-100 text-gray-600',
+}
+
+export const KOL_LOG_TARGETS = ['kol', 'category', 'gonggu_sale'] as const
+export type KolLogTarget = typeof KOL_LOG_TARGETS[number]
+
+export const KOL_LOG_TARGET_LABEL: Record<KolLogTarget, string> = {
+  kol:         'KOL',
+  category:    '카테고리',
+  gonggu_sale: '공구매출',
+}
+
 export const STATUS_COLOR: Record<CompanyStatus, string> = {
   '신규문의':   'bg-gray-100 text-gray-600',
   '제안서발송': 'bg-cyan-100 text-cyan-700',

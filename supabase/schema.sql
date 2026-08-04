@@ -1057,6 +1057,68 @@ BEGIN
 END $$;
 
 
+-- ── 15. KOL 변경 로그 (2026-08) ───────────────────────────────
+-- KOL 리스트의 등록·수정·삭제·가져오기·내보내기 이력. 최고 관리자(admin)만 열람한다.
+-- (manager나 KOL 담당자에게도 보이지 않는다 — 담당자 작업을 감사하는 용도이므로.)
+-- 대상이 삭제돼도 "누가 무엇을 지웠는지"가 남아야 하므로 target_id에는 FK를 걸지 않고
+-- 이름·요약을 스냅샷으로 저장한다. UPDATE 정책이 없어 기록은 사후 수정할 수 없다.
+
+CREATE TABLE IF NOT EXISTS kol_audit_logs (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id    UUID        REFERENCES profiles(id) ON DELETE SET NULL,
+  actor_name  TEXT        NOT NULL,   -- 작업자 이름 스냅샷 (개명·탈퇴 후에도 보존)
+  actor_email TEXT,
+  action      TEXT        NOT NULL,
+  target_type TEXT        NOT NULL DEFAULT 'kol',
+  target_id   UUID,                   -- 삭제된 행도 가리키므로 FK 없음
+  target_name TEXT,                   -- KOL/카테고리 이름 스냅샷
+  summary     TEXT,                   -- 한 줄 요약 ("팔로워 80,000 → 95,000")
+  details     JSONB,                  -- 변경 전후 값, 가져오기 실패 사유 등
+  item_count  INTEGER,                -- 일괄 작업 건수 (가져오기·내보내기·일괄 삭제)
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE  kol_audit_logs             IS 'KOL 관련 변경 이력 — admin 전용 열람';
+COMMENT ON COLUMN kol_audit_logs.action      IS 'create | update | delete | bulk_delete | import | export';
+COMMENT ON COLUMN kol_audit_logs.target_type IS 'kol | category | gonggu_sale';
+
+ALTER TABLE kol_audit_logs DROP CONSTRAINT IF EXISTS kol_audit_logs_action_check;
+ALTER TABLE kol_audit_logs ADD  CONSTRAINT kol_audit_logs_action_check
+  CHECK (action IN ('create','update','delete','bulk_delete','import','export'));
+
+ALTER TABLE kol_audit_logs DROP CONSTRAINT IF EXISTS kol_audit_logs_target_type_check;
+ALTER TABLE kol_audit_logs ADD  CONSTRAINT kol_audit_logs_target_type_check
+  CHECK (target_type IN ('kol','category','gonggu_sale'));
+
+CREATE INDEX IF NOT EXISTS idx_kol_audit_logs_created ON kol_audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_kol_audit_logs_actor   ON kol_audit_logs(actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_kol_audit_logs_action  ON kol_audit_logs(action, created_at DESC);
+
+ALTER TABLE kol_audit_logs ENABLE ROW LEVEL SECURITY;
+
+-- 열람: admin만
+DROP POLICY IF EXISTS "kol_audit_logs_select" ON kol_audit_logs;
+CREATE POLICY "kol_audit_logs_select"
+  ON kol_audit_logs FOR SELECT
+  TO authenticated
+  USING (get_my_role() = 'admin');
+
+-- 기록: 본인 명의로만 남길 수 있다 (서버 액션이 작업자 세션으로 삽입)
+DROP POLICY IF EXISTS "kol_audit_logs_insert" ON kol_audit_logs;
+CREATE POLICY "kol_audit_logs_insert"
+  ON kol_audit_logs FOR INSERT
+  TO authenticated
+  WITH CHECK (actor_id = auth.uid());
+
+-- UPDATE 정책 없음 = 남은 기록은 아무도 고칠 수 없다.
+
+DROP POLICY IF EXISTS "kol_audit_logs_delete" ON kol_audit_logs;
+CREATE POLICY "kol_audit_logs_delete"
+  ON kol_audit_logs FOR DELETE
+  TO authenticated
+  USING (get_my_role() = 'admin');
+
+
 -- 기존 하드코딩 카테고리 시드 (이미 있으면 건너뜀)
 INSERT INTO kol_categories (name, color, sort_order) VALUES
   ('뷰티',         'bg-pink-100 text-pink-700',     1),

@@ -47,15 +47,23 @@ export default async function KolPage({ searchParams }: PageProps) {
           <p className="text-sm text-gray-500">
             인플루언서 아카이브 — 전직원 열람 가능{canEdit ? ' · 등록/수정 권한 있음' : ' (등록/수정은 KOL 담당자에게 요청)'}
           </p>
-          {canEdit && (
-            <div className="flex flex-wrap items-center gap-2">
-              <KolCategoryManager categories={categoryItems} />
-              <Link href="/kol/import" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
-                📥 엑셀 가져오기
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 변경 로그는 최고 관리자만 (KOL 담당자에게는 보이지 않는다) */}
+            {profile.role === 'admin' && (
+              <Link href="/kol/logs" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                📜 변경 로그
               </Link>
-              <KolCreateButton categories={categoryItems} />
-            </div>
-          )}
+            )}
+            {canEdit && (
+              <>
+                <KolCategoryManager categories={categoryItems} />
+                <Link href="/kol/import" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                  📥 엑셀 가져오기
+                </Link>
+                <KolCreateButton categories={categoryItems} />
+              </>
+            )}
+          </div>
         </div>
 
         <KolFilters total={result.total} categoryNames={categoryItems.map(c => c.name)} />

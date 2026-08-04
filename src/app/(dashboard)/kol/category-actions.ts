@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, canManageKol } from '@/lib/auth'
+import { logKolAudit } from '@/lib/kol-audit'
 
 interface ActionResult {
   error: string
@@ -53,7 +54,8 @@ async function propagateToKols(oldName: string, newName: string | null): Promise
 }
 
 export async function createKolCategory(name: string): Promise<ActionResult | undefined> {
-  if (!(await requireKolManager())) return { error: '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.' }
+  const profile = await requireKolManager()
+  if (!profile) return { error: '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.' }
   const trimmed = name.trim()
   if (!trimmed) return { error: '카테고리 이름을 입력하세요.' }
 
@@ -70,16 +72,28 @@ export async function createKolCategory(name: string): Promise<ActionResult | un
   const color = [...usage.entries()].sort((a, b) => a[1] - b[1])[0][0]
   const nextOrder = (existing?.[0]?.sort_order ?? 0) + 1
 
-  const { error } = await supabase
+  const { data: created, error } = await supabase
     .from('kol_categories')
     .insert({ name: trimmed, color, sort_order: nextOrder })
+    .select('id')
+    .single()
   if (error) return { error: friendlyError(error.message, error.code) }
+
+  await logKolAudit({
+    actor:      profile,
+    action:     'create',
+    target:     'category',
+    targetId:   created?.id ?? null,
+    targetName: trimmed,
+    summary:    `카테고리 '${trimmed}' 추가`,
+  })
 
   revalidatePath('/kol')
 }
 
 export async function renameKolCategory(id: string, newName: string): Promise<ActionResult | undefined> {
-  if (!(await requireKolManager())) return { error: '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.' }
+  const profile = await requireKolManager()
+  if (!profile) return { error: '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.' }
   const trimmed = newName.trim()
   if (!trimmed) return { error: '카테고리 이름을 입력하세요.' }
 
@@ -97,13 +111,25 @@ export async function renameKolCategory(id: string, newName: string): Promise<Ac
 
   // 기존 KOL들에 붙은 태그도 함께 변경
   const propErr = await propagateToKols(row.name, trimmed)
+
+  await logKolAudit({
+    actor:      profile,
+    action:     'update',
+    target:     'category',
+    targetId:   id,
+    targetName: trimmed,
+    summary:    `카테고리 이름 '${row.name}' → '${trimmed}' (KOL 태그 일괄 반영)`,
+    details:    { from: row.name, to: trimmed, propagate_error: propErr },
+  })
+
   if (propErr) return { error: `카테고리 이름은 바뀌었지만 KOL 태그 갱신 중 오류: ${propErr}` }
 
   revalidatePath('/kol')
 }
 
 export async function deleteKolCategory(id: string): Promise<ActionResult | undefined> {
-  if (!(await requireKolManager())) return { error: '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.' }
+  const profile = await requireKolManager()
+  if (!profile) return { error: '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.' }
 
   const supabase = await createClient()
   const { data: row, error: selErr } = await supabase
@@ -118,18 +144,30 @@ export async function deleteKolCategory(id: string): Promise<ActionResult | unde
 
   // KOL들에 붙은 태그에서도 제거
   const propErr = await propagateToKols(row.name, null)
+
+  await logKolAudit({
+    actor:      profile,
+    action:     'delete',
+    target:     'category',
+    targetId:   id,
+    targetName: row.name,
+    summary:    `카테고리 '${row.name}' 삭제 (KOL 태그에서도 제거)`,
+    details:    { propagate_error: propErr },
+  })
+
   if (propErr) return { error: `카테고리는 삭제됐지만 KOL 태그 정리 중 오류: ${propErr}` }
 
   revalidatePath('/kol')
 }
 
 export async function moveKolCategory(id: string, direction: 'up' | 'down'): Promise<ActionResult | undefined> {
-  if (!(await requireKolManager())) return { error: '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.' }
+  const profile = await requireKolManager()
+  if (!profile) return { error: '카테고리 관리는 관리자 또는 KOL 담당자만 가능합니다.' }
 
   const supabase = await createClient()
   const { data, error: selErr } = await supabase
     .from('kol_categories')
-    .select('id, sort_order')
+    .select('id, name, sort_order')
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true })
   if (selErr || !data) return { error: friendlyError(selErr?.message ?? '조회 실패', selErr?.code) }
@@ -146,6 +184,16 @@ export async function moveKolCategory(id: string, direction: 'up' | 'down'): Pro
     const { error } = await supabase.from('kol_categories').update({ sort_order: i + 1 }).eq('id', order[i].id)
     if (error) return { error: friendlyError(error.message, error.code) }
   }
+
+  await logKolAudit({
+    actor:      profile,
+    action:     'update',
+    target:     'category',
+    targetId:   id,
+    targetName: data[idx].name,
+    summary:    `카테고리 '${data[idx].name}' 순서 ${direction === 'up' ? '위로' : '아래로'} 이동`,
+    details:    { order: order.map(c => c.name) },
+  })
 
   revalidatePath('/kol')
 }

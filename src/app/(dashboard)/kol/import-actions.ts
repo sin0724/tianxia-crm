@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, canManageKol } from '@/lib/auth'
+import { logKolAudit, summarizeNames } from '@/lib/kol-audit'
 import { parseDate } from '@/lib/csv'
 import { normalizeHandle, parseFollowers, parseCategories, resolveKolFee } from '@/lib/kol-fields'
 import { getKolCategoryNames } from '@/lib/kol-categories'
@@ -43,6 +44,9 @@ export interface KolImportResult {
   inserted: number
   errors: { idx: number; name: string; reason: string }[]
 }
+
+// 로그 details에 담을 이름·실패 사유 최대 개수 (수천 행 파일에서 로그가 비대해지지 않게)
+const LOG_SAMPLE_LIMIT = 100
 
 // ── 중복 체크 ─────────────────────────────────────────────────
 
@@ -113,6 +117,7 @@ export async function importKols(rows: KolImportRow[]): Promise<KolImportResult>
   const validCategories = await getKolCategoryNames()
   // 파일 안에서 같은 핸들이 두 번 나오는 경우도 잡는다
   const seenHandles = new Set<string>()
+  const insertedNames: string[] = []
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
@@ -159,8 +164,26 @@ export async function importKols(rows: KolImportRow[]): Promise<KolImportResult>
       result.errors.push({ idx: i + 1, name, reason })
     } else {
       result.inserted++
+      insertedNames.push(name)
       if (handle) seenHandles.add(handle)
     }
+  }
+
+  // 한 파일 = 로그 한 줄. 실패 사유까지 남겨 두면 나중에 되짚어볼 수 있다.
+  if (rows.length > 0) {
+    await logKolAudit({
+      actor:     profile,
+      action:    'import',
+      summary:   `엑셀 가져오기 ${result.inserted}명 등록`
+                 + (result.errors.length > 0 ? ` · 실패 ${result.errors.length}건` : '')
+                 + (insertedNames.length > 0 ? ` — ${summarizeNames(insertedNames)}` : ''),
+      itemCount: result.inserted,
+      details:   {
+        rows:     rows.length,
+        inserted: insertedNames.slice(0, LOG_SAMPLE_LIMIT),
+        errors:   result.errors.slice(0, LOG_SAMPLE_LIMIT),
+      },
+    })
   }
 
   return result

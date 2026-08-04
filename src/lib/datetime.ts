@@ -49,6 +49,18 @@ export function kstDateString(base: Date = new Date()): string {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
 
+/** "YYYY-MM-DD"(KST 달력) → 그날 00:00:00의 ISO 문자열 */
+export function kstDayStartISO(date: string): string {
+  const [y, m, d] = date.split('-').map(Number)
+  return kstMidnight(y, m - 1, d).toISOString()
+}
+
+/** "YYYY-MM-DD"(KST 달력) → 그날 23:59:59.999의 ISO 문자열 */
+export function kstDayEndISO(date: string): string {
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(kstMidnight(y, m - 1, d).getTime() + DAY_MS - 1).toISOString()
+}
+
 /** KST 기준 이번 달 1일 00:00:00 */
 export function kstStartOfMonth(): Date {
   const { y, m } = kstCalendar()

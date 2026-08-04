@@ -3,6 +3,7 @@
 import { useState, useTransition, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { deleteKol, deleteKols } from '@/app/(dashboard)/kol/actions'
+import { logKolSelectionCopy } from '@/app/(dashboard)/kol/copy-actions'
 import { KolFormModal } from '@/components/kol/KolFormModal'
 import { KolGongguSalesPanel } from '@/components/kol/KolGongguSalesPanel'
 import { fmtFollowers, fmtMoney, fmtMoneyCompact, GONGGU_CATEGORY_COLOR } from '@/lib/constants'
@@ -78,6 +79,8 @@ export function KolTable({ kols, canEdit, categories, salesByKol, now }: KolTabl
     copyToClipboard(text).then(ok => {
       setCopyStatus(ok ? 'copied' : 'error')
       setTimeout(() => setCopyStatus('idle'), 3000)
+      // 리스트 반출 기록 (실패해도 복사 자체는 이미 끝났으므로 조용히 무시)
+      if (ok) logKolSelectionCopy(selectedOnPage.map(k => k.name)).catch(() => {})
     })
   }
 

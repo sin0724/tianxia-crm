@@ -5,8 +5,9 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, canManageKol } from '@/lib/auth'
+import { logKolAudit } from '@/lib/kol-audit'
 import { parseAmount } from '@/lib/kol-fields'
-import { isCurrency, type Currency } from '@/lib/constants'
+import { fmtMoney, isCurrency, type Currency } from '@/lib/constants'
 
 interface ActionResult {
   error: string
@@ -79,6 +80,25 @@ function friendlyError(message: string, code?: string): string {
   return message
 }
 
+// 로그에는 이력 자체보다 "어느 KOL의 이력인지"가 중요하므로 이름을 함께 남긴다
+async function kolNameOf(kolId: string): Promise<string | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.from('kols').select('name').eq('id', kolId).single()
+  return data?.name ?? null
+}
+
+// DB에서 돌려받은 행은 NUMERIC이 문자열로 올 수 있어 금액은 Number를 거친다
+function describeSale(row: {
+  title: string; brand: string | null; amount: number | string
+  currency: string; sale_date: string | null
+}): string {
+  const parts = [row.title]
+  if (row.brand) parts.push(row.brand)
+  parts.push(fmtMoney(Number(row.amount), row.currency))
+  if (row.sale_date) parts.push(row.sale_date)
+  return parts.join(' · ')
+}
+
 export async function createKolGongguSale(
   kolId: string,
   input: KolGongguSaleInput,
@@ -90,10 +110,22 @@ export async function createKolGongguSale(
   if (!parsed.ok) return { error: parsed.error }
 
   const supabase = await createClient()
-  const { error } = await supabase
+  const { data: created, error } = await supabase
     .from('kol_gonggu_sales')
     .insert({ ...parsed.row, kol_id: kolId, created_by: profile.id })
+    .select('id')
+    .single()
   if (error) return { error: friendlyError(error.message, error.code) }
+
+  await logKolAudit({
+    actor:      profile,
+    action:     'create',
+    target:     'gonggu_sale',
+    targetId:   created?.id ?? null,
+    targetName: await kolNameOf(kolId),
+    summary:    `공구매출 추가 — ${describeSale(parsed.row)}`,
+    details:    { kol_id: kolId, after: parsed.row },
+  })
 
   revalidatePath('/kol')
 }
@@ -109,13 +141,25 @@ export async function updateKolGongguSale(
   if (!parsed.ok) return { error: parsed.error }
 
   const supabase = await createClient()
+  const { data: before } = await supabase.from('kol_gonggu_sales').select('*').eq('id', id).single()
+
   const { data: updated, error } = await supabase
     .from('kol_gonggu_sales')
     .update(parsed.row)
     .eq('id', id)
-    .select('id')
+    .select('id, kol_id')
   if (error) return { error: friendlyError(error.message, error.code) }
   if (!updated || updated.length === 0) return { error: '수정할 수 없는 공구매출 이력입니다.' }
+
+  await logKolAudit({
+    actor:      profile,
+    action:     'update',
+    target:     'gonggu_sale',
+    targetId:   id,
+    targetName: await kolNameOf(updated[0].kol_id),
+    summary:    `공구매출 수정 — ${describeSale(parsed.row)}`,
+    details:    { kol_id: updated[0].kol_id, before, after: parsed.row },
+  })
 
   revalidatePath('/kol')
 }
@@ -129,9 +173,20 @@ export async function deleteKolGongguSale(id: string): Promise<ActionResult | un
     .from('kol_gonggu_sales')
     .delete()
     .eq('id', id)
-    .select('id')
+    .select('*')
   if (error) return { error: friendlyError(error.message, error.code) }
   if (!deleted || deleted.length === 0) return { error: '삭제할 수 없는 공구매출 이력입니다.' }
+
+  const row = deleted[0]
+  await logKolAudit({
+    actor:      profile,
+    action:     'delete',
+    target:     'gonggu_sale',
+    targetId:   id,
+    targetName: await kolNameOf(row.kol_id),
+    summary:    `공구매출 삭제 — ${describeSale(row)}`,
+    details:    { kol_id: row.kol_id, deleted: row },
+  })
 
   revalidatePath('/kol')
 }
