@@ -7,6 +7,8 @@ import { redirect } from 'next/navigation'
 import { requireAuth, isAdminOrManager } from '@/lib/auth'
 import { kstDateString } from '@/lib/datetime'
 import { COMPANY_STATUS } from '@/lib/constants'
+import { getDefaultMeetingMetricKey } from '@/lib/kpi'
+import { logMeetingKpiEntries } from '@/lib/kpi-log'
 import {
   notifyNewCompany,
   notifyMeetingScheduled,
@@ -72,28 +74,43 @@ function preserveTimeIfSameDate(formVal: string | null, prevVal: string | null):
   return formVal === kstDateString(new Date(prevVal)) ? prevVal : formVal
 }
 
-// 상태가 '미팅진행'으로 바뀌면 KPI(주간 미팅) 집계용 '미팅' 활동을 자동 기록한다.
-// - KPI는 담당자 기준이므로 activities.user_id는 assigned_to(없으면 변경한 사람)로 남긴다.
+// 상태가 '미팅진행'으로 바뀌면 '미팅' 활동 + KPI 실적(kpi_entries)을 자동 기록한다.
+// - KPI는 담당자 기준이므로 user_id는 assigned_to(없으면 변경한 사람)로 남긴다.
+// - meetingType(kpi_metrics.key)을 주면 그 종류로, 없으면 기본 미팅 항목으로 집계한다.
 // - 최근 7일 내 이미 '미팅' 활동이 있으면 건너뛴다 (수동 기록·크론 자동 기록과 중복 방지).
 // - 실패해도 상태 변경 자체는 성공으로 둔다 (KPI 보조 기록이므로).
-async function autoLogMeetingActivity(companyIds: string[], actorId: string): Promise<void> {
+async function autoLogMeetingActivity(
+  companyIds: string[],
+  actorId: string,
+  meetingType?: string | null,
+): Promise<void> {
   if (companyIds.length === 0) return
   try {
     const supabase = await createClient()
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-    const { data: recent } = await supabase
-      .from('activities')
-      .select('company_id')
-      .eq('activity_type', '미팅')
-      .gte('created_at', since)
-      .in('company_id', companyIds)
-    const skip = new Set((recent ?? []).map(a => a.company_id))
+    const [{ data: recent }, { data: companies }] = await Promise.all([
+      supabase
+        .from('activities')
+        .select('company_id, meeting_type')
+        .eq('activity_type', '미팅')
+        .gte('created_at', since)
+        .in('company_id', companyIds),
+      supabase
+        .from('companies')
+        .select('id, assigned_to')
+        .in('id', companyIds),
+    ])
 
-    const { data: companies } = await supabase
-      .from('companies')
-      .select('id, assigned_to')
-      .in('id', companyIds)
+    const metricKey = meetingType || (await getDefaultMeetingMetricKey())
+
+    // 같은 종류의 미팅이 최근에 이미 기록됐을 때만 건너뛴다.
+    // 종류가 다르면(대만마케팅 → 공구) 각각 실적이므로 따로 센다.
+    const skip = new Set(
+      (recent ?? [])
+        .filter(a => a.meeting_type == null || a.meeting_type === metricKey)
+        .map(a => a.company_id),
+    )
 
     const inserts = (companies ?? [])
       .filter(c => !skip.has(c.id))
@@ -104,8 +121,16 @@ async function autoLogMeetingActivity(companyIds: string[], actorId: string): Pr
         activity_result: null,
         memo:            null, // latest_note를 덮어쓰지 않도록 비워둠
         next_action_at:  null,
+        meeting_type:    metricKey,
       }))
-    if (inserts.length > 0) await supabase.from('activities').insert(inserts)
+    if (inserts.length === 0) return
+
+    const { data: created } = await supabase
+      .from('activities')
+      .insert(inserts)
+      .select('id, company_id, user_id, meeting_type, created_at')
+
+    await logMeetingKpiEntries(supabase, created ?? [], metricKey)
   } catch {
     // 자동 기록 실패는 무시
   }
@@ -156,6 +181,13 @@ export async function createCompany(formData: FormData): Promise<ActionResult | 
     await notifyNewCompany(co as unknown as NotifCompany, profile.id).catch(() => {})
   }
 
+  // 미팅이 이미 잡힌 거래처를 바로 등록하는 경우 — 상태 변경 때와 똑같이 미팅 KPI로 집계
+  if (data.status === '미팅진행') {
+    await autoLogMeetingActivity([id], profile.id, (formData.get('meeting_kpi_type') as string) || null)
+    revalidatePath('/tasks')
+    revalidatePath('/dashboard')
+  }
+
   revalidatePath('/companies')
   redirect('/companies')
 }
@@ -194,8 +226,11 @@ export async function updateCompany(id: string, formData: FormData): Promise<Act
   if (error) return { error: error.message }
 
   // 상태가 미팅진행으로 진입하면 미팅 KPI용 활동 자동 기록
+  // (폼에서 고른 미팅 종류를 그대로 KPI 항목으로 쓴다 — 비우면 기본 미팅 항목)
   if (prev && prev.status !== '미팅진행' && data.status === '미팅진행') {
-    await autoLogMeetingActivity([id], profile.id)
+    await autoLogMeetingActivity([id], profile.id, (formData.get('meeting_kpi_type') as string) || null)
+    revalidatePath('/tasks')
+    revalidatePath('/dashboard')
   }
 
   // 알림 조건 판별 후 발송
@@ -382,7 +417,7 @@ export async function assignCompanies(
  */
 export async function bulkUpdateCompanies(
   ids: string[],
-  changes: { status?: string; category?: string; source?: string; inflow_month?: string },
+  changes: { status?: string; category?: string; source?: string; inflow_month?: string; meeting_type?: string },
 ): Promise<ActionResult | undefined> {
   const profile = await requireAuth()
   if (ids.length === 0) return
@@ -427,7 +462,11 @@ export async function bulkUpdateCompanies(
   // 실제로 수정된 것 중 미팅진행 신규 진입 건만 미팅 활동 자동 기록
   if (meetingCandidates.length > 0) {
     const updatedIds = new Set((updated ?? []).map(u => u.id))
-    await autoLogMeetingActivity(meetingCandidates.filter(cid => updatedIds.has(cid)), profile.id)
+    await autoLogMeetingActivity(
+      meetingCandidates.filter(cid => updatedIds.has(cid)),
+      profile.id,
+      changes.meeting_type ?? null,
+    )
   }
 
   const count = updated?.length ?? 0
@@ -442,7 +481,8 @@ export async function bulkUpdateCompanies(
   }
 }
 
-// 칸반 보드: 상태만 변경
+// 칸반 보드: 상태만 변경 (미팅 종류를 고를 화면이 없어 기본 미팅 항목으로 집계된다.
+// 종류가 다르면 담당자가 할 일 화면의 KPI 기록에서 바꿔 주면 된다.)
 export async function updateCompanyStatus(id: string, status: string): Promise<ActionResult | undefined> {
   const profile = await requireAuth()
   if (!(COMPANY_STATUS as readonly string[]).includes(status)) {

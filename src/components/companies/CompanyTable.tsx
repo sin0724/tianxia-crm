@@ -5,6 +5,7 @@ import { useState, useTransition } from 'react'
 import { StatusBadge } from './StatusBadge'
 import { COMPANY_STATUS } from '@/lib/constants'
 import type { Company, ProfileOption } from '@/lib/companies'
+import type { KpiMetric } from '@/lib/kpi'
 import { deleteCompany, deleteCompanies, assignCompanies, bulkUpdateCompanies } from '@/app/(dashboard)/companies/actions'
 
 function fmtDate(s: string | null) {
@@ -81,11 +82,13 @@ interface CompanyTableProps {
   /** 일괄 수정용 구분/DB경로 자동완성 옵션 */
   categories?: string[]
   sources?: string[]
+  /** 미팅 KPI 항목 — 상태를 '미팅진행'으로 일괄 변경할 때 미팅 종류를 함께 고른다 */
+  meetingMetrics?: KpiMetric[]
 }
 
 export function CompanyTable({
   companies, canDelete = false, canAssign = false,
-  profiles = [], categories = [], sources = [],
+  profiles = [], categories = [], sources = [], meetingMetrics = [],
 }: CompanyTableProps) {
   const [confirmId, setConfirmId]       = useState<string | null>(null)
   const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set())
@@ -98,6 +101,7 @@ export function CompanyTable({
   const [bulkCategory, setBulkCategory] = useState('')
   const [bulkSource, setBulkSource]     = useState('')
   const [bulkInflow, setBulkInflow]     = useState('')
+  const [bulkMeeting, setBulkMeeting]   = useState('')
   const [isDeleting, startTransition]   = useTransition()
 
   const allSelected  = companies.length > 0 && selectedIds.size === companies.length
@@ -168,6 +172,7 @@ export function CompanyTable({
         category:     bulkCategory || undefined,
         source:       bulkSource || undefined,
         inflow_month: bulkInflow || undefined,
+        meeting_type: bulkStatus === '미팅진행' ? bulkMeeting || undefined : undefined,
       })
       if (result?.error) {
         setDeleteError(result.error)
@@ -175,7 +180,7 @@ export function CompanyTable({
       }
       setSelectedIds(new Set())
       setShowBulkEdit(false)
-      setBulkStatus(''); setBulkCategory(''); setBulkSource(''); setBulkInflow('')
+      setBulkStatus(''); setBulkCategory(''); setBulkSource(''); setBulkInflow(''); setBulkMeeting('')
       setAssignedMsg(`${ids.length}건 일괄 수정 완료`)
     })
   }
@@ -296,6 +301,22 @@ export function CompanyTable({
               {COMPANY_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
+
+          {/* 미팅진행으로 올리면 담당자 월 KPI에 미팅이 자동 기록된다 — 종류를 여기서 고른다 */}
+          {bulkStatus === '미팅진행' && meetingMetrics.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-purple-600 mb-1">미팅 종류 (KPI)</label>
+              <select
+                value={bulkMeeting}
+                onChange={e => setBulkMeeting(e.target.value)}
+                className="px-2 py-1.5 border border-purple-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="">기본 미팅 항목</option>
+                {meetingMetrics.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">구분</label>
             <input

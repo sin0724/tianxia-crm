@@ -3,6 +3,8 @@ import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { ProfileNameForm } from '@/components/settings/ProfileNameForm'
 import { TeamManagement, type Member } from '@/components/settings/TeamManagement'
+import { KpiMetricSettings } from '@/components/settings/KpiMetricSettings'
+import { getAllKpiMetrics, type KpiMetric } from '@/lib/kpi'
 
 const ROLE_LABEL = { admin: '관리자', manager: '매니저', sales: '영업' }
 
@@ -10,21 +12,26 @@ export default async function SettingsPage() {
   const profile = await requireAuth()
 
   let members: Member[] = []
+  let kpiMetrics: KpiMetric[] = []
   if (profile.role === 'admin') {
     const supabase = await createClient()
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, name, email, role, team, is_active, can_manage_kol')
-      .order('is_active', { ascending: true })
-      .order('name')
+    const [{ data }, metrics] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, name, email, role, team, is_active, can_manage_kol')
+        .order('is_active', { ascending: true })
+        .order('name'),
+      getAllKpiMetrics(),
+    ])
     members = (data as Member[]) ?? []
+    kpiMetrics = metrics
   }
 
   return (
     <>
       <Header title="설정" />
       <main className="flex-1 p-4 sm:p-6">
-        <div className="max-w-lg space-y-4">
+        <div className="max-w-2xl space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h2 className="text-sm font-semibold text-gray-900 mb-4">계정 정보</h2>
             <div className="space-y-3">
@@ -48,6 +55,19 @@ export default async function SettingsPage() {
                 &lsquo;KOL 관리&rsquo;를 켜면 관리자가 아니어도 KOL 리스트를 등록·수정할 수 있습니다.
               </p>
               <TeamManagement members={members} myId={profile.id} />
+            </div>
+          )}
+
+          {profile.role === 'admin' && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-sm font-semibold text-gray-900 mb-1">KPI 항목 관리</h2>
+              <p className="text-sm text-gray-400 mb-4">
+                영업사원 KPI 항목과 <strong className="text-gray-500">월 목표치</strong>를 자유롭게 조정할 수 있습니다.
+                여기서 바꾸면 대시보드·할 일 화면의 KPI가 곧바로 따라갑니다.
+                &lsquo;미팅 자동 기록&rsquo; 항목은 담당자가 거래처 상태를 &lsquo;미팅진행&rsquo;으로 바꾸거나
+                미팅 활동을 남길 때 자동으로 쌓입니다.
+              </p>
+              <KpiMetricSettings metrics={kpiMetrics} />
             </div>
           )}
         </div>

@@ -86,16 +86,43 @@ export const STAGE_COLOR: Record<Stage, string> = {
   '종료': 'bg-gray-200 text-gray-500',
 }
 
-// ── 영업사원 KPI 목표 ─────────────────────────────────────────
-// 1주 단위로 통합 (2026-06 담당자 건의 반영)
-export const KPI_TARGETS = {
-  kolPerWeek:      15, // KOL 제안 15건 / 주
-  threadsPerWeek:  3,  // 스레드 업로드 3건 / 주
-  meetingsPerWeek: 3,  // 미팅 3건 / 주 (활동 유형 '미팅' 기준)
-} as const
+// ── 영업사원 KPI ─────────────────────────────────────────────
+// 항목과 목표치는 DB(kpi_metrics)에 있고 관리자가 설정 화면에서 자유롭게 바꾼다.
+// 집계 단위는 월 (2026-08 변경 — 주 단위는 월중 진행률을 가늠하기 어려웠다).
+//
+// kind
+//   manual  — 담당자가 '오늘의 KPI' 버튼으로 직접 기록 (KOL 제안, 스레드 등)
+//   meeting — 미팅이 생기면 자동 기록. 상태를 '미팅진행'으로 바꾸거나,
+//             활동에 '미팅'을 남기거나, 미팅 예정일이 지나면 크론이 채운다.
 
-export const KPI_ENTRY_TYPES = ['KOL 제안', '스레드 업로드'] as const
-export type KpiEntryType = typeof KPI_ENTRY_TYPES[number]
+export const KPI_METRIC_KINDS = ['manual', 'meeting'] as const
+export type KpiMetricKind = typeof KPI_METRIC_KINDS[number]
+
+export const KPI_KIND_LABEL: Record<KpiMetricKind, string> = {
+  manual:  '직접 기록',
+  meeting: '미팅 자동 기록',
+}
+
+export const KPI_KIND_HINT: Record<KpiMetricKind, string> = {
+  manual:  "담당자가 '오늘의 KPI'에서 버튼으로 기록합니다.",
+  meeting: "상태를 '미팅진행'으로 바꾸거나 미팅 활동을 남기면 자동 기록됩니다.",
+}
+
+// kpi_metrics 테이블이 비어 있을 때만 쓰는 기본값.
+// supabase/schema.sql의 시드와 같은 값을 유지해야 화면과 DB가 어긋나지 않는다.
+export const DEFAULT_KPI_METRICS = [
+  { key: 'kol',             label: 'KOL 제안',        kind: 'manual'  as KpiMetricKind, monthly_target: 60, sort_order: 1, is_default: false },
+  { key: 'thread',          label: '스레드 업로드',    kind: 'manual'  as KpiMetricKind, monthly_target: 12, sort_order: 2, is_default: false },
+  { key: 'meeting_tw',      label: '대만마케팅 미팅',  kind: 'meeting' as KpiMetricKind, monthly_target: 4,  sort_order: 3, is_default: true  },
+  { key: 'meeting_gonggu',  label: '공구 미팅',        kind: 'meeting' as KpiMetricKind, monthly_target: 4,  sort_order: 4, is_default: false },
+  { key: 'meeting_seminar', label: '설명회 미팅',      kind: 'meeting' as KpiMetricKind, monthly_target: 4,  sort_order: 5, is_default: false },
+] as const
+
+// 구 버전 kpi_entries.entry_type(한글 표기) → metric_key. 마이그레이션 전 데이터 보호용.
+export const LEGACY_KPI_ENTRY_TYPE: Record<string, string> = {
+  'KOL 제안':      'kol',
+  '스레드 업로드': 'thread',
+}
 
 // ── KOL 아카이브 ─────────────────────────────────────────────
 // KOL 콘텐츠 카테고리 — 거래처 업종(병의원/F&B/뷰티/숙박 등)에 매칭해 제안하는 기준.

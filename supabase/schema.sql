@@ -1132,3 +1132,140 @@ INSERT INTO kol_categories (name, color, sort_order) VALUES
   ('라이프스타일', 'bg-indigo-100 text-indigo-700', 9),
   ('기타',         'bg-gray-100 text-gray-600',     10)
 ON CONFLICT (name) DO NOTHING;
+
+
+-- ── 16. KPI 항목 관리 + 월 단위 집계 (2026-08) ────────────────
+-- 기존: KPI 항목(KOL 제안·스레드·미팅)과 목표치가 코드(constants.ts)에 하드코딩,
+--       집계 단위는 "이번 주", 미팅은 activities만 세어 화면에서 근거를 확인할 수 없었다.
+-- 변경: 항목·목표치를 kpi_metrics 테이블로 옮겨 관리자가 자유롭게 조정하고,
+--       모든 KPI 실적(수동 기록 + 미팅 자동 기록)을 kpi_entries 한 곳에 쌓아
+--       "무엇이 언제 어떻게 집계됐는지"를 화면에서 그대로 보여준다. 집계는 월 단위.
+
+CREATE TABLE IF NOT EXISTS kpi_metrics (
+  id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  key            TEXT        NOT NULL UNIQUE,  -- 실적(kpi_entries.metric_key)과 잇는 불변 식별자
+  label          TEXT        NOT NULL,         -- 화면 표기 (관리자가 자유 변경)
+  kind           TEXT        NOT NULL DEFAULT 'manual',  -- manual: 버튼으로 직접 기록 / meeting: 미팅 자동 기록
+  monthly_target INTEGER     NOT NULL DEFAULT 0,
+  sort_order     INTEGER     NOT NULL DEFAULT 0,
+  is_active      BOOLEAN     NOT NULL DEFAULT true,
+  is_default     BOOLEAN     NOT NULL DEFAULT false,  -- kind='meeting'일 때, 종류 미지정 자동 기록의 기본값
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE  kpi_metrics            IS '영업 KPI 항목 — 관리자가 항목·월 목표치를 자유롭게 조정';
+COMMENT ON COLUMN kpi_metrics.key        IS '실적과 잇는 불변 키. 변경하면 과거 실적이 끊긴다';
+COMMENT ON COLUMN kpi_metrics.kind       IS 'manual(담당자가 버튼으로 기록) | meeting(미팅 발생 시 자동 기록)';
+COMMENT ON COLUMN kpi_metrics.is_default IS 'kind=meeting 중 종류를 고르지 않은 자동 기록이 들어갈 항목';
+
+ALTER TABLE kpi_metrics DROP CONSTRAINT IF EXISTS kpi_metrics_kind_check;
+ALTER TABLE kpi_metrics ADD  CONSTRAINT kpi_metrics_kind_check CHECK (kind IN ('manual','meeting'));
+
+ALTER TABLE kpi_metrics DROP CONSTRAINT IF EXISTS kpi_metrics_target_check;
+ALTER TABLE kpi_metrics ADD  CONSTRAINT kpi_metrics_target_check CHECK (monthly_target >= 0);
+
+CREATE OR REPLACE TRIGGER trg_kpi_metrics_updated_at
+  BEFORE UPDATE ON kpi_metrics
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- 기본 항목 시드. 주간 목표(KOL 15 / 스레드 3 / 미팅 3)를 월 환산했고,
+-- 미팅 12건은 세 종류로 4건씩 나눴다. 이후 값은 관리자가 설정 화면에서 조정한다.
+INSERT INTO kpi_metrics (key, label, kind, monthly_target, sort_order, is_default) VALUES
+  ('kol',             'KOL 제안',      'manual',  60, 1, false),
+  ('thread',          '스레드 업로드', 'manual',  12, 2, false),
+  ('meeting_tw',      '대만마케팅 미팅', 'meeting', 4, 3, true),
+  ('meeting_gonggu',  '공구 미팅',      'meeting', 4, 4, false),
+  ('meeting_seminar', '설명회 미팅',    'meeting', 4, 5, false)
+ON CONFLICT (key) DO NOTHING;
+
+-- 미팅 종류 — 활동 타임라인에서도 어떤 미팅이었는지 보이게 한다 (kpi_metrics.key 저장)
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS meeting_type TEXT;
+
+-- kpi_entries: 모든 KPI 실적의 단일 창구로 확장
+--   metric_key      집계 대상 항목 (kpi_metrics.key)
+--   company_id      미팅 자동 기록의 근거 거래처 (수동 기록은 NULL)
+--   source          manual(담당자가 직접) | auto(상태 변경·미팅 일정으로 자동)
+--   ref_activity_id 근거가 된 활동. UNIQUE라 같은 미팅이 두 번 집계되지 않는다.
+ALTER TABLE kpi_entries ADD COLUMN IF NOT EXISTS metric_key      TEXT;
+ALTER TABLE kpi_entries ADD COLUMN IF NOT EXISTS company_id      UUID REFERENCES companies(id) ON DELETE CASCADE;
+ALTER TABLE kpi_entries ADD COLUMN IF NOT EXISTS source          TEXT NOT NULL DEFAULT 'manual';
+ALTER TABLE kpi_entries ADD COLUMN IF NOT EXISTS ref_activity_id UUID REFERENCES activities(id) ON DELETE CASCADE;
+
+ALTER TABLE kpi_entries DROP CONSTRAINT IF EXISTS kpi_entries_source_check;
+ALTER TABLE kpi_entries ADD  CONSTRAINT kpi_entries_source_check CHECK (source IN ('manual','auto'));
+
+-- NULL끼리는 서로 충돌하지 않으므로(수동 기록은 전부 NULL) 부분 인덱스가 필요 없다.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_kpi_entries_ref_activity ON kpi_entries(ref_activity_id);
+CREATE INDEX IF NOT EXISTS idx_kpi_entries_metric_date ON kpi_entries(metric_key, entry_date);
+
+-- 기존 실적 백필: entry_type(한글 표기) → metric_key(불변 키)
+UPDATE kpi_entries SET metric_key = 'kol'    WHERE metric_key IS NULL AND entry_type = 'KOL 제안';
+UPDATE kpi_entries SET metric_key = 'thread' WHERE metric_key IS NULL AND entry_type = '스레드 업로드';
+UPDATE kpi_entries SET metric_key = entry_type WHERE metric_key IS NULL;
+
+-- 과거 '미팅' 활동을 KPI 실적으로 옮긴다. 종류를 알 수 없으므로 기본 미팅 항목으로 넣고,
+-- 담당자가 할 일 화면의 KPI 기록 목록에서 종류를 바로잡을 수 있다.
+DO $$
+DECLARE default_meeting TEXT;
+BEGIN
+  SELECT key INTO default_meeting FROM kpi_metrics
+   WHERE kind = 'meeting' ORDER BY is_default DESC, sort_order LIMIT 1;
+  IF default_meeting IS NULL THEN RETURN; END IF;
+
+  UPDATE activities SET meeting_type = default_meeting
+   WHERE activity_type = '미팅' AND meeting_type IS NULL;
+
+  INSERT INTO kpi_entries (user_id, entry_type, entry_date, metric_key, company_id, source, ref_activity_id)
+  SELECT a.user_id, '미팅', (a.created_at AT TIME ZONE 'Asia/Seoul')::date,
+         COALESCE(a.meeting_type, default_meeting), a.company_id, 'auto', a.id
+    FROM activities a
+   WHERE a.activity_type = '미팅'
+     AND NOT EXISTS (SELECT 1 FROM kpi_entries k WHERE k.ref_activity_id = a.id)
+  ON CONFLICT DO NOTHING;
+END $$;
+
+ALTER TABLE kpi_metrics ENABLE ROW LEVEL SECURITY;
+
+-- 항목 정의는 모두가 읽고(진행률 표시에 필요), 수정은 최고 관리자만
+DROP POLICY IF EXISTS "kpi_metrics_select" ON kpi_metrics;
+CREATE POLICY "kpi_metrics_select"
+  ON kpi_metrics FOR SELECT
+  TO authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "kpi_metrics_insert" ON kpi_metrics;
+CREATE POLICY "kpi_metrics_insert"
+  ON kpi_metrics FOR INSERT
+  TO authenticated
+  WITH CHECK (get_my_role() = 'admin');
+
+DROP POLICY IF EXISTS "kpi_metrics_update" ON kpi_metrics;
+CREATE POLICY "kpi_metrics_update"
+  ON kpi_metrics FOR UPDATE
+  TO authenticated
+  USING (get_my_role() = 'admin')
+  WITH CHECK (get_my_role() = 'admin');
+
+DROP POLICY IF EXISTS "kpi_metrics_delete" ON kpi_metrics;
+CREATE POLICY "kpi_metrics_delete"
+  ON kpi_metrics FOR DELETE
+  TO authenticated
+  USING (get_my_role() = 'admin');
+
+-- 미팅 자동 기록은 "상태를 바꾼 사람"이 아니라 "거래처 담당자" 명의로 쌓여야
+-- KPI가 담당자에게 잡힌다. 남의 거래처를 만질 수 있는 건 admin/manager뿐이므로
+-- 그만큼만 타인 명의 기록을 허용한다.
+DROP POLICY IF EXISTS "kpi_entries_insert" ON kpi_entries;
+CREATE POLICY "kpi_entries_insert"
+  ON kpi_entries FOR INSERT
+  TO authenticated
+  WITH CHECK (user_id = auth.uid() OR is_admin_or_manager());
+
+-- 미팅 종류를 나중에 바로잡을 수 있어야 한다 (본인 기록 또는 admin)
+DROP POLICY IF EXISTS "kpi_entries_update" ON kpi_entries;
+CREATE POLICY "kpi_entries_update"
+  ON kpi_entries FOR UPDATE
+  TO authenticated
+  USING (user_id = auth.uid() OR get_my_role() = 'admin')
+  WITH CHECK (user_id = auth.uid() OR get_my_role() = 'admin');

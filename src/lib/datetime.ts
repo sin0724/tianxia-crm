@@ -117,6 +117,13 @@ export function fmtFullDateTimeKST(s: string | null): string {
   })
 }
 
+/** "2026년 8월" 형식 — 월 단위 KPI 집계 구간 표기용 */
+export function monthLabelKST(): string {
+  return new Date().toLocaleDateString('ko-KR', {
+    timeZone: TZ, year: 'numeric', month: 'long',
+  })
+}
+
 /** "2026년 6월 11일 목요일" 형식 */
 export function todayLabelKST(): string {
   return new Date().toLocaleDateString('ko-KR', {

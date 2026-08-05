@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { KPI_TARGETS } from '@/lib/constants'
+import type { KpiMetric } from '@/lib/kpi'
 
 export interface RepOverviewRow {
   userId: string
@@ -8,19 +8,25 @@ export interface RepOverviewRow {
   overdue: number
   meetings: number
   longNoContact: number
-  kolThisWeek: number
-  threadsThisWeek: number
-  meetingsThisWeek: number
+  /** metric_key → 이번 달 실적 */
+  kpi: Record<string, number>
 }
 
-/** 관리자/매니저용 팀 현황판 — 담당자별 오늘 업무량 + KPI 진행 상황 */
-export function TeamOverview({ rows, unassignedCount }: { rows: RepOverviewRow[]; unassignedCount?: number }) {
+interface TeamOverviewProps {
+  rows: RepOverviewRow[]
+  /** 관리자가 설정에서 조정한 KPI 항목 — 열 구성이 이 목록을 그대로 따른다 */
+  metrics: KpiMetric[]
+  unassignedCount?: number
+}
+
+/** 관리자/매니저용 팀 현황판 — 담당자별 오늘 업무량 + 이번 달 KPI 진행 상황 */
+export function TeamOverview({ rows, metrics, unassignedCount }: TeamOverviewProps) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-semibold text-gray-900">팀 현황판</h3>
         <span className="text-xs text-gray-400">
-          KPI 목표(주): KOL {KPI_TARGETS.kolPerWeek}건 · 스레드 {KPI_TARGETS.threadsPerWeek}건 · 미팅 {KPI_TARGETS.meetingsPerWeek}건
+          월 KPI 목표: {metrics.map(m => `${m.label} ${m.monthly_target}건`).join(' · ') || '설정 없음'}
         </span>
         {unassignedCount !== undefined && unassignedCount > 0 && (
           <Link
@@ -44,9 +50,11 @@ export function TeamOverview({ rows, unassignedCount }: { rows: RepOverviewRow[]
                 <th className="px-4 py-3 text-center whitespace-nowrap">오늘 액션</th>
                 <th className="px-4 py-3 text-center whitespace-nowrap">오늘 미팅</th>
                 <th className="px-4 py-3 text-center whitespace-nowrap">장기 미연락</th>
-                <th className="px-4 py-3 text-center whitespace-nowrap">KOL (주)</th>
-                <th className="px-4 py-3 text-center whitespace-nowrap">스레드 (주)</th>
-                <th className="px-4 py-3 text-center whitespace-nowrap">미팅 (주)</th>
+                {metrics.map(m => (
+                  <th key={m.key} className="px-4 py-3 text-center whitespace-nowrap">
+                    {m.label} (월)
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -72,9 +80,9 @@ export function TeamOverview({ rows, unassignedCount }: { rows: RepOverviewRow[]
                   <td className={`px-4 py-3 text-center ${r.longNoContact > 0 ? 'text-orange-600' : 'text-gray-300'}`}>
                     {r.longNoContact > 0 ? r.longNoContact : '—'}
                   </td>
-                  <KpiCell value={r.kolThisWeek} target={KPI_TARGETS.kolPerWeek} />
-                  <KpiCell value={r.threadsThisWeek} target={KPI_TARGETS.threadsPerWeek} />
-                  <KpiCell value={r.meetingsThisWeek} target={KPI_TARGETS.meetingsPerWeek} />
+                  {metrics.map(m => (
+                    <KpiCell key={m.key} value={r.kpi[m.key] ?? 0} target={m.monthly_target} />
+                  ))}
                 </tr>
               ))}
             </tbody>
@@ -86,10 +94,12 @@ export function TeamOverview({ rows, unassignedCount }: { rows: RepOverviewRow[]
 }
 
 function KpiCell({ value, target }: { value: number; target: number }) {
-  const done = value >= target
+  const done = target > 0 && value >= target
   return (
     <td className={`px-4 py-3 text-center whitespace-nowrap font-medium ${done ? 'text-green-600' : 'text-gray-600'}`}>
-      {value}<span className="text-gray-400 font-normal">/{target}</span>{done && ' ✓'}
+      {value}
+      {target > 0 && <span className="text-gray-400 font-normal">/{target}</span>}
+      {done && ' ✓'}
     </td>
   )
 }

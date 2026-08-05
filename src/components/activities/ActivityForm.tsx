@@ -4,15 +4,23 @@ import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ACTIVITY_TYPE, ACTIVITY_RESULT } from '@/lib/constants'
 import { createActivity } from '@/app/(dashboard)/companies/activity-actions'
+import type { KpiMetric } from '@/lib/kpi'
 
 const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
 
-export function ActivityForm({ companyId }: { companyId: string }) {
+interface ActivityFormProps {
+  companyId: string
+  /** 미팅 KPI 항목 — '미팅'을 고르면 어떤 미팅인지 함께 받아 KPI로 집계한다 */
+  meetingMetrics?: KpiMetric[]
+}
+
+export function ActivityForm({ companyId, meetingMetrics = [] }: ActivityFormProps) {
   const router = useRouter()
   const formRef = useRef<HTMLFormElement>(null)
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [activityType, setActivityType] = useState('')
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -26,6 +34,7 @@ export function ActivityForm({ companyId }: { companyId: string }) {
         return
       }
       formRef.current?.reset()
+      setActivityType('')
       setOpen(false)
       router.refresh()
     })
@@ -49,11 +58,31 @@ export function ActivityForm({ companyId }: { companyId: string }) {
           <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
             활동 유형 <span className="text-red-500">*</span>
           </label>
-          <select name="activity_type" required className={inputCls}>
+          <select
+            name="activity_type"
+            required
+            value={activityType}
+            onChange={e => setActivityType(e.target.value)}
+            className={inputCls}
+          >
             <option value="">선택</option>
             {ACTIVITY_TYPE.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
+
+        {/* 미팅은 종류별로 KPI가 따로 잡히므로 여기서 골라 둔다 */}
+        {activityType === '미팅' && meetingMetrics.length > 0 && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+              미팅 종류 <span className="text-purple-600 normal-case">(KPI 집계)</span>
+            </label>
+            <select name="meeting_type" className={inputCls} defaultValue={
+              (meetingMetrics.find(m => m.is_default) ?? meetingMetrics[0]).key
+            }>
+              {meetingMetrics.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
             활동 결과

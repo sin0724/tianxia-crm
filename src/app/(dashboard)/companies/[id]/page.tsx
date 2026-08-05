@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/Header'
 import { CompanyDetailClient } from '@/components/companies/CompanyDetailClient'
 import { getCompany, getProfiles, getCategorySourceOptions } from '@/lib/companies'
 import { getActivities } from '@/lib/activities'
+import { getKpiMetrics } from '@/lib/kpi'
 import { requireAuth } from '@/lib/auth'
 
 interface PageProps {
@@ -14,14 +15,17 @@ export default async function CompanyDetailPage({ params }: PageProps) {
   const profile = await requireAuth()
   const { id } = await params
 
-  const [company, profiles, activities, options] = await Promise.all([
+  const [company, profiles, activities, options, kpiMetrics] = await Promise.all([
     getCompany(id),
     getProfiles(),
     getActivities(id),
     getCategorySourceOptions(),
+    getKpiMetrics(),
   ])
 
   if (!company) notFound()
+
+  const meetingMetrics = kpiMetrics.filter(m => m.kind === 'meeting')
 
   return (
     <>
@@ -39,6 +43,7 @@ export default async function CompanyDetailPage({ params }: PageProps) {
           canDelete={profile.role === 'admin'}
           categoryOptions={options.categories}
           sourceOptions={options.sources}
+          meetingMetrics={meetingMetrics}
         />
       </main>
     </>

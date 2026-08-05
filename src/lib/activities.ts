@@ -8,6 +8,8 @@ export interface Activity {
   activity_result: string | null
   memo: string | null
   next_action_at: string | null
+  /** '미팅' 활동일 때 어떤 미팅인지 (kpi_metrics.key) — KPI 집계 항목과 같다 */
+  meeting_type: string | null
   created_at: string
   profiles: { name: string } | null
 }
@@ -16,7 +18,7 @@ export async function getActivities(companyId: string): Promise<Activity[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('activities')
-    .select('id, company_id, user_id, activity_type, activity_result, memo, next_action_at, created_at, profiles(name)')
+    .select('id, company_id, user_id, activity_type, activity_result, memo, next_action_at, meeting_type, created_at, profiles(name)')
     .eq('company_id', companyId)
     .order('created_at', { ascending: false })
     .limit(100)

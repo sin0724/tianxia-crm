@@ -4,6 +4,7 @@ import { CompanyFilters } from '@/components/companies/CompanyFilters'
 import { CompanyTable } from '@/components/companies/CompanyTable'
 import { Pagination } from '@/components/companies/Pagination'
 import { getCompanies, getProfiles, getCategorySourceOptions, getNewAssignedCount } from '@/lib/companies'
+import { getKpiMetrics } from '@/lib/kpi'
 import { requireAuth } from '@/lib/auth'
 import type { CompanyListFilters } from '@/lib/companies'
 
@@ -27,11 +28,12 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
     page:         sp.page ? parseInt(sp.page, 10) || 1 : 1,
   }
 
-  const [result, profiles, options, newCount] = await Promise.all([
+  const [result, profiles, options, newCount, kpiMetrics] = await Promise.all([
     getCompanies(filters),
     getProfiles(),
     getCategorySourceOptions(),
     getNewAssignedCount(),
+    getKpiMetrics(),
   ])
 
   return (
@@ -76,6 +78,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
           profiles={profiles}
           categories={options.categories}
           sources={options.sources}
+          meetingMetrics={kpiMetrics.filter(m => m.kind === 'meeting')}
         />
         <Pagination page={result.page} pageCount={result.pageCount} total={result.total} />
       </main>

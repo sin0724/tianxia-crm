@@ -7,6 +7,7 @@ import { createCompany, updateCompany } from '@/app/(dashboard)/companies/action
 import { findDuplicateCandidates } from '@/app/(dashboard)/companies/duplicate-actions'
 import { DuplicateModal } from './DuplicateModal'
 import type { Company, ProfileOption } from '@/lib/companies'
+import type { KpiMetric } from '@/lib/kpi'
 import type { DuplicateCandidate } from '@/app/(dashboard)/companies/duplicate-actions'
 
 interface CompanyFormProps {
@@ -17,6 +18,8 @@ interface CompanyFormProps {
   /** DB에 존재하는 값 + 기본 목록 (자유 입력 자동완성용) */
   categoryOptions?: string[]
   sourceOptions?: string[]
+  /** 미팅 KPI 항목 — 상태를 '미팅진행'으로 바꿀 때 어떤 미팅인지 함께 받는다 */
+  meetingMetrics?: KpiMetric[]
 }
 
 function toDate(v: string | null | undefined) {
@@ -37,10 +40,11 @@ const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-
 
 export function CompanyForm({
   profiles, defaultValues: d = {}, companyId, onCancel,
-  categoryOptions, sourceOptions,
+  categoryOptions, sourceOptions, meetingMetrics = [],
 }: CompanyFormProps) {
   const categories = categoryOptions ?? [...COMPANY_CATEGORY]
   const sources = sourceOptions ?? [...COMPANY_SOURCE]
+  const [status, setStatus] = useState(d.status ?? '신규문의')
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -185,10 +189,32 @@ export function CompanyForm({
         {/* 영업 현황 */}
         <Card title="영업 현황">
           <Field label="현재 상태">
-            <select name="status" defaultValue={d.status ?? '신규문의'} className={inputCls}>
+            <select
+              name="status"
+              value={status}
+              onChange={e => setStatus(e.target.value)}
+              className={inputCls}
+            >
               {COMPANY_STATUS.map(v => <option key={v} value={v}>{v}</option>)}
             </select>
           </Field>
+
+          {/* '미팅진행'으로 새로 바뀌면 미팅 활동 + 담당자 월 KPI가 자동 기록된다.
+              어떤 미팅이었는지는 여기서 고른 종류로 집계된다. */}
+          {status === '미팅진행' && d.status !== '미팅진행' && meetingMetrics.length > 0 && (
+            <Field label="미팅 종류 (KPI 자동 기록)">
+              <select
+                name="meeting_kpi_type"
+                className={inputCls}
+                defaultValue={(meetingMetrics.find(m => m.is_default) ?? meetingMetrics[0]).key}
+              >
+                {meetingMetrics.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+              </select>
+              <p className="mt-1 text-xs text-purple-600">
+                저장하면 이 미팅이 담당자의 이번 달 KPI로 바로 집계됩니다.
+              </p>
+            </Field>
+          )}
           <Field label="관심도">
             <select name="interest_level" defaultValue={d.interest_level?.toString() ?? ''} className={inputCls}>
               <option value="">선택</option>

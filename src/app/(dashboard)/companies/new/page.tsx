@@ -1,13 +1,15 @@
 import { Header } from '@/components/layout/Header'
 import { CompanyForm } from '@/components/companies/CompanyForm'
 import { getProfiles, getCategorySourceOptions } from '@/lib/companies'
+import { getKpiMetrics } from '@/lib/kpi'
 import { requireAuth } from '@/lib/auth'
 
 export default async function NewCompanyPage() {
   await requireAuth()
-  const [profiles, options] = await Promise.all([
+  const [profiles, options, kpiMetrics] = await Promise.all([
     getProfiles(),
     getCategorySourceOptions(),
+    getKpiMetrics(),
   ])
 
   return (
@@ -18,6 +20,7 @@ export default async function NewCompanyPage() {
           profiles={profiles}
           categoryOptions={options.categories}
           sourceOptions={options.sources}
+          meetingMetrics={kpiMetrics.filter(m => m.kind === 'meeting')}
         />
       </main>
     </>

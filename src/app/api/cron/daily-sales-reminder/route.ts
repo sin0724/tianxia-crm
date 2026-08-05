@@ -8,6 +8,7 @@ import {
   todayLabelKST, fmtDateKST, fmtDateTimeKST,
 } from '@/lib/datetime'
 import { parseVisitNote } from '@/lib/visit-note'
+import { logMeetingKpiEntries, fetchDefaultMeetingMetricKey } from '@/lib/kpi-log'
 
 // ── Admin client (RLS 우회, cron job에는 user session이 없음) ──
 
@@ -85,7 +86,7 @@ async function fetchAll(supabase: Supabase) {
 
 // ── 지난 미팅 자동 기록 ────────────────────────────────────────
 // 어제(KST) 미팅이 예정돼 있던 거래처에 '미팅' 활동을 자동 기록한다.
-// → 미팅 KPI(월 12건)가 meeting_at만 등록해도 자동 집계됨.
+// → meeting_at만 등록해도 미팅 KPI(kpi_entries)에 자동 집계된다.
 // 같은 기간에 수동으로 '미팅' 활동을 남긴 거래처는 건너뛴다 (중복 방지).
 // 취소된 미팅은 meeting_at을 비우거나 날짜를 옮겨두면 기록되지 않는다.
 
@@ -111,11 +112,21 @@ async function autoLogCompletedMeetings(supabase: Supabase): Promise<number> {
   const dedupeSince = new Date(todayStart.getTime() - 7 * DAY_MS).toISOString()
   const { data: logged } = await supabase
     .from('activities')
-    .select('company_id')
+    .select('company_id, meeting_type')
     .eq('activity_type', '미팅')
     .gte('created_at', dedupeSince)
     .in('company_id', companies.map(c => c.id))
-  const loggedSet = new Set((logged ?? []).map(a => a.company_id))
+
+  // 미팅 종류를 알 수 없으므로 기본 미팅 항목으로 집계한다.
+  // 담당자가 할 일 화면의 KPI 기록에서 종류를 바로잡을 수 있다.
+  const metricKey = await fetchDefaultMeetingMetricKey(supabase)
+
+  // 같은 종류가 이미 기록된 거래처만 건너뛴다 (종류가 다르면 별개 실적)
+  const loggedSet = new Set(
+    (logged ?? [])
+      .filter(a => a.meeting_type == null || a.meeting_type === metricKey)
+      .map(a => a.company_id),
+  )
 
   const inserts = companies
     .filter(c => !loggedSet.has(c.id))
@@ -126,11 +137,18 @@ async function autoLogCompletedMeetings(supabase: Supabase): Promise<number> {
       activity_result: null,
       memo:            null, // latest_note를 덮어쓰지 않도록 비워둠
       next_action_at:  null,
+      meeting_type:    metricKey,
     }))
   if (inserts.length === 0) return 0
 
-  const { error } = await supabase.from('activities').insert(inserts)
-  return error ? 0 : inserts.length
+  const { data: created, error } = await supabase
+    .from('activities')
+    .insert(inserts)
+    .select('id, company_id, user_id, meeting_type, created_at')
+  if (error) return 0
+
+  await logMeetingKpiEntries(supabase, created ?? [], metricKey)
+  return inserts.length
 }
 
 // ── KOL 방문 예정 정리 ────────────────────────────────────────

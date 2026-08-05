@@ -8,8 +8,9 @@ import {
   getTodayActions, getOverdueActions, getTodayMeetings,
   getLongNoContact, type TaskCompany,
 } from '@/lib/tasks'
-import { getKpiData, getMyTodayKpiEntries, type KpiRow } from '@/lib/kpi'
+import { getKpiData, getKpiMetrics, getMyMonthKpiEntries, type KpiRow } from '@/lib/kpi'
 import { CLOSED_STATUSES } from '@/lib/constants'
+import { monthLabelKST } from '@/lib/datetime'
 import { requireAuth, isAdminOrManager } from '@/lib/auth'
 
 interface PageProps {
@@ -28,9 +29,7 @@ function buildOverviewRows(
     overdue: 0,
     meetings: 0,
     longNoContact: 0,
-    kolThisWeek: k.kolThisWeek,
-    threadsThisWeek: k.threadsThisWeek,
-    meetingsThisWeek: k.meetingsThisWeek,
+    kpi: k.counts,
   }))
   const byId = new Map(rows.map(r => [r.userId, r]))
 
@@ -53,14 +52,15 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const filters = mineOnly ? { assigned_to: profile.id } : {}
 
   // 장기 미연락은 감독자 팀 현황판 집계에만 쓰고, 목록 섹션으로는 노출하지 않는다.
-  const [todayActions, overdueActions, todayMeetings, longNoContact, kpiRows, todayEntries] =
+  const [todayActions, overdueActions, todayMeetings, longNoContact, kpiRows, kpiMetrics, monthEntries] =
     await Promise.all([
       getTodayActions(filters),
       getOverdueActions(filters),
       getTodayMeetings(filters),
       getLongNoContact(filters),
       getKpiData(profile),
-      profile.role === 'sales' ? getMyTodayKpiEntries(profile.id) : Promise.resolve([]),
+      getKpiMetrics(),
+      profile.role === 'sales' ? getMyMonthKpiEntries(profile.id) : Promise.resolve([]),
     ])
 
   // 미배정(배분 대기) 건수 — 감독자에게만 표시
@@ -90,9 +90,14 @@ export default async function TasksPage({ searchParams }: PageProps) {
       <main className="flex-1 p-4 sm:p-6 max-w-3xl space-y-4">
         {/* 영업사원: 개인 KPI 퀵 로그 / 관리자·매니저: 팀 현황판 */}
         {profile.role === 'sales' ? (
-          <KpiQuickLog myKpi={myKpi} todayEntries={todayEntries} />
+          <KpiQuickLog
+            metrics={kpiMetrics}
+            myKpi={myKpi}
+            monthEntries={monthEntries}
+            monthLabel={monthLabelKST()}
+          />
         ) : !mineOnly ? (
-          <TeamOverview rows={overviewRows} unassignedCount={unassignedCount} />
+          <TeamOverview rows={overviewRows} metrics={kpiMetrics} unassignedCount={unassignedCount} />
         ) : null}
 
         {isSupervisor && (

@@ -38,7 +38,13 @@ function ResultBadge({ result }: { result: string }) {
   )
 }
 
-export function ActivityList({ activities }: { activities: Activity[] }) {
+interface ActivityListProps {
+  activities: Activity[]
+  /** KPI 항목 key → 이름 (미팅 활동이 어떤 KPI로 잡혔는지 보여주기 위함) */
+  meetingLabels?: Record<string, string>
+}
+
+export function ActivityList({ activities, meetingLabels = {} }: ActivityListProps) {
   if (activities.length === 0) {
     return (
       <p className="text-sm text-gray-400 text-center py-6">
@@ -54,6 +60,14 @@ export function ActivityList({ activities }: { activities: Activity[] }) {
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <TypeBadge type={a.activity_type} />
+              {a.activity_type === '미팅' && a.meeting_type && (
+                <span
+                  className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700"
+                  title="이 미팅은 담당자의 월 KPI로 자동 집계되었습니다"
+                >
+                  {meetingLabels[a.meeting_type] ?? a.meeting_type} · KPI 반영
+                </span>
+              )}
               {a.activity_result && <ResultBadge result={a.activity_result} />}
               <span className="text-xs text-gray-400 font-medium">{a.profiles?.name ?? '—'}</span>
             </div>

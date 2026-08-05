@@ -4,9 +4,10 @@ import { BarChart } from '@/components/dashboard/BarChart'
 import { AssignmentBanner } from '@/components/dashboard/AssignmentBanner'
 import { requireAuth } from '@/lib/auth'
 import { getDashboardData } from '@/lib/dashboard'
-import { getKpiData } from '@/lib/kpi'
+import { getKpiData, getKpiMetrics } from '@/lib/kpi'
 import { getUnreadNotifications } from '@/lib/notifications'
-import { STAGES, STAGE_COLOR, KPI_TARGETS } from '@/lib/constants'
+import { STAGES, STAGE_COLOR } from '@/lib/constants'
+import { monthLabelKST } from '@/lib/datetime'
 import type { ChartRow } from '@/lib/dashboard'
 
 // ── 헬퍼 ──────────────────────────────────────────────────────
@@ -56,11 +57,14 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
+// 목표 0 = 집계만 하는 항목 — 진행률 대신 건수만 보여준다
 function KpiCell({ value, target }: { value: number; target: number }) {
-  const done = value >= target
+  const done = target > 0 && value >= target
   return (
     <td className={`px-4 py-3 whitespace-nowrap font-medium ${done ? 'text-green-600' : 'text-gray-700'}`}>
-      {value} <span className="text-gray-400 font-normal">/ {target}</span>{done && ' ✓'}
+      {value}
+      {target > 0 && <span className="text-gray-400 font-normal"> / {target}</span>}
+      {done && ' ✓'}
     </td>
   )
 }
@@ -82,10 +86,11 @@ function toContractCountItems(rows: ChartRow[]) {
 
 export default async function DashboardPage() {
   const profile = await requireAuth()
-  const [{ stats, byAssignee, bySource, byCategory, byStatus, cohorts }, kpiRows, notifications] =
+  const [{ stats, byAssignee, bySource, byCategory, byStatus, cohorts }, kpiRows, kpiMetrics, notifications] =
     await Promise.all([
       getDashboardData(profile),
       getKpiData(profile),
+      getKpiMetrics(),
       getUnreadNotifications(profile.id),
     ])
 
@@ -150,30 +155,43 @@ export default async function DashboardPage() {
         </div>
 
         {/* ── 영업사원 KPI ──────────────────────────────── */}
+        {/* 항목·목표치는 설정 > KPI 항목 관리에서 관리자가 조정한다 (월 단위 집계) */}
         <SectionTitle>
-          영업사원 KPI (이번 주) — KOL 제안 {KPI_TARGETS.kolPerWeek}건 · 스레드 {KPI_TARGETS.threadsPerWeek}건 · 미팅 {KPI_TARGETS.meetingsPerWeek}건
+          영업사원 KPI — {monthLabelKST()} 누적
+          {profile.role === 'admin' && (
+            <Link href="/settings" className="ml-2 text-xs font-normal text-blue-600 hover:underline">
+              항목·목표 조정 →
+            </Link>
+          )}
         </SectionTitle>
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['담당자', 'KOL 제안 (주)', '스레드 (주)', '미팅 (주)'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                      {h}
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                    담당자
+                  </th>
+                  {kpiMetrics.map(m => (
+                    <th key={m.key} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                      {m.label} ({m.monthly_target})
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {kpiRows.length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">데이터 없음</td></tr>
+                  <tr>
+                    <td colSpan={kpiMetrics.length + 1} className="px-4 py-6 text-center text-gray-400">
+                      데이터 없음
+                    </td>
+                  </tr>
                 ) : kpiRows.map(r => (
                   <tr key={r.userId}>
                     <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{r.name}</td>
-                    <KpiCell value={r.kolThisWeek} target={KPI_TARGETS.kolPerWeek} />
-                    <KpiCell value={r.threadsThisWeek} target={KPI_TARGETS.threadsPerWeek} />
-                    <KpiCell value={r.meetingsThisWeek} target={KPI_TARGETS.meetingsPerWeek} />
+                    {kpiMetrics.map(m => (
+                      <KpiCell key={m.key} value={r.counts[m.key] ?? 0} target={m.monthly_target} />
+                    ))}
                   </tr>
                 ))}
               </tbody>

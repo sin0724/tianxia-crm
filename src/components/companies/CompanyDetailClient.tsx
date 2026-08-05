@@ -8,6 +8,7 @@ import { ActivityList } from '@/components/activities/ActivityList'
 import { deleteCompany } from '@/app/(dashboard)/companies/actions'
 import type { Company, ProfileOption } from '@/lib/companies'
 import type { Activity } from '@/lib/activities'
+import type { KpiMetric } from '@/lib/kpi'
 
 function fmtDate(s: string | null) {
   if (!s) return '—'
@@ -39,12 +40,15 @@ interface CompanyDetailClientProps {
   canDelete?: boolean
   categoryOptions?: string[]
   sourceOptions?: string[]
+  /** 미팅 KPI 항목 (대만마케팅·공구·설명회 등) — 상태 변경/활동 기록 시 종류 선택용 */
+  meetingMetrics?: KpiMetric[]
 }
 
 export function CompanyDetailClient({
   company, profiles, activities,
-  canDelete = false, categoryOptions, sourceOptions,
+  canDelete = false, categoryOptions, sourceOptions, meetingMetrics = [],
 }: CompanyDetailClientProps) {
+  const meetingLabels = Object.fromEntries(meetingMetrics.map(m => [m.key, m.label]))
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -72,6 +76,7 @@ export function CompanyDetailClient({
           onCancel={() => setEditing(false)}
           categoryOptions={categoryOptions}
           sourceOptions={sourceOptions}
+          meetingMetrics={meetingMetrics}
         />
       </div>
     )
@@ -197,8 +202,8 @@ export function CompanyDetailClient({
       {/* 활동 로그 */}
       <Card title={`활동 로그 (${activities.length})`}>
         <div className="space-y-3">
-          <ActivityForm companyId={company.id} />
-          <ActivityList activities={activities} />
+          <ActivityForm companyId={company.id} meetingMetrics={meetingMetrics} />
+          <ActivityList activities={activities} meetingLabels={meetingLabels} />
         </div>
       </Card>
     </div>

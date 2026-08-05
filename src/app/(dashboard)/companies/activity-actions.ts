@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { requireAuth } from '@/lib/auth'
 import { kstDateString } from '@/lib/datetime'
+import { getDefaultMeetingMetricKey } from '@/lib/kpi'
+import { logMeetingKpiEntries } from '@/lib/kpi-log'
 import { notifyDataRequest } from '@/lib/notifications'
 
 interface ActionResult {
@@ -28,16 +30,31 @@ export async function createActivity(
   const activity_result = str('activity_result')
   const memo = str('memo')
 
-  const { error } = await supabase.from('activities').insert({
-    company_id:      companyId,
-    user_id:         profile.id,
-    activity_type,
-    activity_result,
-    memo,
-    next_action_at:  str('next_action_at'),
-  })
+  // 미팅이면 어떤 미팅인지(KPI 항목)를 함께 저장한다. 고르지 않았으면 기본 미팅 항목.
+  const meeting_type =
+    activity_type === '미팅'
+      ? str('meeting_type') ?? (await getDefaultMeetingMetricKey())
+      : null
+
+  const { data: created, error } = await supabase
+    .from('activities')
+    .insert({
+      company_id:      companyId,
+      user_id:         profile.id,
+      activity_type,
+      activity_result,
+      memo,
+      next_action_at:  str('next_action_at'),
+      meeting_type,
+    })
+    .select('id, company_id, user_id, meeting_type, created_at')
 
   if (error) return { error: error.message }
+
+  // 미팅 활동은 곧바로 KPI 실적으로도 잡힌다 (할 일 화면의 KPI 기록에서 확인 가능)
+  if (activity_type === '미팅') {
+    await logMeetingKpiEntries(supabase, created ?? [], meeting_type)
+  }
 
   // 알림: 활동 결과가 자료 요청인 경우
   if (activity_result === '자료 요청') {
@@ -60,6 +77,10 @@ export async function createActivity(
   // DB trigger가 companies의 last_contacted_at, latest_note, next_action_at을 자동 갱신함
   revalidatePath(`/companies/${companyId}`)
   revalidatePath('/companies')
+  if (activity_type === '미팅') {
+    revalidatePath('/tasks')
+    revalidatePath('/dashboard')
+  }
 }
 
 /**
@@ -83,16 +104,26 @@ export async function quickLogActivity(
     next_action_at = kstDateString(d)
   }
 
-  const { error } = await supabase.from('activities').insert({
-    company_id:      companyId,
-    user_id:         profile.id,
-    activity_type:   activityType,
-    activity_result: activityResult,
-    memo:            memo?.trim() || null,
-    next_action_at,
-  })
+  const meetingType = activityType === '미팅' ? await getDefaultMeetingMetricKey() : null
+
+  const { data: created, error } = await supabase
+    .from('activities')
+    .insert({
+      company_id:      companyId,
+      user_id:         profile.id,
+      activity_type:   activityType,
+      activity_result: activityResult,
+      memo:            memo?.trim() || null,
+      next_action_at,
+      meeting_type:    meetingType,
+    })
+    .select('id, company_id, user_id, meeting_type, created_at')
 
   if (error) return { error: error.message }
+
+  if (activityType === '미팅') {
+    await logMeetingKpiEntries(supabase, created ?? [], meetingType)
+  }
 
   // '없음'(nextDays === 0)을 명시적으로 고른 경우 다음 액션일을 비운다.
   // 활동 INSERT 트리거가 next_action_at을 COALESCE로 보존하므로,
