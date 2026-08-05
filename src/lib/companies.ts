@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { kstStartOfDay } from '@/lib/datetime'
+import { kstStartOfDay, kstMonthString } from '@/lib/datetime'
 import { STAGE_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE, type Stage } from '@/lib/constants'
 
 export interface Company {
@@ -216,12 +216,21 @@ export interface AssignmentBatch {
   perAssignee: { name: string; count: number }[]
 }
 
+/** 월(KST) 단위 배분 집계 — 담당자별 건수 */
+export interface AssignmentMonth {
+  month: string // "YYYY-MM" (KST)
+  total: number
+  counts: Record<string, number> // 담당자 id → 건수
+}
+
 export interface AssignmentOverview {
   unassigned: number
   loads: AssigneeLoad[]
   batches: AssignmentBatch[]
-  /** 최근 50회(batches) 동안 담당자별로 받은 총 건수 — 형평성 요약 */
-  recentTotals: { name: string; count: number }[]
+  /** 월별 배분 합계 — 최근 달부터 내림차순, 배분 이력 전체 대상 */
+  monthly: AssignmentMonth[]
+  /** monthly 표의 열 — 기간 전체 배분량 순 담당자 목록 */
+  monthlyAssignees: { id: string; name: string; total: number }[]
 }
 
 export async function getAssignmentOverview(): Promise<AssignmentOverview> {
@@ -236,6 +245,7 @@ export async function getAssignmentOverview(): Promise<AssignmentOverview> {
   let unassigned = 0
   const totals = new Map<string, { total: number; uncontacted: number }>()
   const batchMap = new Map<string, Map<string, number>>() // assigned_at → (담당자 → 건수)
+  const monthMap = new Map<string, Map<string, number>>() // "YYYY-MM"(KST) → (담당자 → 건수)
 
   for (const r of rows ?? []) {
     if (!r.assigned_to) {
@@ -251,6 +261,11 @@ export async function getAssignmentOverview(): Promise<AssignmentOverview> {
       const perAssignee = batchMap.get(r.assigned_at) ?? new Map<string, number>()
       perAssignee.set(r.assigned_to, (perAssignee.get(r.assigned_to) ?? 0) + 1)
       batchMap.set(r.assigned_at, perAssignee)
+
+      const month = kstMonthString(new Date(r.assigned_at))
+      const perMonth = monthMap.get(month) ?? new Map<string, number>()
+      perMonth.set(r.assigned_to, (perMonth.get(r.assigned_to) ?? 0) + 1)
+      monthMap.set(month, perMonth)
     }
   }
 
@@ -279,18 +294,27 @@ export async function getAssignmentOverview(): Promise<AssignmentOverview> {
     .sort((a, b) => b.assignedAt.localeCompare(a.assignedAt))
     .slice(0, 50)
 
-  // 최근 50회 합계 — 담당자별 누적 배분 건수
-  const recentByName = new Map<string, number>()
-  for (const b of batches) {
-    for (const p of b.perAssignee) {
-      recentByName.set(p.name, (recentByName.get(p.name) ?? 0) + p.count)
+  // 월별 배분 합계 — 회차 수 제한 없이 배분 이력 전체를 KST 월로 묶는다
+  const monthly: AssignmentMonth[] = [...monthMap.entries()]
+    .map(([month, perAssignee]) => ({
+      month,
+      total: [...perAssignee.values()].reduce((s, n) => s + n, 0),
+      counts: Object.fromEntries(perAssignee),
+    }))
+    .sort((a, b) => b.month.localeCompare(a.month))
+
+  // 표의 열: 전체 기간 배분량이 많은 담당자 순
+  const assigneeTotals = new Map<string, number>()
+  for (const m of monthly) {
+    for (const [id, count] of Object.entries(m.counts)) {
+      assigneeTotals.set(id, (assigneeTotals.get(id) ?? 0) + count)
     }
   }
-  const recentTotals = [...recentByName.entries()]
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ko'))
+  const monthlyAssignees = [...assigneeTotals.entries()]
+    .map(([id, total]) => ({ id, name: nameById.get(id) ?? '(알 수 없음)', total }))
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'ko'))
 
-  return { unassigned, loads, batches, recentTotals }
+  return { unassigned, loads, batches, monthly, monthlyAssignees }
 }
 
 export async function getProfiles(): Promise<ProfileOption[]> {

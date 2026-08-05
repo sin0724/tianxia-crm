@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Header } from '@/components/layout/Header'
 import { requireRole } from '@/lib/auth'
 import { getAssignmentOverview } from '@/lib/companies'
+import { fmtMonthLabelKST } from '@/lib/datetime'
 
 // 배분 현황 (admin/manager 전용)
 // 담당자별 보유 거래처와 배분 회차별 내역을 보여줘
@@ -19,7 +20,7 @@ function fmtDateTime(s: string) {
 export default async function AssignmentsPage() {
   const profile = await requireRole(['admin', 'manager'])
   const isAdmin = profile.role === 'admin'
-  const { unassigned, loads, batches, recentTotals } = await getAssignmentOverview()
+  const { unassigned, loads, batches, monthly, monthlyAssignees } = await getAssignmentOverview()
   const maxLoad = Math.max(1, ...loads.map(l => l.total))
 
   return (
@@ -99,18 +100,51 @@ export default async function AssignmentsPage() {
         <>
         <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <h2 className="px-4 py-3 text-sm font-semibold text-gray-900 border-b border-gray-200">
-            담당자별 배분 합계 <span className="font-normal text-gray-400">— 최근 50회 기준</span>
+            담당자별 배분 합계 <span className="font-normal text-gray-400">— 월별 (배정 시각 기준)</span>
           </h2>
-          {recentTotals.length === 0 ? (
+          {monthly.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-gray-400">배분 이력이 없습니다.</p>
           ) : (
-            <div className="flex flex-wrap gap-2 px-4 py-3">
-              {recentTotals.map(t => (
-                <span key={t.name} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full text-sm">
-                  <span className="font-medium text-gray-900">{t.name}</span>
-                  <span className="text-blue-700 font-semibold tabular-nums">{t.count}건</span>
-                </span>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-100">
+                    <th className="px-4 py-2 font-medium whitespace-nowrap">월</th>
+                    <th className="px-4 py-2 font-medium text-right whitespace-nowrap">합계</th>
+                    {monthlyAssignees.map(a => (
+                      <th key={a.id} className="px-4 py-2 font-medium text-right whitespace-nowrap">{a.name}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthly.map(m => (
+                    <tr key={m.month} className="border-b border-gray-50 last:border-0">
+                      <td className="px-4 py-2.5 whitespace-nowrap font-medium text-gray-900 tabular-nums">
+                        {fmtMonthLabelKST(m.month)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium">{m.total}건</td>
+                      {monthlyAssignees.map(a => (
+                        <td key={a.id} className="px-4 py-2.5 text-right tabular-nums">
+                          {m.counts[a.id]
+                            ? <span className="text-gray-900">{m.counts[a.id]}건</span>
+                            : <span className="text-gray-300">—</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50 border-t border-gray-200 text-gray-900">
+                    <td className="px-4 py-2.5 whitespace-nowrap font-semibold">전체</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold">
+                      {monthlyAssignees.reduce((s, a) => s + a.total, 0)}건
+                    </td>
+                    {monthlyAssignees.map(a => (
+                      <td key={a.id} className="px-4 py-2.5 text-right tabular-nums font-semibold">{a.total}건</td>
+                    ))}
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           )}
         </section>
@@ -147,6 +181,7 @@ export default async function AssignmentsPage() {
         </section>
 
         <p className="text-xs text-gray-400">
+          월별 합계는 배분 이력 전체를 한국 시간(KST) 월로 묶은 값이고, 아래 배분 이력은 최근 50회만 보여줍니다.
           이력은 거래처에 남은 마지막 배정 기록으로 계산됩니다. 이후 다른 담당자에게 재배정된 건은
           새 배정 회차로 옮겨져 집계되며, 삭제된 거래처는 이력에서 빠집니다.
         </p>

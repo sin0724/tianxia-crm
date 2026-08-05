@@ -49,6 +49,12 @@ export function kstDateString(base: Date = new Date()): string {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
 
+/** KST 기준 월 "YYYY-MM" — 월 단위 집계 키 */
+export function kstMonthString(base: Date = new Date()): string {
+  const { y, m } = kstCalendar(base)
+  return `${y}-${String(m + 1).padStart(2, '0')}`
+}
+
 /** "YYYY-MM-DD"(KST 달력) → 그날 00:00:00의 ISO 문자열 */
 export function kstDayStartISO(date: string): string {
   const [y, m, d] = date.split('-').map(Number)
@@ -115,6 +121,12 @@ export function fmtFullDateTimeKST(s: string | null): string {
     timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
   })
+}
+
+/** "2026-08"(KST 월 키) → "2026년 8월" */
+export function fmtMonthLabelKST(month: string): string {
+  const [y, m] = month.split('-')
+  return `${y}년 ${Number(m)}월`
 }
 
 /** "2026년 8월" 형식 — 월 단위 KPI 집계 구간 표기용 */
