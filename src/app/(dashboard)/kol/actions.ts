@@ -4,7 +4,10 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, canManageKol } from '@/lib/auth'
 import { logKolAudit, diffKolFields, summarizeChanges, describeKol, summarizeNames } from '@/lib/kol-audit'
-import { normalizeHandle, parseFollowers, parseAmount, sanitizeDeliverables } from '@/lib/kol-fields'
+import {
+  normalizeHandle, parseFollowers, parseAmount, sanitizeDeliverables,
+  normalizeKolName, isSimilarKolName, KOL_NAME_SCAN_LIMIT,
+} from '@/lib/kol-fields'
 import { getKolCategoryNames } from '@/lib/kol-categories'
 import { parseVisitNote } from '@/lib/visit-note'
 import { kstDateString } from '@/lib/datetime'
@@ -122,6 +125,34 @@ function friendlyError(message: string, code?: string): string {
   if (code === '23505') return '이미 등록된 인스타그램 핸들입니다. 기존 KOL을 검색해보세요.'
   if (code === '42501' || /row-level security/i.test(message)) return 'KOL 등록/수정은 관리자 또는 KOL 담당자만 가능합니다.'
   return message
+}
+
+export interface SimilarKol {
+  id: string
+  name: string
+  instagram_handle: string | null
+  followers: number | null
+}
+
+/**
+ * 단건 등록 전 이름 유사 KOL을 찾는다 — 엑셀 가져오기의 중복 검사와 같은 기준.
+ * IG 핸들 중복은 DB UNIQUE가 막아주지만, 핸들이 없거나 다른 계정으로 적힌 같은 사람은
+ * 이름으로만 잡을 수 있다. 등록을 막지는 않고 담당자에게 확인만 요청한다.
+ */
+export async function findSimilarKols(rawName: string, instagram: string): Promise<SimilarKol[]> {
+  await requireAuth()
+
+  // 폼과 동일하게 이름이 비면 IG 핸들이 이름이 된다
+  const name = rawName.trim() || normalizeHandle(instagram) || ''
+  if (normalizeKolName(name).length < 2) return []
+
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('kols')
+    .select('id, name, instagram_handle, followers')
+    .limit(KOL_NAME_SCAN_LIMIT)
+
+  return (data ?? []).filter(k => isSimilarKolName(name, k.name))
 }
 
 export async function createKol(input: KolInput): Promise<ActionResult | undefined> {

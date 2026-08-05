@@ -4,7 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth, canManageKol } from '@/lib/auth'
 import { logKolAudit, summarizeNames } from '@/lib/kol-audit'
 import { parseDate } from '@/lib/csv'
-import { normalizeHandle, parseFollowers, parseCategories, resolveKolFee } from '@/lib/kol-fields'
+import {
+  normalizeHandle, parseFollowers, parseCategories, resolveKolFee,
+  normalizeKolName, isSimilarKolName, KOL_NAME_SCAN_LIMIT,
+} from '@/lib/kol-fields'
 import { getKolCategoryNames } from '@/lib/kol-categories'
 import { parseVisitNote } from '@/lib/visit-note'
 import { kstDateString } from '@/lib/datetime'
@@ -77,24 +80,17 @@ export async function checkKolDuplicates(
   }
 
   // 2) 이름 유사 (공백·기호 제거 후 포함 관계)
-  function normalizeName(name: string) {
-    return name.toLowerCase().replace(/[\s\(\)\[\]（）【】·•\-_.,'"@]/g, '')
-  }
-
   const { data: allNames } = await supabase
     .from('kols')
     .select('name')
-    .limit(2000)
+    .limit(KOL_NAME_SCAN_LIMIT)
 
   for (const c of candidates) {
     if (matchMap.has(c.idx) || !c.name) continue
-    const na = normalizeName(c.name)
-    if (na.length < 2) continue
+    if (normalizeKolName(c.name).length < 2) continue
 
     for (const ex of (allNames ?? [])) {
-      const nb = normalizeName(ex.name)
-      if (nb.length < 2) continue
-      if (na === nb || na.includes(nb) || nb.includes(na)) {
+      if (isSimilarKolName(c.name, ex.name)) {
         matchMap.set(c.idx, { idx: c.idx, matchedField: '이름 유사', existingName: ex.name })
         break
       }

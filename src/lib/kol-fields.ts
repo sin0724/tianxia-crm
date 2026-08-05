@@ -35,6 +35,24 @@ export function normalizeHandle(v: string | undefined | null): string | null {
   return handle || null
 }
 
+// 이름 유사 검사로 훑어오는 기존 KOL 수 상한 — 정규화 비교라 DB에서 거를 수 없어 앱에서 대조한다
+export const KOL_NAME_SCAN_LIMIT = 2000
+
+// 이름 중복 후보 판정 — 표기 차이("김민지 (뷰티)" vs "김민지")를 같은 사람으로 보기 위해
+// 공백·괄호·구분기호를 걷어낸 뒤 비교한다. 단건 등록과 엑셀 가져오기가 같은 기준을 쓴다.
+export function normalizeKolName(name: string): string {
+  return name.toLowerCase().replace(/[\s\(\)\[\]（）【】·•\-_.,'"@]/g, '')
+}
+
+// 완전 일치뿐 아니라 포함 관계도 후보로 본다 — 사람이 확인하는 경고라서
+// 오탐이 좀 있어도 놓치는 것보다 낫다. 2자 미만은 아무 이름에나 걸려 제외.
+export function isSimilarKolName(a: string, b: string): boolean {
+  const na = normalizeKolName(a)
+  const nb = normalizeKolName(b)
+  if (na.length < 2 || nb.length < 2) return false
+  return na === nb || na.includes(nb) || nb.includes(na)
+}
+
 // "95,000" / "95000명" / "9.5만" / "1.2만명" / "9.5천" → 95000. 해석 불가 시 null (행 자체는 살림)
 // 단위 없는 소수("2.3")는 "2.3만"에서 단위가 잘린 입력이므로 거부한다 — 팔로워 수는 소수가 될 수 없다
 export function parseFollowers(v: string | undefined | null): number | null {

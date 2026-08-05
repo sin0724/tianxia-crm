@@ -2,10 +2,11 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { createKol, updateKol, type KolInput } from '@/app/(dashboard)/kol/actions'
+import { createKol, updateKol, findSimilarKols, type KolInput, type SimilarKol } from '@/app/(dashboard)/kol/actions'
 import {
-  CURRENCIES, CURRENCY_LABEL, DELIVERABLE_PRESETS, GONGGU_CATEGORY, GONGGU_CATEGORY_COLOR,
+  CURRENCIES, CURRENCY_LABEL, DELIVERABLE_PRESETS, GONGGU_CATEGORY, GONGGU_CATEGORY_COLOR, fmtFollowers,
 } from '@/lib/constants'
+import { normalizeHandle } from '@/lib/kol-fields'
 import type { Kol } from '@/lib/kols'
 
 interface KolFormModalProps {
@@ -20,6 +21,10 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
   const [error, setError] = useState<string | null>(null)
   // 제공 항목 입력창에 남아 있는 미확정 텍스트 — 저장 시 함께 반영한다
   const [deliverableDraft, setDeliverableDraft] = useState('')
+  // 이름이 비슷한 기존 KOL — 경고만 하고 등록은 막지 않는다 (동명이인이 실제로 있다)
+  const [similar, setSimilar] = useState<SimilarKol[]>([])
+  // 경고를 띄운 이름. 같은 이름으로 다시 누르면 "확인했다"로 보고 그대로 등록한다
+  const warnedFor = useRef<string | null>(null)
 
   const [form, setForm] = useState<KolInput>({
     name:         kol?.name ?? '',
@@ -48,6 +53,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
+    setSimilar([])
     // 한글 IME 조합 중("2.3만"의 "만" 등) 바로 저장하면 state에 마지막 글자가 빠질 수 있어
     // 제출 시점의 DOM 값을 읽는다. 칩·카테고리는 버튼 토글이라 state 그대로 사용.
     const fd = new FormData(e.currentTarget)
@@ -70,7 +76,20 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
       visit_date:   text('visit_date', form.visit_date),
       history:      text('history', form.history),
     }
+    // 폼과 서버가 같은 규칙: 이름이 비면 IG 핸들이 이름이 된다
+    const resolvedName = payload.name.trim() || normalizeHandle(payload.instagram) || ''
+
     startTransition(async () => {
+      // 신규 등록만 검사한다. 같은 이름으로 두 번째 누르면 담당자가 확인한 것으로 보고 통과.
+      if (!kol && warnedFor.current !== resolvedName) {
+        const matches = await findSimilarKols(payload.name, payload.instagram)
+        if (matches.length > 0) {
+          setSimilar(matches)
+          warnedFor.current = resolvedName
+          return
+        }
+      }
+
       const result = kol ? await updateKol(kol.id, payload) : await createKol(payload)
       if (result?.error) {
         setError(result.error)
@@ -261,6 +280,8 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
             />
           </Field>
 
+          {similar.length > 0 && <SimilarWarning matches={similar} />}
+
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-1">
@@ -269,8 +290,13 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
               취소
             </button>
             <button type="submit" disabled={isPending}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors">
-              {isPending ? '저장 중...' : kol ? '수정 저장' : '등록'}
+              className={`px-4 py-2 text-white text-sm font-medium rounded-md disabled:opacity-50 transition-colors ${
+                similar.length > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'
+              }`}>
+              {isPending      ? '저장 중...'
+                : kol         ? '수정 저장'
+                : similar.length > 0 ? '그래도 등록'
+                : '등록'}
             </button>
           </div>
         </form>
@@ -363,6 +389,40 @@ function ChipInput({
           추가
         </button>
       </div>
+    </div>
+  )
+}
+
+// 이름 유사 경고 — 동명이인일 수도 있어 막지 않고, 기존 KOL을 새 탭에서 확인만 하게 한다
+// (같은 탭에서 이동하면 입력 중인 폼이 통째로 날아간다)
+const SIMILAR_SHOWN = 5
+
+function SimilarWarning({ matches }: { matches: SimilarKol[] }) {
+  return (
+    <div className="rounded-md bg-amber-50 border border-amber-300 px-3 py-2.5 space-y-2">
+      <p className="text-xs font-semibold text-amber-800">
+        ⚠ 이름이 비슷한 KOL이 이미 {matches.length}명 있습니다 — 같은 사람인지 확인해 주세요.
+      </p>
+      <ul className="space-y-1">
+        {matches.slice(0, SIMILAR_SHOWN).map(m => (
+          <li key={m.id} className="text-xs text-amber-900">
+            <a
+              href={`/kol?q=${encodeURIComponent(m.name)}`} target="_blank" rel="noopener noreferrer"
+              className="font-medium underline decoration-amber-400 underline-offset-2 hover:text-amber-700"
+            >
+              {m.name}
+            </a>
+            {m.instagram_handle && <span className="text-amber-700"> · @{m.instagram_handle}</span>}
+            {m.followers != null && <span className="text-amber-700"> · {fmtFollowers(Number(m.followers))}</span>}
+          </li>
+        ))}
+      </ul>
+      {matches.length > SIMILAR_SHOWN && (
+        <p className="text-[11px] text-amber-700">외 {matches.length - SIMILAR_SHOWN}명</p>
+      )}
+      <p className="text-[11px] text-amber-700">
+        다른 사람이 맞다면 <strong>그래도 등록</strong>을 다시 누르세요.
+      </p>
     </div>
   )
 }
