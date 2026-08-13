@@ -24,6 +24,7 @@ const DEFAULT_FORM_IDS = [
   '1673337870590256', // F&B 무제한 체험단
   '995635199922325',  // 뷰티 무제한 체험단
   '1415220923622365', // 티엔샤 (대만 마케팅 종합)
+  '2751262081926168', // 대만 KOL 매칭 (험블비 페이지 / @humbleb_tw 릴스)
 ]
 
 const GRAPH = 'https://graph.facebook.com/v23.0'
@@ -100,12 +101,15 @@ interface MappedLead {
 function mapLead(lead: MetaLead): MappedLead {
   const contactName = field(lead, 'full_name', '담당자_성함')
   const companyName =
-    field(lead, '업체명_또는_브랜드명을_입력해주세요.', '업체명/브랜드명', '회사/브랜드명') ??
+    field(lead, '업체명_또는_브랜드명을_입력해주세요.', '업체명/브랜드명', '회사/브랜드명', '브랜드명') ??
     (contactName ? `${contactName} (메타리드)` : '메타광고 리드')
 
   const kakao = field(lead, '카카오톡_id_or_이메일')
   let email = field(lead, 'email')
   if (!email && kakao?.includes('@')) email = kakao
+
+  // 메타가 ASCII를 소문자로 낮추는지 확신할 수 없어 두 표기를 모두 후보로 둔다
+  const kolSize = field(lead, '찾으시는_kol_팔로워_규모', '찾으시는_KOL_팔로워_규모')
 
   const noteParts = [
     `[메타광고 리드] ${lead.campaign_name ?? ''} / ${lead.ad_name ?? ''}`.trim(),
@@ -114,6 +118,9 @@ function mapLead(lead: MetaLead): MappedLead {
     field(lead, '체험단_진행_희망_수량을_선택해주세요.') && `희망 수량: ${field(lead, '체험단_진행_희망_수량을_선택해주세요.')}`,
     field(lead, '진행_희망_시기를_선택해주세요.') && `희망 시기: ${field(lead, '진행_희망_시기를_선택해주세요.')}`,
     field(lead, '관심_서비스') && `관심 서비스: ${field(lead, '관심_서비스')}`,
+    field(lead, '직책') && `직책: ${field(lead, '직책')}`,
+    field(lead, '예상_예산') && `예산: ${field(lead, '예상_예산')}`,
+    kolSize && `KOL 규모: ${kolSize}`,
     kakao && `카카오톡: ${kakao}`,
   ].filter(Boolean)
 
