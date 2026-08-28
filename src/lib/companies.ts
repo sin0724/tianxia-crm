@@ -48,6 +48,7 @@ export interface CompanyListFilters {
   inflow_month?: string // "YYYY-MM"
   new?: string          // '1' = 신규 배정(배정됨 + 미연락)만
   q?: string
+  sort?: string         // COMPANY_SORTS(@/lib/constants)의 value ('' = 다음 액션 임박순)
   page?: number
 }
 
@@ -77,8 +78,28 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
   let query = supabase
     .from('companies')
     .select('id, company_name, category, region, source, status, phone, inflow_date, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, assigned_at, profiles(name)', { count: 'exact' })
-    .order('next_action_at', { ascending: true, nullsFirst: false })
-    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
+
+  // 정렬 — 최신순 계열은 값이 비어 있는 건(미배분·유입일 없음)을 뒤로 보내고,
+  // 같은 값끼리는 등록 최신순으로 묶어 페이지 간 순서가 흔들리지 않게 한다.
+  switch (filters.sort) {
+    case 'recent':
+      query = query.order('created_at', { ascending: false })
+      break
+    case 'inflow':
+      query = query
+        .order('inflow_date', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
+      break
+    case 'assigned':
+      query = query
+        .order('assigned_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
+      break
+    default:
+      query = query.order('next_action_at', { ascending: true, nullsFirst: false })
+  }
+
+  query = query.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
 
   // 신규 배정: 배정 시각이 있고 아직 연락 기록이 없는(미연락) 거래처.
   // 담당자가 활동을 기록하면 last_contacted_at이 채워져 자동으로 빠진다.

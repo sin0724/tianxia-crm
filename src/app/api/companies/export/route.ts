@@ -6,7 +6,7 @@ import { fmtFullDateKST } from '@/lib/datetime'
 import { redirect } from 'next/navigation'
 
 const CSV_HEADERS = [
-  '상호명', '구분', '지역', 'DB 경로', '유입일', '담당자',
+  '상호명', '구분', '지역', 'DB 경로', '유입일', '담당자', '배분일',
   '상태', '연락처', '이메일', '카카오ID',
   '인스타그램 URL', '네이버 플레이스 URL', '홈페이지 URL',
   '예상 금액', '계약 금액', '미팅 예정일', '다음 액션일',
@@ -20,6 +20,7 @@ type ExportRow = {
   source: string | null
   inflow_date: string | null
   profiles: { name: string } | null
+  assigned_at: string | null
   status: string
   phone: string | null
   email: string | null
@@ -49,6 +50,7 @@ function toRow(c: ExportRow): (string | null)[] {
     c.source,
     c.inflow_date,
     c.profiles?.name ?? null,
+    fmtDate(c.assigned_at) || null,
     c.status,
     c.phone,
     c.email,
@@ -83,7 +85,7 @@ export async function GET(request: NextRequest) {
     'instagram_url', 'naver_place_url', 'website_url',
     'expected_amount', 'contract_amount',
     'meeting_at', 'next_action_at', 'last_contacted_at',
-    'latest_note', 'created_at', 'assigned_to',
+    'latest_note', 'created_at', 'assigned_to', 'assigned_at',
     'profiles(name)',
   ].join(', ')
 

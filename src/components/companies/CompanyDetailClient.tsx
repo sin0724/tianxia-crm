@@ -9,6 +9,7 @@ import { deleteCompany } from '@/app/(dashboard)/companies/actions'
 import type { Company, ProfileOption } from '@/lib/companies'
 import type { Activity } from '@/lib/activities'
 import type { KpiMetric } from '@/lib/kpi'
+import { fmtFullDateTimeKST } from '@/lib/datetime'
 
 function fmtDate(s: string | null) {
   if (!s) return '—'
@@ -141,6 +142,7 @@ export function CompanyDetailClient({
           <Row label="지역"    value={company.region} />
           <Row label="DB 경로" value={company.source} />
           <Row label="담당자"  value={company.profiles?.name} />
+          <Row label="배분일"  value={fmtFullDateTimeKST(company.assigned_at)} />
         </Grid>
       </Card>
 

@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
-import { COMPANY_STATUS, STAGES, STAGE_STATUS, type Stage } from '@/lib/constants'
+import { COMPANY_SORTS, COMPANY_STATUS, STAGES, STAGE_STATUS, type Stage } from '@/lib/constants'
 import type { ProfileOption } from '@/lib/companies'
 
 interface CompanyFiltersProps {
@@ -26,6 +26,7 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
   const [nextAction,  setNextAction]  = useState(sp.get('next_action') ?? '')
   const [inflowMonth, setInflowMonth] = useState(sp.get('inflow_month') ?? '')
   const [q,           setQ]           = useState(sp.get('q') ?? '')
+  const [sort,        setSort]        = useState(sp.get('sort') ?? '')
 
   const stage = sp.get('stage') ?? ''
   const isNew = sp.get('new') ?? ''
@@ -33,7 +34,7 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
   function push(overrides: Record<string, string> = {}) {
     const cur = {
       stage, status, assigned_to: assignedTo, category, source,
-      next_action: nextAction, inflow_month: inflowMonth, new: isNew, q,
+      next_action: nextAction, inflow_month: inflowMonth, new: isNew, q, sort,
     }
     const merged = { ...cur, ...overrides }
     const params = new URLSearchParams()
@@ -49,6 +50,7 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
       source:       setSource,
       next_action:  setNextAction,
       inflow_month: setInflowMonth,
+      sort:         setSort,
     }
     setters[key]?.(value)
     push({ [key]: value })
@@ -67,11 +69,11 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
 
   function onClear() {
     setStatus(''); setAssignedTo(''); setCategory('')
-    setSource(''); setNextAction(''); setInflowMonth(''); setQ('')
+    setSource(''); setNextAction(''); setInflowMonth(''); setQ(''); setSort('')
     router.push('/companies')
   }
 
-  const hasFilter = [stage, status, assignedTo, category, source, nextAction, inflowMonth, isNew, q].some(Boolean)
+  const hasFilter = [stage, status, assignedTo, category, source, nextAction, inflowMonth, isNew, q, sort].some(Boolean)
 
   // 단계 탭 안에서는 해당 단계의 상태만 노출
   const statusOptions = stage && stage in STAGE_STATUS
@@ -83,7 +85,7 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
       {/* 신규 배정 DB 바로가기 — 배정됐는데 아직 미연락인 거래처 */}
       {(newCount > 0 || isNew) && (
         <button
-          onClick={() => push({ new: isNew ? '' : '1' })}
+          onClick={() => push(isNew ? { new: '' } : { new: '1', sort: 'assigned' })}
           className={`flex w-full items-center justify-between gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
             isNew
               ? 'border-blue-300 bg-blue-100 text-blue-800'
@@ -138,6 +140,12 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
           <Sel label="다음 액션" value={nextAction} onChange={v => onSelect('next_action', v)}>
             <option value="">전체</option>
             <option value="overdue">기한 초과</option>
+          </Sel>
+
+          <Sel label="정렬" value={sort} onChange={v => onSelect('sort', v)}>
+            {COMPANY_SORTS.map(o => (
+              <option key={o.value} value={o.value}>↓ {o.label}</option>
+            ))}
           </Sel>
         </div>
 

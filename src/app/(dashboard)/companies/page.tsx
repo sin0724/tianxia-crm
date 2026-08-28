@@ -25,6 +25,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
     inflow_month: sp.inflow_month,
     new:          sp.new,
     q:            sp.q,
+    sort:         sp.sort,
     page:         sp.page ? parseInt(sp.page, 10) || 1 : 1,
   }
 

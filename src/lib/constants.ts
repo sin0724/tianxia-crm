@@ -20,6 +20,18 @@ export const COMPANY_SOURCE = [
 
 export type CompanySource = typeof COMPANY_SOURCE[number]
 
+// 거래처 목록 정렬 옵션 (URL의 ?sort=)
+// 기본은 "다음 액션 임박순"이지만, 담당자별로 DB를 훑을 때는 최근에 들어온/
+// 배분된 건부터 보는 게 실제 확인 흐름과 맞아서 최신순 계열을 함께 제공한다.
+export const COMPANY_SORTS = [
+  { value: '',         label: '다음 액션 임박순' },
+  { value: 'recent',   label: '최근 등록순' },
+  { value: 'inflow',   label: '유입일 최신순' },
+  { value: 'assigned', label: '배분 최신순' },
+] as const
+
+export type CompanySort = typeof COMPANY_SORTS[number]['value']
+
 // 계약완료/이탈·보류 = 종료된 건 — 할 일·리마인드·미연락 집계에서 제외
 export const CLOSED_STATUSES = ['계약완료', '이탈/보류'] as const
 

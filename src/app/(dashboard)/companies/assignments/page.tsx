@@ -38,7 +38,7 @@ export default async function AssignmentsPage() {
 
         {/* 미배정 대기 */}
         <Link
-          href="/companies?assigned_to=none"
+          href="/companies?assigned_to=none&sort=recent"
           className="block bg-white border border-gray-200 rounded-xl px-4 py-3 hover:bg-gray-50 transition-colors"
         >
           <span className="text-sm text-gray-500">미배정 (배분 대기)</span>
@@ -84,7 +84,7 @@ export default async function AssignmentsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-right">
-                      <Link href={`/companies?assigned_to=${l.id}`} className="text-blue-600 hover:underline whitespace-nowrap">
+                      <Link href={`/companies?assigned_to=${l.id}&sort=assigned`} className="text-blue-600 hover:underline whitespace-nowrap">
                         보기
                       </Link>
                     </td>

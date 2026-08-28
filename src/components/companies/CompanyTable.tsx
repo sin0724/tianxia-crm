@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { StatusBadge } from './StatusBadge'
 import { COMPANY_STATUS } from '@/lib/constants'
+import { fmtFullDateKST } from '@/lib/datetime'
 import type { Company, ProfileOption } from '@/lib/companies'
 import type { KpiMetric } from '@/lib/kpi'
 import { deleteCompany, deleteCompanies, assignCompanies, bulkUpdateCompanies } from '@/app/(dashboard)/companies/actions'
@@ -410,6 +411,7 @@ export function CompanyTable({
                     c.category, c.region, c.source,
                     c.inflow_date ? `${fmtMonth(c.inflow_date)} 유입` : null,
                     c.profiles?.name,
+                    c.assigned_at ? `${fmtFullDateKST(c.assigned_at)} 배분` : null,
                   ].filter(Boolean).join(' · ') || '—'}
                 </p>
                 {c.phone && (
@@ -484,7 +486,7 @@ export function CompanyTable({
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                 </th>
-                {['상호명','구분','지역','DB 경로','유입월','담당자','상태','미팅 예정일','마지막 연락일','다음 액션일','최근 특이사항','작업'].map(h => (
+                {['상호명','구분','지역','DB 경로','유입월','담당자','배분일','상태','미팅 예정일','마지막 연락일','다음 액션일','최근 특이사항','작업'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
@@ -520,6 +522,8 @@ export function CompanyTable({
                       {isAssigned(c) && <AssignBadge assignedTo={c.assigned_to} name={c.profiles?.name} />}
                     </span>
                   </td>
+                  {/* 배분일 — 배분된 건만 값이 있다 (배분 이력이 없으면 —) */}
+                  <Td>{fmtFullDateKST(c.assigned_at)}</Td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <StatusBadge status={c.status} />
                   </td>
