@@ -8,10 +8,12 @@ import { sendSlackNotification } from '@/lib/slack'
 //
 // POST /api/cron/sync-meta-leads
 // Authorization: Bearer <CRON_SECRET>
+// 선택 JSON 본문: { "dry_run": true } 조회/집계만, { "notify": false } Slack 알림 없이 등록
 //
 // 필요 환경변수:
 //   META_PAGE_ACCESS_TOKEN  leads_retrieval 권한이 있는 페이지 액세스 토큰
-//   META_LEAD_FORM_IDS      (선택) 동기화할 폼 ID CSV — 기본값은 현재 운영 중인 3개 폼
+//   META_LEAD_FORM_IDS      (선택) 동기화할 폼 ID CSV — 설정하면 기본 목록을 완전히 대체
+//                           새 폼을 운영할 때는 이 변수에도 해당 ID를 추가해야 한다
 //   META_LEAD_ASSIGNEE      (선택) 자동 배정 담당자 이름 또는 이메일 — 회사 DB처럼
 //                           이 사람 앞으로 등록해두고 수동 배분하는 흐름을 지원한다
 //
@@ -25,6 +27,7 @@ const DEFAULT_FORM_IDS = [
   '995635199922325',  // 뷰티 무제한 체험단
   '1415220923622365', // 티엔샤 (대만 마케팅 종합)
   '2751262081926168', // 대만 KOL 매칭 (험블비 페이지 / @humbleb_tw 릴스)
+  '1637094898076006', // 뷰티 배송형 A/B · 대만 진출 무료 진단 (4문항·0902)
 ]
 
 const GRAPH = 'https://graph.facebook.com/v23.0'
@@ -86,6 +89,7 @@ function mapCategory(raw: string | null): string {
 
 interface MappedLead {
   meta_lead_id: string
+  inflow_date: string | null
   company_name: string
   category: string
   region: string | null
@@ -101,7 +105,7 @@ interface MappedLead {
 function mapLead(lead: MetaLead): MappedLead {
   const contactName = field(lead, 'full_name', '담당자_성함')
   const companyName =
-    field(lead, '업체명_또는_브랜드명을_입력해주세요.', '업체명/브랜드명', '회사/브랜드명', '브랜드명') ??
+    field(lead, '업체명_브랜드명', '업체명_또는_브랜드명을_입력해주세요.', '업체명/브랜드명', '회사/브랜드명', '브랜드명') ??
     (contactName ? `${contactName} (메타리드)` : '메타광고 리드')
 
   const kakao = field(lead, '카카오톡_id_or_이메일')
@@ -110,11 +114,12 @@ function mapLead(lead: MetaLead): MappedLead {
 
   // 메타가 ASCII를 소문자로 낮추는지 확신할 수 없어 두 표기를 모두 후보로 둔다
   const kolSize = field(lead, '찾으시는_kol_팔로워_규모', '찾으시는_KOL_팔로워_규모')
+  const productCategory = field(lead, '제품_카테고리', '제품_카테고리를_선택해주세요.')
 
   const noteParts = [
     `[메타광고 리드] ${lead.campaign_name ?? ''} / ${lead.ad_name ?? ''}`.trim(),
     field(lead, '매장_위치를_선택해주세요.') && `위치: ${field(lead, '매장_위치를_선택해주세요.')}`,
-    field(lead, '제품_카테고리를_선택해주세요.') && `제품: ${field(lead, '제품_카테고리를_선택해주세요.')}`,
+    productCategory && `제품: ${productCategory}`,
     field(lead, '체험단_진행_희망_수량을_선택해주세요.') && `희망 수량: ${field(lead, '체험단_진행_희망_수량을_선택해주세요.')}`,
     field(lead, '진행_희망_시기를_선택해주세요.') && `희망 시기: ${field(lead, '진행_희망_시기를_선택해주세요.')}`,
     field(lead, '관심_서비스') && `관심 서비스: ${field(lead, '관심_서비스')}`,
@@ -126,8 +131,12 @@ function mapLead(lead: MetaLead): MappedLead {
 
   return {
     meta_lead_id: lead.id,
+    // 복구한 과거 문의가 오늘 유입된 것처럼 집계되지 않도록 원래 접수일을 보존한다.
+    inflow_date: Number.isNaN(Date.parse(lead.created_time))
+      ? null
+      : new Date(lead.created_time).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }),
     company_name: companyName,
-    category: mapCategory(field(lead, '업종을_선택해주세요.', '업종')),
+    category: mapCategory(field(lead, '업종을_선택해주세요.', '업종') ?? productCategory),
     region: field(lead, '매장_위치를_선택해주세요.'),
     source: '메타광고',
     contact_name: contactName,
@@ -170,6 +179,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  let dryRun = false
+  let shouldNotify = true
+  try {
+    const text = await request.text()
+    if (text.trim()) {
+      const options: unknown = JSON.parse(text)
+      if (!options || typeof options !== 'object' || Array.isArray(options)) throw new Error()
+      const { dry_run, notify } = options as { dry_run?: unknown; notify?: unknown }
+      if (dry_run !== undefined && typeof dry_run !== 'boolean') throw new Error()
+      if (notify !== undefined && typeof notify !== 'boolean') throw new Error()
+      dryRun = dry_run === true
+      shouldNotify = notify !== false
+    }
+  } catch {
+    return NextResponse.json({ error: 'Expected JSON with optional boolean dry_run and notify' }, { status: 400 })
+  }
+
   const token = process.env.META_PAGE_ACCESS_TOKEN
   if (!token) {
     return NextResponse.json({ error: 'META_PAGE_ACCESS_TOKEN not configured' }, { status: 500 })
@@ -180,17 +206,36 @@ export async function POST(request: NextRequest) {
 
   const errors: string[] = []
   const leads: MetaLead[] = []
+  const formStats: { form_id: string; fetched: number; error?: string }[] = []
 
-  // 폼별 최근 리드 조회 (최근 50건 — 중복은 meta_lead_id로 걸러짐)
+  // 50건씩 마지막 페이지까지 조회 — 새 폼 추가/수집 중단 뒤에도 누락 없이 복구한다.
   for (const formId of formIds) {
+    const stats: (typeof formStats)[number] = { form_id: formId, fetched: 0 }
+    formStats.push(stats)
     try {
-      const url = `${GRAPH}/${formId}/leads?fields=id,created_time,ad_name,campaign_name,field_data&limit=50&access_token=${token}`
-      const res = await fetch(url, { cache: 'no-store' })
-      const body = (await res.json()) as { data?: MetaLead[]; error?: { message: string } }
-      if (body.error) throw new Error(body.error.message)
-      leads.push(...(body.data ?? []))
+      let url: string | undefined = `${GRAPH}/${formId}/leads?fields=id,created_time,ad_name,campaign_name,field_data&limit=50&access_token=${encodeURIComponent(token)}`
+      const visited = new Set<string>()
+      while (url) {
+        // paging.next에는 토큰이 포함될 수 있으므로 Graph 외부 URL을 따라가지 않는다.
+        if (new URL(url).origin !== 'https://graph.facebook.com') throw new Error('Unexpected pagination host')
+        if (visited.has(url)) throw new Error('Repeated pagination URL')
+        visited.add(url)
+
+        const res = await fetch(url, { cache: 'no-store' })
+        const body = (await res.json()) as {
+          data?: MetaLead[]
+          paging?: { next?: string }
+          error?: { message: string }
+        }
+        if (body.error) throw new Error(body.error.message)
+        if (!res.ok) throw new Error(`Meta HTTP ${res.status}`)
+        leads.push(...(body.data ?? []))
+        stats.fetched += body.data?.length ?? 0
+        url = body.paging?.next
+      }
     } catch (err) {
-      errors.push(`form ${formId}: ${err instanceof Error ? err.message : 'unknown'}`)
+      stats.error = err instanceof Error ? err.message : 'unknown'
+      errors.push(`form ${formId}: ${stats.error}`)
     }
   }
 
@@ -212,17 +257,38 @@ export async function POST(request: NextRequest) {
     }
 
     // 이미 등록됐거나 사용자가 삭제한 리드 제외
-    const ids = leads.map(l => l.id)
-    const [{ data: existing }, { data: removed }] = ids.length
-      ? await Promise.all([
-          supabase.from('companies').select('meta_lead_id').in('meta_lead_id', ids),
-          supabase.from('deleted_meta_leads').select('meta_lead_id').in('meta_lead_id', ids),
-        ])
-      : [{ data: [] }, { data: [] }]
-    const known = new Set([...(existing ?? []), ...(removed ?? [])].map(r => r.meta_lead_id))
-    const fresh = leads
+    const uniqueLeads = [...new Map(leads.map(lead => [lead.id, lead])).values()]
+    const ids = uniqueLeads.map(l => l.id)
+    const known = new Set<string>()
+    // 복구 대상이 많아도 Supabase 조회 URL이 너무 길어지지 않도록 나눈다.
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      const batch = ids.slice(offset, offset + 100)
+      const [existing, removed] = await Promise.all([
+        supabase.from('companies').select('meta_lead_id').in('meta_lead_id', batch),
+        supabase.from('deleted_meta_leads').select('meta_lead_id').in('meta_lead_id', batch),
+      ])
+      if (existing.error || removed.error) throw new Error('Failed to check existing or deleted Meta leads')
+      for (const row of [...(existing.data ?? []), ...(removed.data ?? [])]) known.add(row.meta_lead_id)
+    }
+    const fresh = uniqueLeads
       .filter(l => !known.has(l.id))
       .sort((a, b) => a.created_time.localeCompare(b.created_time))
+
+    if (dryRun) {
+      return NextResponse.json({
+        success: true,
+        partial_failure: errors.length > 0,
+        dry_run: true,
+        form_ids: formIds,
+        forms: formStats,
+        checked: uniqueLeads.length,
+        pending: fresh.length,
+        already_known: uniqueLeads.length - fresh.length,
+        inserted: 0,
+        notified: 0,
+        errors: errors.length ? errors : undefined,
+      })
+    }
 
     let inserted = 0
     let notified = 0
@@ -241,20 +307,25 @@ export async function POST(request: NextRequest) {
       }
       inserted++
 
-      const ok = await notifyLead(created.id, mapped)
-      if (ok) notified++
-      await supabase.from('notification_logs').insert({
-        notification_type: 'new_company',
-        company_id: created.id,
-        message: `[메타광고 리드] ${mapped.company_name}`,
-        status: ok ? 'sent' : 'failed',
-        sent_at: ok ? new Date().toISOString() : null,
-      })
+      if (shouldNotify) {
+        const ok = await notifyLead(created.id, mapped)
+        if (ok) notified++
+        await supabase.from('notification_logs').insert({
+          notification_type: 'new_company',
+          company_id: created.id,
+          message: `[메타광고 리드] ${mapped.company_name}`,
+          status: ok ? 'sent' : 'failed',
+          sent_at: ok ? new Date().toISOString() : null,
+        })
+      }
     }
 
     return NextResponse.json({
       success: true,
-      checked: leads.length,
+      partial_failure: errors.length > 0,
+      form_ids: formIds,
+      forms: formStats,
+      checked: uniqueLeads.length,
       inserted,
       notified,
       errors: errors.length ? errors : undefined,
