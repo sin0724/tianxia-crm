@@ -28,6 +28,7 @@ const DEFAULT_FORM_IDS = [
   '1415220923622365', // 티엔샤 (대만 마케팅 종합)
   '2751262081926168', // 대만 KOL 매칭 (험블비 페이지 / @humbleb_tw 릴스)
   '1637094898076006', // 뷰티 배송형 A/B · 대만 진출 무료 진단 (4문항·0902)
+  '3145166442355495', // 대만 마케팅 종합 상담 · 한국어 6문항 · 개인정보 안내 개선
 ]
 
 const GRAPH = 'https://graph.facebook.com/v23.0'
@@ -80,6 +81,8 @@ function normalizePhone(raw: string | null): string | null {
 function mapCategory(raw: string | null): string {
   if (!raw) return '미분류'
   const v = raw.toLowerCase()
+  if (v === '병원/의료') return '병의원'
+  if (v === '대행사/마케팅') return '기타및대행사'
   if (v.includes('f&b') || v.includes('음식점') || v.includes('카페') || v.includes('디저트') || v.includes('주점')) return 'F&B'
   if (v.includes('피부과') || v.includes('시술')) return '뷰티'
   if (v.includes('뷰티') || v.includes('화장품') || v.includes('스킨케어') || v.includes('메이크업') || v.includes('헤어') || v.includes('이너뷰티')) return '뷰티'

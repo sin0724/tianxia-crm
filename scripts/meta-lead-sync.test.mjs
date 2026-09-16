@@ -11,6 +11,7 @@ const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText
 const liveForm = '1637094898076006'
+const comprehensiveForm = '3145166442355495'
 
 function lead(id, field_data = []) {
   return { id: String(id), created_time: '2026-09-15T00:00:00Z', field_data }
@@ -94,12 +95,16 @@ test('authentication and option validation fail before external access', async (
   assert.equal(h.state.inserts.length, 0)
 })
 
-test('default sync includes live September form while explicit form overrides stay authoritative', async () => {
+test('default sync includes all six forms while explicit form overrides stay authoritative', async () => {
   const h = harness()
   const result = await h.run({ dry_run: true })
   assert.ok(result.body.form_ids.includes(liveForm))
+  assert.ok(result.body.form_ids.includes(comprehensiveForm))
+  assert.ok(result.body.form_ids.includes('1415220923622365'))
   assert.ok(!result.body.form_ids.includes('1354349703348317'))
-  assert.equal(h.state.requests.length, 5)
+  assert.equal(result.body.form_ids.length, 6)
+  assert.equal(new Set(result.body.form_ids).size, 6)
+  assert.equal(h.state.requests.length, 6)
   const restricted = harness({ env: { META_LEAD_FORM_IDS: '995635199922325' } })
   const override = await restricted.run({ dry_run: true })
   assert.equal(override.body.form_ids.join(','), '995635199922325')
@@ -156,6 +161,50 @@ test('empty cron request keeps default notifications and legacy field mapping', 
   assert.equal(h.state.inserts[0].company_name, '기존 테스트 브랜드')
   assert.equal(h.state.notifications.length, 1)
   assert.equal(h.state.logs.length, 1)
+})
+
+test('new comprehensive form industry choices map to CRM categories ahead of product category', async () => {
+  const cases = [
+    ['업종', '병원/의료', '병의원'],
+    ['업종', '대행사/마케팅', '기타및대행사'],
+    ['업종을_선택해주세요.', '병원/의료', '병의원'],
+    ['업종을_선택해주세요.', '대행사/마케팅', '기타및대행사'],
+  ]
+  const h = harness({
+    env: { META_LEAD_FORM_IDS: comprehensiveForm },
+    leads: cases.map(([name, value], i) => lead(i + 1, [
+      { name, values: [value] },
+      { name: '제품_카테고리', values: ['스킨케어'] },
+    ])),
+  })
+  const result = await h.run({ notify: false })
+  assert.equal(result.body.inserted, cases.length)
+  for (const [i, [name, value, expected]] of cases.entries()) {
+    assert.equal(h.state.inserts[i].category, expected, `${name}: ${value}`)
+  }
+})
+
+test('new industry choices preserve legacy categories and product fallback behavior', async () => {
+  const cases = [
+    ['F&B/음식점/카페', 'F&B'],
+    ['피부과/시술', '뷰티'],
+    ['뷰티/화장품', '뷰티'],
+    ['패션/의류', '커머스'],
+    ['기타', '미분류'],
+    [null, '뷰티'],
+  ]
+  const h = harness({
+    env: { META_LEAD_FORM_IDS: liveForm },
+    leads: cases.map(([industry], i) => lead(i + 1, [
+      ...(industry ? [{ name: '업종', values: [industry] }] : []),
+      { name: '제품_카테고리', values: ['스킨케어'] },
+    ])),
+  })
+  const result = await h.run({ notify: false })
+  assert.equal(result.body.inserted, cases.length)
+  for (const [i, [industry, expected]] of cases.entries()) {
+    assert.equal(h.state.inserts[i].category, expected, industry ?? 'product fallback')
+  }
 })
 
 test('backfill preserves the original inquiry date in Seoul rather than the import date', async () => {
