@@ -12,6 +12,7 @@ const compiled = ts.transpileModule(source, {
 }).outputText
 const liveForm = '1637094898076006'
 const comprehensiveForm = '3145166442355495'
+const comprehensiveForm0917 = '2194511675279271'
 
 function lead(id, field_data = []) {
   return { id: String(id), created_time: '2026-09-15T00:00:00Z', field_data }
@@ -95,16 +96,17 @@ test('authentication and option validation fail before external access', async (
   assert.equal(h.state.inserts.length, 0)
 })
 
-test('default sync includes all six forms while explicit form overrides stay authoritative', async () => {
+test('default sync includes all seven forms while explicit form overrides stay authoritative', async () => {
   const h = harness()
   const result = await h.run({ dry_run: true })
   assert.ok(result.body.form_ids.includes(liveForm))
   assert.ok(result.body.form_ids.includes(comprehensiveForm))
+  assert.ok(result.body.form_ids.includes(comprehensiveForm0917))
   assert.ok(result.body.form_ids.includes('1415220923622365'))
   assert.ok(!result.body.form_ids.includes('1354349703348317'))
-  assert.equal(result.body.form_ids.length, 6)
-  assert.equal(new Set(result.body.form_ids).size, 6)
-  assert.equal(h.state.requests.length, 6)
+  assert.equal(result.body.form_ids.length, 7)
+  assert.equal(new Set(result.body.form_ids).size, 7)
+  assert.equal(h.state.requests.length, 7)
   const restricted = harness({ env: { META_LEAD_FORM_IDS: '995635199922325' } })
   const override = await restricted.run({ dry_run: true })
   assert.equal(override.body.form_ids.join(','), '995635199922325')
