@@ -5,6 +5,7 @@ import Link from 'next/link'
 
 interface AssignmentNoticeProps {
   count: number      // 오늘(KST) 나에게 새로 배분된 거래처 수
+  reassigned?: number // 그중 재배분(기존 DB) 건수
   todayKey: string   // KST 기준 "YYYY-MM-DD" — 하루 단위 닫기 상태 키
   href: string       // "내 거래처 보기" 이동 경로 (본인 담당분 필터 포함)
 }
@@ -28,7 +29,7 @@ function readDismissed(): string | null {
 // 오늘 나에게 새 거래처가 배분되면 담당자에게 팝업으로 알린다.
 // "오늘 하루 안 보기"를 누르면 그 날(KST 날짜)에는 다시 뜨지 않는다 —
 // 닫은 날짜를 localStorage에 저장하고 날짜가 바뀌면 자동으로 다시 노출.
-export function AssignmentNotice({ count, todayKey, href }: AssignmentNoticeProps) {
+export function AssignmentNotice({ count, reassigned = 0, todayKey, href }: AssignmentNoticeProps) {
   // useSyncExternalStore: 서버 렌더에서는 항상 미노출로 시작해 hydration 불일치를 피하고,
   // 클라이언트에서 localStorage 값을 읽어 노출 여부를 결정한다.
   const dismissedForToday = useSyncExternalStore(
@@ -69,6 +70,19 @@ export function AssignmentNotice({ count, todayKey, href }: AssignmentNoticeProp
             오늘 <span className="font-semibold text-blue-600">{count}건</span>의 거래처가
             새로 배분되었습니다.
           </p>
+          {/* 신규 / 재배분(기존 DB) 구분 — 재배분이 있을 때만 */}
+          {reassigned > 0 && (
+            <div className="mt-3 flex justify-center gap-2 text-xs font-medium">
+              {count - reassigned > 0 && (
+                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">
+                  🆕 신규 {count - reassigned}건
+                </span>
+              )}
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">
+                ♻️ 재배분 {reassigned}건 (기존 DB)
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-2 border-t border-gray-100 px-6 py-4">

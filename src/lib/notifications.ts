@@ -142,10 +142,18 @@ export async function notifyContractComplete(
   await dispatch('contract_complete', payload, company.id, userId, `[계약 완료] ${company.company_name}`)
 }
 
+/** "신규 3건 · 재배분 12건" — 0건인 쪽은 생략 */
+export function assignmentBreakdown(fresh: number, reassigned: number): string {
+  return [
+    fresh      ? `신규 ${fresh}건` : null,
+    reassigned ? `재배분 ${reassigned}건` : null,
+  ].filter(Boolean).join(' · ')
+}
+
 /** 거래처 배분 알림 — 담당자에게 DM (봇 토큰 없으면 채널 폴백) */
 export async function notifyAssignment(params: {
   assignee: { id: string; name: string; slack_user_id: string | null }
-  companies: { id: string; company_name: string }[]
+  companies: { id: string; company_name: string; reassigned?: boolean; previous_assignee_name?: string | null }[]
   assignedBy: string // 배분한 사람 이름
   userId: string     // 배분 실행자 ID (로그용)
 }): Promise<void> {
@@ -153,19 +161,28 @@ export async function notifyAssignment(params: {
   if (companies.length === 0) return
 
   const mention = assignee.slack_user_id ? `<@${assignee.slack_user_id}>` : `*${assignee.name}*`
-  const listed = companies.slice(0, 10)
-    .map(c => `• <${appUrl()}/companies/${c.id}|${c.company_name}>`)
-    .join('\n')
-  const more = companies.length > 10 ? `\n…외 ${companies.length - 10}건` : ''
+
+  // 신규 / 재배분(기존 DB)을 나눠 목록으로 보여준다
+  const fresh      = companies.filter(c => !c.reassigned)
+  const reassigned = companies.filter(c => c.reassigned)
+  const breakdown  = assignmentBreakdown(fresh.length, reassigned.length)
+  const list = (items: typeof companies) => {
+    const listed = items.slice(0, 10)
+      .map(c => `• <${appUrl()}/companies/${c.id}|${c.company_name}>` +
+        (c.previous_assignee_name ? ` (이전: ${c.previous_assignee_name})` : ''))
+      .join('\n')
+    return listed + (items.length > 10 ? `\n…외 ${items.length - 10}건` : '')
+  }
 
   const text = [
-    `${mention} 신규 거래처 *${companies.length}건*이 배정되었습니다. (배분: ${params.assignedBy})`,
-    listed + more,
+    `${mention} 거래처 *${companies.length}건*이 배정되었습니다. (${breakdown} · 배분: ${params.assignedBy})`,
+    fresh.length      ? `*🆕 신규 ${fresh.length}건*\n${list(fresh)}` : null,
+    reassigned.length ? `*♻️ 재배분 ${reassigned.length}건* (기존 DB)\n${list(reassigned)}` : null,
     `내일 액션일로 등록되어 *오늘 할 일*에 표시됩니다.`,
-  ].join('\n\n')
+  ].filter(Boolean).join('\n\n')
 
   const payload: SlackPayload = {
-    text: `[거래처 배분] ${assignee.name}님에게 ${companies.length}건`,
+    text: `[거래처 배분] ${assignee.name}님에게 ${companies.length}건 (${breakdown})`,
     blocks: [header('📬 거래처 배분'), section(text)],
   }
 
@@ -174,7 +191,7 @@ export async function notifyAssignment(params: {
     notification_type: 'assignment',
     company_id:        companies.length === 1 ? companies[0].id : null,
     user_id:           assignee.id,
-    message:           `[배분] ${assignee.name} ← ${companies.length}건 (by ${params.assignedBy})`,
+    message:           `[배분] ${assignee.name} ← ${companies.length}건 (${breakdown}, by ${params.assignedBy})`,
     status:            result.ok ? 'sent' : 'failed',
     error_message:     result.ok ? undefined : result.error,
   })
@@ -196,17 +213,22 @@ export interface InAppNotification {
 export async function createAssignmentNotification(params: {
   assignee: { id: string; name: string }
   count: number
+  reassigned?: number // 그중 재배분(기존 DB) 건수
   assignedBy: string
 }): Promise<void> {
   if (params.count <= 0) return
+  const reassigned = params.reassigned ?? 0
+  const breakdown = assignmentBreakdown(params.count - reassigned, reassigned)
   try {
     const supabase = await createClient()
     await supabase.from('notifications').insert({
       user_id: params.assignee.id,
       type:    'assignment',
-      title:   `신규 거래처 ${params.count}건 배정`,
-      body:    `${params.assignedBy}님이 거래처 ${params.count}건을 배정했습니다. 내일 할 일로 등록되었습니다.`,
-      link:    '/companies?new=1',
+      title:   `거래처 ${params.count}건 배정 (${breakdown})`,
+      body:    `${params.assignedBy}님이 거래처 ${params.count}건(${breakdown})을 배정했습니다. 내일 할 일로 등록되었습니다.`,
+      // 재배분 건은 이전 담당자의 연락 기록이 있어 "신규 배정(new=1)"에서 빠질 수 있으므로
+      // 본인 담당분을 배분 최신순으로 연다
+      link:    reassigned > 0 ? `/companies?assigned_to=${params.assignee.id}&sort=assigned` : '/companies?new=1',
     })
   } catch {
     // 알림 저장 실패는 무시 — 배분 자체엔 영향 없음

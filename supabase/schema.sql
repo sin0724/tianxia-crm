@@ -1269,3 +1269,11 @@ CREATE POLICY "kpi_entries_update"
   TO authenticated
   USING (user_id = auth.uid() OR get_my_role() = 'admin')
   WITH CHECK (user_id = auth.uid() OR get_my_role() = 'admin');
+
+
+-- ── 17. 재배분 이전 담당자 (2026-10) ─────────────────────────
+-- 다른 담당자에게 넘어갈 때 직전 담당자를 남겨 "재배분" 건을 구분하고 이전 담당자를 표시한다.
+-- profiles로 FK를 걸면 companies → profiles 관계가 2개가 되어 기존 profiles(name) 임베드가
+-- 모호해지므로 FK 없이 UUID만 저장하고, 이름은 앱에서 profiles를 조회해 붙인다.
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS previous_assigned_to UUID;
+COMMENT ON COLUMN companies.previous_assigned_to IS '직전 담당자 (재배분 시 기록, FK 없음)';

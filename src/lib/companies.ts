@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { kstStartOfDay, kstMonthString, kstDayStartISO, kstDayEndISO } from '@/lib/datetime'
+import { isReassigned } from '@/lib/assignment'
 import { STAGE_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE, type Stage } from '@/lib/constants'
 
 export interface Company {
@@ -17,6 +18,9 @@ export interface Company {
   website_url: string | null
   assigned_to: string | null
   assigned_at: string | null
+  previous_assigned_to: string | null
+  /** 직전 담당자 이름 — previous_assigned_to를 profiles에서 찾아 붙인 값 */
+  previous_assignee_name?: string | null
   status: string
   inflow_date: string | null
   interest_level: number | null
@@ -81,7 +85,7 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
 
   let query = supabase
     .from('companies')
-    .select('id, company_name, category, region, source, status, phone, inflow_date, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, assigned_at, profiles(name)', { count: 'exact' })
+    .select('id, company_name, category, region, source, status, phone, inflow_date, created_at, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, assigned_at, previous_assigned_to, profiles(name)', { count: 'exact' })
 
   // 정렬 — 최신순 계열은 값이 비어 있는 건(미배분·유입일 없음)을 뒤로 보내고,
   // 같은 값끼리는 등록 최신순으로 묶어 페이지 간 순서가 흔들리지 않게 한다.
@@ -185,7 +189,7 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
   const { data, count } = await query
   const total = count ?? 0
   return {
-    companies: (data as unknown as Company[]) ?? [],
+    companies: await withPreviousAssigneeNames((data as unknown as Company[]) ?? []),
     total,
     page,
     pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),
@@ -236,15 +240,20 @@ export async function getNewAssignedCount(): Promise<number> {
 /**
  * 오늘(KST) 나에게 새로 배분된 거래처 수 — 배분 팝업 공지용.
  * assigned_to로 명시 필터하므로 전체가 보이는 admin/manager도 "본인 배분분"만 집계된다.
+ * reassigned: 그중 재배분(기존 DB) 건수
  */
-export async function countCompaniesAssignedToMeToday(userId: string): Promise<number> {
+export async function countCompaniesAssignedToMeToday(
+  userId: string,
+): Promise<{ total: number; reassigned: number }> {
   const supabase = await createClient()
-  const { count } = await supabase
+  const { data } = await supabase
     .from('companies')
-    .select('id', { count: 'exact', head: true })
+    .select('assigned_at, inflow_date, created_at, previous_assigned_to')
     .eq('assigned_to', userId)
     .gte('assigned_at', kstStartOfDay().toISOString())
-  return count ?? 0
+    .limit(5000)
+  const rows = data ?? []
+  return { total: rows.length, reassigned: rows.filter(isReassigned).length }
 }
 
 export async function getCompany(id: string): Promise<Company | null> {
@@ -254,7 +263,23 @@ export async function getCompany(id: string): Promise<Company | null> {
     .select('*, profiles(name)')
     .eq('id', id)
     .single()
-  return (data as Company) ?? null
+  if (!data) return null
+  const [company] = await withPreviousAssigneeNames([data as Company])
+  return company
+}
+
+// previous_assigned_to는 FK 없이 저장하므로(임베드 모호성 회피) 이름을 따로 조회해 붙인다.
+// 퇴사 등으로 비활성인 담당자도 이름이 보이도록 is_active와 무관하게 찾는다.
+async function withPreviousAssigneeNames(companies: Company[]): Promise<Company[]> {
+  const ids = [...new Set(companies.map(c => c.previous_assigned_to).filter((v): v is string => !!v))]
+  if (ids.length === 0) return companies
+  const supabase = await createClient()
+  const { data } = await supabase.from('profiles').select('id, name').in('id', ids)
+  const nameById = new Map((data ?? []).map(p => [p.id as string, p.name as string]))
+  return companies.map(c => ({
+    ...c,
+    previous_assignee_name: c.previous_assigned_to ? nameById.get(c.previous_assigned_to) ?? null : null,
+  }))
 }
 
 // ── 배분 현황 (admin/manager) ─────────────────────────────────

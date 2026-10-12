@@ -143,6 +143,9 @@ export function CompanyDetailClient({
           <Row label="DB 경로" value={company.source} />
           <Row label="담당자"  value={company.profiles?.name} />
           <Row label="배분일"  value={fmtFullDateTimeKST(company.assigned_at)} />
+          {company.previous_assignee_name && (
+            <Row label="이전 담당자" value={company.previous_assignee_name} />
+          )}
         </Grid>
       </Card>
 

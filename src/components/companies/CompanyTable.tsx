@@ -5,6 +5,7 @@ import { useState, useTransition } from 'react'
 import { StatusBadge } from './StatusBadge'
 import { COMPANY_STATUS } from '@/lib/constants'
 import { fmtFullDateKST } from '@/lib/datetime'
+import { isReassigned, REASSIGN_AGE_DAYS } from '@/lib/assignment'
 import type { Company, ProfileOption } from '@/lib/companies'
 import type { KpiMetric } from '@/lib/kpi'
 import { deleteCompany, deleteCompanies, assignCompanies, bulkUpdateCompanies } from '@/app/(dashboard)/companies/actions'
@@ -25,14 +26,29 @@ function isOverdue(s: string | null) {
   return !!s && new Date(s).getTime() < new Date().setHours(0, 0, 0, 0)
 }
 
-// 신규 배정 DB: 배정됐는데 아직 한 번도 연락(활동) 기록이 없는 거래처
+// 신규 배정 DB: 배정됐는데 아직 한 번도 연락(활동) 기록이 없는 거래처.
+// 재배분(기존 DB) 건은 NEW 대신 재배분 뱃지로 구분한다.
 function isNewAssigned(c: Company) {
-  return !!c.assigned_at && !c.last_contacted_at
+  return !!c.assigned_at && !c.last_contacted_at && !isReassigned(c)
 }
 
 // 배분된 거래처: 배정 시각(assigned_at)이 찍힌 건 = 배분을 통해 담당자에게 넘어온 거래처
 function isAssigned(c: Company) {
   return !!c.assigned_at
+}
+
+// 재배분 — 유입 후 한참 지나 다시 배분된 기존 DB (새 DB와 섞여도 구분되도록)
+function ReassignBadge({ previousName }: { previousName?: string | null }) {
+  return (
+    <span
+      title={previousName
+        ? `${previousName} 담당이던 DB를 재배분한 건`
+        : `유입 ${REASSIGN_AGE_DAYS}일 이상 지난 기존 DB를 재배분한 건`}
+      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white leading-none"
+    >
+      재배분
+    </span>
+  )
 }
 
 function NewBadge() {
@@ -154,7 +170,9 @@ export function CompanyTable({
       }
       setSelectedIds(new Set())
       setAssignee('')
-      const detail = result?.summary?.map(s => `${s.name} ${s.count}건`).join(' · ')
+      const detail = result?.summary
+        ?.map(s => `${s.name} ${s.count}건${s.reassigned ? `(재배분 ${s.reassigned})` : ''}`)
+        .join(' · ')
       setAssignedMsg(
         detail
           ? `${ids.length}건 배분 완료 — ${detail} · 담당자에게 알림을 보냈습니다.`
@@ -399,6 +417,7 @@ export function CompanyTable({
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 min-w-0">
                     {isNewAssigned(c) && <NewBadge />}
+                    {isReassigned(c) && <ReassignBadge previousName={c.previous_assignee_name} />}
                     {isAssigned(c) && <AssignBadge assignedTo={c.assigned_to} name={c.profiles?.name} />}
                     <Link href={`/companies/${c.id}`} className="font-medium text-gray-900 truncate hover:text-blue-600">
                       {c.company_name}
@@ -411,6 +430,7 @@ export function CompanyTable({
                     c.category, c.region, c.source,
                     c.inflow_date ? `${fmtMonth(c.inflow_date)} 유입` : null,
                     c.profiles?.name,
+                    c.previous_assignee_name ? `이전 ${c.previous_assignee_name}` : null,
                     c.assigned_at ? `${fmtFullDateKST(c.assigned_at)} 배분` : null,
                   ].filter(Boolean).join(' · ') || '—'}
                 </p>
@@ -507,6 +527,7 @@ export function CompanyTable({
                   <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
                       {isNewAssigned(c) && <NewBadge />}
+                      {isReassigned(c) && <ReassignBadge previousName={c.previous_assignee_name} />}
                       <Link href={`/companies/${c.id}`} className="hover:text-blue-600 hover:underline">
                         {c.company_name}
                       </Link>
@@ -521,6 +542,9 @@ export function CompanyTable({
                       {c.profiles?.name ?? '—'}
                       {isAssigned(c) && <AssignBadge assignedTo={c.assigned_to} name={c.profiles?.name} />}
                     </span>
+                    {c.previous_assignee_name && (
+                      <span className="block text-[11px] text-gray-400">← 이전 {c.previous_assignee_name}</span>
+                    )}
                   </td>
                   {/* 배분일 — 배분된 건만 값이 있다 (배분 이력이 없으면 —) */}
                   <Td>{fmtFullDateKST(c.assigned_at)}</Td>

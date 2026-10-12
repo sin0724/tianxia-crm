@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireAuth, isAdminOrManager } from '@/lib/auth'
 import { kstDateString } from '@/lib/datetime'
+import { isReassigned } from '@/lib/assignment'
 import { COMPANY_STATUS } from '@/lib/constants'
 import { getDefaultMeetingMetricKey } from '@/lib/kpi'
 import { logMeetingKpiEntries } from '@/lib/kpi-log'
@@ -24,7 +25,7 @@ interface ActionResult {
 // 배분 결과 — 담당자별 배분 건수를 UI에 그대로 보여줘 형평성 확인에 쓴다
 export interface AssignResult {
   error?: string
-  summary?: { name: string; count: number }[]
+  summary?: { name: string; count: number; reassigned: number }[]
 }
 
 const NOTIF_SELECT = 'id, company_name, category, source, status, meeting_at, latest_note, contract_amount, profiles(name)' as const
@@ -216,10 +217,15 @@ export async function updateCompany(id: string, formData: FormData): Promise<Act
     data.inflow_date       = data.inflow_date ?? prev.inflow_date
   }
 
-  // 담당자가 다른 사람으로 바뀌면 배정 시각을 갱신해 "신규 배정 DB"로 잡히게 한다
+  // 담당자가 다른 사람으로 바뀌면 배정 시각을 갱신해 "신규 배정 DB"로 잡히게 하고,
+  // 기존 담당자가 있었다면 이전 담당자로 남긴다 (재배분 표시용)
   const reassigned = !!data.assigned_to && prev?.assigned_to !== data.assigned_to
   const updatePayload = reassigned
-    ? { ...data, assigned_at: new Date().toISOString() }
+    ? {
+        ...data,
+        assigned_at: new Date().toISOString(),
+        ...(prev?.assigned_to ? { previous_assigned_to: prev.assigned_to } : {}),
+      }
     : data
 
   const { error } = await supabase.from('companies').update(updatePayload).eq('id', id)
@@ -359,8 +365,20 @@ export async function assignCompanies(
   const nextActionDate = kstDateString(tomorrow)
   const assignedAt = new Date().toISOString() // 배정 시각 — "신규 배정 DB" 식별용
 
+  // 배분 전 담당자 — 다른 사람에게서 넘어가는 건은 이전 담당자로 기록한다
+  const { data: before } = await supabase
+    .from('companies')
+    .select('id, assigned_to')
+    .in('id', ids)
+  const prevOwnerById = new Map((before ?? []).map(c => [c.id as string, c.assigned_to as string | null]))
+  const prevOwnerIds = [...new Set([...prevOwnerById.values()].filter((v): v is string => !!v))]
+  const { data: prevOwners } = prevOwnerIds.length
+    ? await supabase.from('profiles').select('id, name').in('id', prevOwnerIds)
+    : { data: [] as { id: string; name: string }[] }
+  const prevNameById = new Map((prevOwners ?? []).map(p => [p.id, p.name]))
+
   let assignedTotal = 0
-  const summary: { name: string; count: number }[] = []
+  const summary: { name: string; count: number; reassigned: number }[] = []
   for (const assignee of assignees) {
     const companyIds = byAssignee.get(assignee.id)!
     if (companyIds.length === 0) continue
@@ -369,13 +387,34 @@ export async function assignCompanies(
       .from('companies')
       .update({ assigned_to: assignee.id, assigned_at: assignedAt })
       .in('id', companyIds)
-      .select('id, company_name')
+      .select('id, company_name, inflow_date, created_at, assigned_at, previous_assigned_to')
     if (error) return { error: error.message }
 
-    const assigned = updated ?? []
+    // 이전 담당자 기록 — 이전 담당자별로 묶어 갱신 (같은 사람에게 다시 배분한 건은 그대로)
+    const byPrevOwner = new Map<string, string[]>()
+    for (const c of updated ?? []) {
+      const owner = prevOwnerById.get(c.id)
+      if (!owner || owner === assignee.id) continue
+      byPrevOwner.set(owner, [...(byPrevOwner.get(owner) ?? []), c.id])
+      c.previous_assigned_to = owner
+    }
+    for (const [owner, companyIdsOfOwner] of byPrevOwner) {
+      await supabase
+        .from('companies')
+        .update({ previous_assigned_to: owner })
+        .in('id', companyIdsOfOwner)
+    }
+
+    // 재배분(기존 DB) 여부 — 알림에서 신규와 나눠 보여준다
+    const assigned = (updated ?? []).map(c => ({
+      ...c,
+      reassigned: isReassigned(c),
+      previous_assignee_name: c.previous_assigned_to ? prevNameById.get(c.previous_assigned_to) ?? null : null,
+    }))
+    const reassignedCount = assigned.filter(c => c.reassigned).length
     assignedTotal += assigned.length
     if (assigned.length === 0) continue
-    summary.push({ name: assignee.name, count: assigned.length })
+    summary.push({ name: assignee.name, count: assigned.length, reassigned: reassignedCount })
 
     // 다음 액션일이 비어 있는 건만 내일로 설정 (기존 일정은 보존)
     await supabase
@@ -395,6 +434,7 @@ export async function assignCompanies(
     await createAssignmentNotification({
       assignee,
       count: assigned.length,
+      reassigned: reassignedCount,
       assignedBy: profile.name,
     }).catch(() => {})
   }

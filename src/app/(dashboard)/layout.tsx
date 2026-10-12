@@ -33,9 +33,10 @@ export default async function DashboardLayout({
         {children}
       </div>
       <AssignmentNotice
-        count={assignedToMeToday}
+        count={assignedToMeToday.total}
+        reassigned={assignedToMeToday.reassigned}
         todayKey={todayKey}
-        href={`/companies?assigned_to=${profile.id}`}
+        href={`/companies?assigned_to=${profile.id}&sort=assigned`}
       />
       <KolAdditionNotice count={kolAddedToday} todayKey={todayKey} />
     </div>
