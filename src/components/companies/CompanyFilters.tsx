@@ -25,6 +25,8 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
   const [source,      setSource]      = useState(sp.get('source') ?? '')
   const [nextAction,  setNextAction]  = useState(sp.get('next_action') ?? '')
   const [inflowMonth, setInflowMonth] = useState(sp.get('inflow_month') ?? '')
+  const [assignedFrom,  setAssignedFrom]  = useState(sp.get('assigned_from') ?? '')
+  const [assignedUntil, setAssignedUntil] = useState(sp.get('assigned_until') ?? '')
   const [q,           setQ]           = useState(sp.get('q') ?? '')
   const [sort,        setSort]        = useState(sp.get('sort') ?? '')
 
@@ -34,7 +36,8 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
   function push(overrides: Record<string, string> = {}) {
     const cur = {
       stage, status, assigned_to: assignedTo, category, source,
-      next_action: nextAction, inflow_month: inflowMonth, new: isNew, q, sort,
+      next_action: nextAction, inflow_month: inflowMonth,
+      assigned_from: assignedFrom, assigned_until: assignedUntil, new: isNew, q, sort,
     }
     const merged = { ...cur, ...overrides }
     const params = new URLSearchParams()
@@ -50,6 +53,8 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
       source:       setSource,
       next_action:  setNextAction,
       inflow_month: setInflowMonth,
+      assigned_from:  setAssignedFrom,
+      assigned_until: setAssignedUntil,
       sort:         setSort,
     }
     setters[key]?.(value)
@@ -62,6 +67,19 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
     push({ stage: value, status: '' })
   }
 
+  // 배분일 기간 빠른 선택 (KST 오늘 기준)
+  function onAssignedPreset(days: number | 'month' | '') {
+    let from = ''
+    let until = ''
+    if (days !== '') {
+      const today = kstToday()
+      until = today
+      from = days === 'month' ? `${today.slice(0, 7)}-01` : shiftDate(today, -(days - 1))
+    }
+    setAssignedFrom(from); setAssignedUntil(until)
+    push({ assigned_from: from, assigned_until: until })
+  }
+
   function onSearch(e: React.FormEvent) {
     e.preventDefault()
     push()
@@ -69,11 +87,12 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
 
   function onClear() {
     setStatus(''); setAssignedTo(''); setCategory('')
-    setSource(''); setNextAction(''); setInflowMonth(''); setQ(''); setSort('')
+    setSource(''); setNextAction(''); setInflowMonth('')
+    setAssignedFrom(''); setAssignedUntil(''); setQ(''); setSort('')
     router.push('/companies')
   }
 
-  const hasFilter = [stage, status, assignedTo, category, source, nextAction, inflowMonth, isNew, q, sort].some(Boolean)
+  const hasFilter = [stage, status, assignedTo, category, source, nextAction, inflowMonth, assignedFrom, assignedUntil, isNew, q, sort].some(Boolean)
 
   // 단계 탭 안에서는 해당 단계의 상태만 노출
   const statusOptions = stage && stage in STAGE_STATUS
@@ -149,6 +168,37 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
           </Sel>
         </div>
 
+        {/* 배분일 기간 — 시작/종료 중 한쪽만 지정해도 된다 */}
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-gray-500">배분일</span>
+          <input
+            type="date"
+            aria-label="배분일 시작"
+            value={assignedFrom}
+            max={assignedUntil || undefined}
+            onChange={e => onSelect('assigned_from', e.target.value)}
+            className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <span className="text-gray-400">~</span>
+          <input
+            type="date"
+            aria-label="배분일 종료"
+            value={assignedUntil}
+            min={assignedFrom || undefined}
+            onChange={e => onSelect('assigned_until', e.target.value)}
+            className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <div className="flex flex-wrap gap-1">
+            <PresetBtn label="오늘" onClick={() => onAssignedPreset(1)} />
+            <PresetBtn label="최근 7일" onClick={() => onAssignedPreset(7)} />
+            <PresetBtn label="최근 30일" onClick={() => onAssignedPreset(30)} />
+            <PresetBtn label="이번 달" onClick={() => onAssignedPreset('month')} />
+            {(assignedFrom || assignedUntil) && (
+              <PresetBtn label="✕ 기간 해제" onClick={() => onAssignedPreset('')} />
+            )}
+          </div>
+        </div>
+
         <div className="flex flex-wrap gap-2 items-center">
           <form onSubmit={onSearch} className="flex flex-1 min-w-[200px] gap-2">
             <input
@@ -173,6 +223,29 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
         </div>
       </div>
     </div>
+  )
+}
+
+// KST 오늘 "YYYY-MM-DD" — 브라우저 시간대와 무관하게 배분일 기준과 맞춘다
+function kstToday(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
+function shiftDate(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+function PresetBtn({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="px-2 py-1 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+    >
+      {label}
+    </button>
   )
 }
 

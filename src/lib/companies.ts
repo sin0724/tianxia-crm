@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { kstStartOfDay, kstMonthString } from '@/lib/datetime'
+import { kstStartOfDay, kstMonthString, kstDayStartISO, kstDayEndISO } from '@/lib/datetime'
 import { STAGE_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE, type Stage } from '@/lib/constants'
 
 export interface Company {
@@ -46,6 +46,8 @@ export interface CompanyListFilters {
   source?: string
   next_action?: string
   inflow_month?: string // "YYYY-MM"
+  assigned_from?: string  // 배분일 시작 "YYYY-MM-DD" (KST, 포함)
+  assigned_until?: string // 배분일 종료 "YYYY-MM-DD" (KST, 포함)
   new?: string          // '1' = 신규 배정(배정됨 + 미연락)만
   q?: string
   sort?: string         // COMPANY_SORTS(@/lib/constants)의 value ('' = 다음 액션 임박순)
@@ -61,6 +63,8 @@ function monthRange(month: string): { from: string; to: string } | null {
   const next = mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`
   return { from: `${month}-01`, to: `${next}-01` }
 }
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export const PAGE_SIZE = 50
 
@@ -127,6 +131,35 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
     }
   }
 
+  // PostgREST or 그룹 — 여러 개면 마지막에 and(...)로 묶어 한 번에 건다
+  const orGroups: string[] = []
+
+  // 배분일 기간 — KST 달력 기준 [시작일 00:00, 종료일 23:59:59.999]. 한쪽만 지정해도 된다.
+  // 미배정 건은 배분일이 없으므로 등록일(created_at)로 기간에 포함시킨다.
+  //  - 특정 담당자: 배분일 기준
+  //  - 미배정:      등록일 기준
+  //  - 전체:        배분된 건은 배분일, 미배정 건은 등록일 기준
+  const from  = filters.assigned_from  && DATE_RE.test(filters.assigned_from)  ? kstDayStartISO(filters.assigned_from)  : null
+  const until = filters.assigned_until && DATE_RE.test(filters.assigned_until) ? kstDayEndISO(filters.assigned_until) : null
+  if (from || until) {
+    const rangeConds = (col: string) => [
+      ...(from  ? [`${col}.gte."${from}"`]  : []),
+      ...(until ? [`${col}.lte."${until}"`] : []),
+    ]
+    if (filters.assigned_to === 'none') {
+      if (from)  query = query.gte('created_at', from)
+      if (until) query = query.lte('created_at', until)
+    } else if (filters.assigned_to) {
+      if (from)  query = query.gte('assigned_at', from)
+      if (until) query = query.lte('assigned_at', until)
+    } else {
+      orGroups.push(
+        `and(${rangeConds('assigned_at').join(',')}),` +
+        `and(assigned_to.is.null,${rangeConds('created_at').join(',')})`,
+      )
+    }
+  }
+
   if (filters.next_action === 'overdue') {
     // KST 기준 오늘 이전 = 기한 초과 (당일은 초과 아님)
     query = query
@@ -138,9 +171,15 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
     // PostgREST or() 구문 보호: 와일드카드 이스케이프 후 값 전체를 따옴표로 감쌈
     // (쉼표·괄호가 포함된 검색어도 안전)
     const safe = filters.q.replace(/[%_\\]/g, '\\$&').replace(/"/g, '\\"')
-    query = query.or(
+    orGroups.push(
       `company_name.ilike."%${safe}%",phone.ilike."%${safe}%",latest_note.ilike."%${safe}%"`,
     )
+  }
+
+  if (orGroups.length === 1) {
+    query = query.or(orGroups[0])
+  } else if (orGroups.length > 1) {
+    query = query.or(`and(${orGroups.map(g => `or(${g})`).join(',')})`)
   }
 
   const { data, count } = await query

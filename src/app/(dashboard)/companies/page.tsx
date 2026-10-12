@@ -23,6 +23,8 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
     source:      sp.source,
     next_action:  sp.next_action,
     inflow_month: sp.inflow_month,
+    assigned_from:  sp.assigned_from,
+    assigned_until: sp.assigned_until,
     new:          sp.new,
     q:            sp.q,
     sort:         sp.sort,
