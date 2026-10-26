@@ -13,10 +13,11 @@ import { normalizeHandle, sanitizeDeliverables } from '@/lib/kol-fields'
 //   instagram:     string     // 핸들 또는 프로필 URL
 //   name?:         string     // 표시 이름 (없으면 핸들)
 //   followers?:    number
-//   kind?:         'offer' | 'reply'  // offer = 유료협업 제안 DM을 보냄(회신 전 등록), 기본 reply
-//   reply?:        string     // KOL이 보낸 회신 원문 (kind=reply일 때 필수)
+//   kind?:         'offer' | 'reply' | 'inbound'  // offer = 유료협업 제안 DM을 보냄(회신 전 등록), 기본 reply
+//                             // inbound = 공식계정(@tianxia_tw)으로 들어온 KOL 문의 — 담당자가 슬랙에 올린 링크
+//   reply?:        string     // KOL이 보낸 회신 원문 (kind=reply일 때 필수) / inbound: 담당자 메모 (선택)
 //   at?:           string     // 회신 시각 (ISO, 기본 지금)
-//   sender?:       string     // 보낸 인스타 계정 (예: tianxia_koc_ego2)
+//   sender?:       string     // 보낸 인스타 계정 (예: tianxia_koc_ego2) / inbound: 올린 담당자 이름
 //   rate?:         string     // 단가 요약 ("릴스 1개 NT$15,000") — 담당자 확인 필요로 표시
 //   fee_amount?:   number
 //   fee_currency?: 'TWD' | 'KRW'
@@ -57,8 +58,9 @@ export async function POST(request: NextRequest) {
 
   const handle = normalizeHandle(body.instagram)
   const offer = body.kind === 'offer'
+  const inbound = body.kind === 'inbound'
   const reply = body.reply?.trim() ?? ''
-  if (!handle || (!offer && !reply)) {
+  if (!handle || (!offer && !inbound && !reply)) {
     return NextResponse.json({ success: false, error: 'instagram and reply are required' }, { status: 400 })
   }
   const at = body.at && !isNaN(Date.parse(body.at)) ? body.at : new Date().toISOString()
@@ -68,8 +70,13 @@ export async function POST(request: NextRequest) {
   const feeCurrency = body.fee_currency === 'KRW' || body.fee_currency === 'TWD' ? body.fee_currency : null
   const deliverables = sanitizeDeliverables(Array.isArray(body.deliverables) ? body.deliverables.map(String) : [])
   // 히스토리 한 줄: "[10/21 에고라이트 @tianxia_koc_ego2] KOL 회신: …" / "… 유료협업 제안 DM 발송 (회신 대기)"
+  // 공식계정 인입: "[10/26 공식계정 인입 · 이지아] 메모"
   const OFFER_TEXT = '유료협업 제안 DM 발송 (회신 대기)'
-  const line = `[${kstDay(at)} 에고라이트${body.sender ? ` @${body.sender}` : ''}] ${offer ? OFFER_TEXT : `KOL 회신: ${reply.replace(/\s+/g, ' ').slice(0, 500)}`}`
+  const INBOUND_TEXT = '공식계정 인입'
+  const memo = reply.replace(/\s+/g, ' ').slice(0, 500)
+  const line = inbound
+    ? `[${kstDay(at)} ${INBOUND_TEXT}${body.sender ? ` · ${body.sender}` : ''}]${memo ? ` ${memo}` : ''}`
+    : `[${kstDay(at)} 에고라이트${body.sender ? ` @${body.sender}` : ''}] ${offer ? OFFER_TEXT : `KOL 회신: ${memo}`}`
 
   try {
     const supabase = createAdminClient()
@@ -78,7 +85,7 @@ export async function POST(request: NextRequest) {
     if (existing) {
       // 같은 회신을 두 번 받으면(재전송·백필) 히스토리에 다시 붙이지 않는다
       const history: string = existing.history ?? ''
-      const dup = history.includes(offer ? OFFER_TEXT : reply.replace(/\s+/g, ' ').slice(0, 80))
+      const dup = inbound ? history.includes(`${kstDay(at)} ${INBOUND_TEXT}`) : history.includes(offer ? OFFER_TEXT : reply.replace(/\s+/g, ' ').slice(0, 80))
       const update: Record<string, unknown> = {}
       if (!dup) update.history = history ? `${history}\n${line}` : line
       if (followers && !existing.followers) update.followers = followers
@@ -95,7 +102,7 @@ export async function POST(request: NextRequest) {
       if (error) throw new Error(error.message)
       await supabase.from('kol_audit_logs').insert({
         actor_name: ACTOR_NAME, action: 'update', target_type: 'kol', target_id: existing.id, target_name: existing.name,
-        summary: offer ? '에고라이트 유료협업 제안 기록' : `KOL 회신 추가${update.rate ? ' · 단가' : ''}`, details: { changes: update },
+        summary: inbound ? '공식계정 인입 기록' : offer ? '에고라이트 유료협업 제안 기록' : `KOL 회신 추가${update.rate ? ' · 단가' : ''}`, details: { changes: update },
       })
       return NextResponse.json({ success: true, created: false, kol_id: existing.id })
     }
@@ -115,7 +122,7 @@ export async function POST(request: NextRequest) {
     if (error) throw new Error(error.message)
     await supabase.from('kol_audit_logs').insert({
       actor_name: ACTOR_NAME, action: 'create', target_type: 'kol', target_id: created.id, target_name: row.name,
-      summary: `에고라이트 KOL ${offer ? '제안' : '회신'} 자동 등록 (@${handle})`, details: { after: row },
+      summary: inbound ? `공식계정 인입 KOL 자동 등록 (@${handle})` : `에고라이트 KOL ${offer ? '제안' : '회신'} 자동 등록 (@${handle})`, details: { after: row },
     })
     return NextResponse.json({ success: true, created: true, kol_id: created.id })
   } catch (e) {
