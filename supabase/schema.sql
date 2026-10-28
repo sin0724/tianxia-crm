@@ -858,7 +858,7 @@ ALTER TABLE kols ADD COLUMN IF NOT EXISTS rate_needs_review BOOLEAN NOT NULL DEF
 
 COMMENT ON COLUMN kols.rate              IS '[레거시] 진행 단가 원문 — 보존용. 신규 입력은 fee_amount/fee_currency/deliverables 사용';
 COMMENT ON COLUMN kols.fee_amount        IS '고정비 금액 — 판매량과 무관하게 지급하는 정액';
-COMMENT ON COLUMN kols.fee_currency      IS '고정비 통화: TWD(대만달러, 기본) | KRW(원)';
+COMMENT ON COLUMN kols.fee_currency      IS '고정비 통화: TWD(대만달러, 기본) | KRW(원) | USD(미국달러) | HKD(홍콩달러)';
 COMMENT ON COLUMN kols.deliverables      IS '제공 항목: {"릴스 1개","스토리 5개 이상","바이오링크 3일"}';
 COMMENT ON COLUMN kols.rs_rate           IS 'RS 요율(%) — 판매액 대비 KOL 몫. 0~100. 고정비와 독립(하나만 채워도 정상)';
 COMMENT ON COLUMN kols.categories        IS 'KOL 콘텐츠 장르 (kol_categories 마스터 기준)';
@@ -866,7 +866,7 @@ COMMENT ON COLUMN kols.gonggu_categories IS '이 KOL로 돌릴 수 있는 공구
 
 ALTER TABLE kols DROP CONSTRAINT IF EXISTS kols_fee_currency_check;
 ALTER TABLE kols ADD  CONSTRAINT kols_fee_currency_check
-  CHECK (fee_currency IN ('TWD','KRW'));
+  CHECK (fee_currency IN ('TWD','KRW','USD','HKD'));
 
 ALTER TABLE kols DROP CONSTRAINT IF EXISTS kols_fee_amount_check;
 ALTER TABLE kols ADD  CONSTRAINT kols_fee_amount_check
@@ -883,7 +883,7 @@ CREATE INDEX IF NOT EXISTS idx_kols_gonggu_categories ON kols USING GIN (gonggu_
 
 -- 14-b. 통화 환산 기준 환율
 -- 통화가 섞인 값을 "비교"할 때만 쓴다 (고정비 금액순 정렬·범위 필터, 누적 공구매출 정렬).
--- 표시는 항상 원문 통화 그대로. 값을 바꿀 때 src/lib/constants.ts의 TWD_TO_KRW도
+-- 표시는 항상 원문 통화 그대로. 값을 바꿀 때 src/lib/constants.ts의 FX_TO_KRW도
 -- 같은 값으로 수정해야 화면에 명시되는 환율과 정렬 기준이 어긋나지 않는다.
 
 CREATE OR REPLACE FUNCTION twd_to_krw_rate()
@@ -891,6 +891,20 @@ RETURNS NUMERIC
 LANGUAGE sql
 IMMUTABLE PARALLEL SAFE
 AS $$ SELECT 44::NUMERIC $$;
+
+-- 통화 → 원화 환산 배수 (USD·HKD 추가, 2026-10). 모르는 통화는 1(원화 취급)
+CREATE OR REPLACE FUNCTION fx_to_krw(cur TEXT)
+RETURNS NUMERIC
+LANGUAGE sql
+IMMUTABLE PARALLEL SAFE
+AS $$
+  SELECT CASE cur
+    WHEN 'TWD' THEN twd_to_krw_rate()
+    WHEN 'USD' THEN 1400::NUMERIC
+    WHEN 'HKD' THEN 180::NUMERIC
+    ELSE 1::NUMERIC
+  END
+$$;
 
 
 -- 14-c. 공구매출 이력
@@ -906,7 +920,7 @@ CREATE TABLE IF NOT EXISTS kol_gonggu_sales (
   brand      TEXT,                               -- 진행 브랜드/업체
   sale_date  DATE,                               -- 진행일
   amount     NUMERIC     NOT NULL DEFAULT 0,     -- 공구매출 금액
-  currency   TEXT        NOT NULL DEFAULT 'TWD', -- 'TWD' | 'KRW' (대만 공구는 NTD로 기입)
+  currency   TEXT        NOT NULL DEFAULT 'TWD', -- 'TWD' | 'KRW' | 'USD' | 'HKD' (대만 공구는 NTD로 기입)
   quantity   INTEGER,                            -- 판매 수량
   notes      TEXT,                               -- 반응, 재구매율 등
   created_by UUID        REFERENCES profiles(id) ON DELETE SET NULL,
@@ -918,7 +932,7 @@ COMMENT ON COLUMN kol_gonggu_sales.amount IS '공구매출 금액 — currency �
 
 ALTER TABLE kol_gonggu_sales DROP CONSTRAINT IF EXISTS kol_gonggu_sales_currency_check;
 ALTER TABLE kol_gonggu_sales ADD  CONSTRAINT kol_gonggu_sales_currency_check
-  CHECK (currency IN ('TWD','KRW'));
+  CHECK (currency IN ('TWD','KRW','USD','HKD'));
 
 ALTER TABLE kol_gonggu_sales DROP CONSTRAINT IF EXISTS kol_gonggu_sales_amount_check;
 ALTER TABLE kol_gonggu_sales ADD  CONSTRAINT kol_gonggu_sales_amount_check
@@ -962,8 +976,8 @@ CREATE POLICY "kol_gonggu_sales_delete"
 
 -- 14-d. 목록 조회용 뷰 — 누적 공구매출 합계 + 비교용 환산액
 -- 정렬(고정비순·누적 공구매출순)과 제공 항목 부분 검색은 집계·문자열이 필요해
--- 뷰에서 계산한다. 누적액은 통화별로 나눠 담고(gonggu_sales_twd/krw), 정렬용
--- 환산 합계(_krw_total)는 twd_to_krw_rate() 기준 — 화면에 환율을 명시한다.
+-- 뷰에서 계산한다. 누적액은 통화별로 나눠 담고(gonggu_sales_twd/krw/usd/hkd), 정렬용
+-- 환산 합계(_krw_total)는 fx_to_krw() 기준 — 화면에 환율을 명시한다.
 -- 쓰기는 항상 kols / kol_gonggu_sales 테이블에 직접 한다.
 -- security_invoker: 뷰 조회자의 RLS를 그대로 적용 (PostgreSQL 15+)
 
@@ -973,19 +987,23 @@ SELECT
   k.*,
   -- 제공 항목 부분 검색용("릴스"로 찾기) — 배열은 ilike가 안 되므로 문자열로 펼침
   array_to_string(k.deliverables, ' | ')                                     AS deliverables_text,
-  CASE k.fee_currency WHEN 'TWD' THEN k.fee_amount * twd_to_krw_rate()
-                                 ELSE k.fee_amount END                       AS fee_amount_krw,
+  k.fee_amount * fx_to_krw(k.fee_currency)                                   AS fee_amount_krw,
   COALESCE(s.total_twd, 0)                                                   AS gonggu_sales_twd,
   COALESCE(s.total_krw, 0)                                                   AS gonggu_sales_krw,
-  COALESCE(s.total_krw, 0) + COALESCE(s.total_twd, 0) * twd_to_krw_rate()    AS gonggu_sales_krw_total,
+  COALESCE(s.total_krw_converted, 0)                                         AS gonggu_sales_krw_total,
   COALESCE(s.sale_count, 0)                                                  AS gonggu_sales_count,
-  s.last_sale_date                                                           AS gonggu_sales_last_date
+  s.last_sale_date                                                           AS gonggu_sales_last_date,
+  COALESCE(s.total_usd, 0)                                                   AS gonggu_sales_usd,
+  COALESCE(s.total_hkd, 0)                                                   AS gonggu_sales_hkd
 FROM kols k
 LEFT JOIN (
   SELECT
     kol_id,
     SUM(CASE WHEN currency = 'TWD' THEN amount ELSE 0 END) AS total_twd,
     SUM(CASE WHEN currency = 'KRW' THEN amount ELSE 0 END) AS total_krw,
+    SUM(CASE WHEN currency = 'USD' THEN amount ELSE 0 END) AS total_usd,
+    SUM(CASE WHEN currency = 'HKD' THEN amount ELSE 0 END) AS total_hkd,
+    SUM(amount * fx_to_krw(currency))                     AS total_krw_converted,
     COUNT(*)                                              AS sale_count,
     MAX(sale_date)                                        AS last_sale_date
   FROM kol_gonggu_sales

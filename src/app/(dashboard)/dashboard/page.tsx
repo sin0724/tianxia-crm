@@ -4,10 +4,8 @@ import { BarChart } from '@/components/dashboard/BarChart'
 import { AssignmentBanner } from '@/components/dashboard/AssignmentBanner'
 import { requireAuth } from '@/lib/auth'
 import { getDashboardData } from '@/lib/dashboard'
-import { getKpiData, getKpiMetrics } from '@/lib/kpi'
 import { getUnreadNotifications } from '@/lib/notifications'
 import { STAGES, STAGE_COLOR } from '@/lib/constants'
-import { monthLabelKST } from '@/lib/datetime'
 import type { ChartRow } from '@/lib/dashboard'
 
 // ── 헬퍼 ──────────────────────────────────────────────────────
@@ -32,16 +30,16 @@ function StatCard({
   accent?: 'blue' | 'green' | 'orange' | 'red'
 }) {
   const accentCls = {
-    blue:   'text-blue-600',
-    green:  'text-green-600',
+    blue:   'text-gray-900',
+    green:  'text-[#3182f6]',
     orange: 'text-orange-500',
-    red:    'text-red-500',
+    red:    'text-[#f04452]',
   }[accent ?? 'blue']
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-5">
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className={`text-2xl font-bold ${accentCls}`}>
+    <div className="bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
+      <p className="text-[13px] text-gray-500 mb-1.5">{label}</p>
+      <p className={`text-2xl font-bold tracking-tight ${accentCls}`}>
         {typeof value === 'number' ? value.toLocaleString('ko-KR') : value}
       </p>
       {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
@@ -51,21 +49,9 @@ function StatCard({
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mt-8 mb-3 first:mt-0">
+    <h2 className="text-lg font-bold tracking-tight text-gray-900 mt-10 mb-3 first:mt-0">
       {children}
     </h2>
-  )
-}
-
-// 목표 0 = 집계만 하는 항목 — 진행률 대신 건수만 보여준다
-function KpiCell({ value, target }: { value: number; target: number }) {
-  const done = target > 0 && value >= target
-  return (
-    <td className={`px-4 py-3 whitespace-nowrap font-medium ${done ? 'text-green-600' : 'text-gray-700'}`}>
-      {value}
-      {target > 0 && <span className="text-gray-400 font-normal"> / {target}</span>}
-      {done && ' ✓'}
-    </td>
   )
 }
 
@@ -86,11 +72,9 @@ function toContractCountItems(rows: ChartRow[]) {
 
 export default async function DashboardPage() {
   const profile = await requireAuth()
-  const [{ stats, byAssignee, bySource, byCategory, byStatus, cohorts }, kpiRows, kpiMetrics, notifications] =
+  const [{ stats, byAssignee, bySource, byCategory, byStatus, cohorts }, notifications] =
     await Promise.all([
       getDashboardData(profile),
-      getKpiData(profile),
-      getKpiMetrics(),
       getUnreadNotifications(profile.id),
     ])
 
@@ -101,13 +85,16 @@ export default async function DashboardPage() {
       <Header title={`대시보드 — ${scopeLabel} 현황`} />
       <main className="flex-1 p-4 sm:p-6 max-w-5xl">
 
-        <AssignmentBanner notifications={notifications} />
+        <AssignmentBanner
+          notifications={notifications}
+          href={`/companies?assigned_to=${profile.id}&sort=assigned`}
+        />
 
         {/* ── 영업 단계 파이프라인 ───────────────────────── */}
         <SectionTitle>영업 단계</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {STAGES.map(stage => (
-            <div key={stage} className="bg-white border border-gray-200 rounded-xl p-5">
+            <div key={stage} className="bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
               <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STAGE_COLOR[stage]}`}>
                 {stage}
               </span>
@@ -128,7 +115,6 @@ export default async function DashboardPage() {
           <StatCard label="전체 고객 수"          value={stats.totalCompanies}    accent="blue" />
           <StatCard label="이번 달 신규 등록"      value={stats.newThisMonth}      accent="blue" />
           <StatCard label="오늘 연락 예정"         value={stats.todayActions}      accent="orange" />
-          <StatCard label="기한 초과 액션"         value={stats.overdueActions}    accent="red" />
           <StatCard label="이번 주 미팅 예정"      value={stats.thisWeekMeetings}  accent="blue" />
           <StatCard label="제안서 발송"            value={stats.proposalSent}      accent="blue" />
           <StatCard label="계약 검토"              value={stats.contractReview}    accent="orange" />
@@ -154,58 +140,13 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        {/* ── 영업사원 KPI ──────────────────────────────── */}
-        {/* 항목·목표치는 설정 > KPI 항목 관리에서 관리자가 조정한다 (월 단위 집계) */}
-        <SectionTitle>
-          영업사원 KPI — {monthLabelKST()} 누적
-          {profile.role === 'admin' && (
-            <Link href="/settings" className="ml-2 text-xs font-normal text-blue-600 hover:underline">
-              항목·목표 조정 →
-            </Link>
-          )}
-        </SectionTitle>
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                    담당자
-                  </th>
-                  {kpiMetrics.map(m => (
-                    <th key={m.key} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                      {m.label} ({m.monthly_target})
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {kpiRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={kpiMetrics.length + 1} className="px-4 py-6 text-center text-gray-400">
-                      데이터 없음
-                    </td>
-                  </tr>
-                ) : kpiRows.map(r => (
-                  <tr key={r.userId}>
-                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{r.name}</td>
-                    {kpiMetrics.map(m => (
-                      <KpiCell key={m.key} value={r.counts[m.key] ?? 0} target={m.monthly_target} />
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
         {/* ── 월별 유입 코호트 ──────────────────────────── */}
         <SectionTitle>월별 유입 코호트 — 유입 시점별 DB 성과</SectionTitle>
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+                <tr className="border-b border-gray-100 text-xs text-gray-400">
                   <th className="px-4 py-3 text-left whitespace-nowrap">유입월</th>
                   <th className="px-4 py-3 text-center whitespace-nowrap">유입 수</th>
                   <th className="px-4 py-3 text-center whitespace-nowrap">가망 도달</th>

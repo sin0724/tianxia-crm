@@ -8,7 +8,7 @@ import type { DuplicateMatch, ImportResult, ImportRow } from '@/app/(dashboard)/
 
 type Step = 'upload' | 'mapping' | 'preview' | 'result'
 
-const inputCls = 'w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
+const inputCls = 'w-full px-2 py-1.5 border border-gray-200 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30'
 
 // ── 매핑 적용 ─────────────────────────────────────────────────
 
@@ -144,13 +144,13 @@ export function ImportClient() {
       <div className="flex justify-end mb-3">
         <button
           onClick={downloadTemplate}
-          className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+          className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
         >
           📥 양식 다운로드
         </button>
       </div>
       <div
-        className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:border-blue-400 transition-colors"
+        className="border-2 border-dashed border-gray-200 rounded-2xl p-10 text-center cursor-pointer hover:border-blue-400 transition-colors"
         onClick={() => fileRef.current?.click()}
       >
         <p className="text-4xl mb-3">📂</p>
@@ -160,7 +160,7 @@ export function ImportClient() {
       </div>
       {fileError && <p className="mt-3 text-sm text-red-600">{fileError}</p>}
 
-      <div className="mt-6 bg-gray-50 rounded-lg p-4 text-xs text-gray-500 space-y-1">
+      <div className="mt-6 bg-gray-50 rounded-xl p-4 text-xs text-gray-500 space-y-1">
         <p className="font-semibold text-gray-700 mb-2">필수 컬럼</p>
         {CRM_FIELDS.filter(f => f.required).map(f => <p key={f.key}>• {f.label}</p>)}
         <p className="text-gray-400 pt-1">
@@ -179,7 +179,7 @@ export function ImportClient() {
         총 <span className="font-medium">{rows.length}행</span> 데이터
       </p>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-xs text-gray-500">
             <tr>
@@ -213,7 +213,7 @@ export function ImportClient() {
       {fileError && <p className="text-sm text-red-600">{fileError}</p>}
 
       <div className="flex gap-2">
-        <button onClick={handleGoPreview} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors">
+        <button onClick={handleGoPreview} className="px-4 py-2 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] transition-colors">
           미리보기 →
         </button>
         <button onClick={() => setStep('upload')} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 transition-colors">
@@ -253,7 +253,7 @@ export function ImportClient() {
       <div className="space-y-4">
         <div className="flex items-center gap-4 text-sm flex-wrap">
           <span className="text-gray-500">전체 <strong>{rows.length}행</strong></span>
-          <span className="text-blue-600 font-medium">선택 <strong>{selectedIndices.size}건</strong> 가져오기 예정</span>
+          <span className="text-[#3182f6] font-medium">선택 <strong>{selectedIndices.size}건</strong> 가져오기 예정</span>
           {isPending && <span className="text-gray-400">중복 검사 중...</span>}
           {!isPending && dupes.length > 0 && (
             <span className="text-orange-600 font-medium">⚠ 중복 후보 {dupes.length}건 (체크 해제됨)</span>
@@ -263,7 +263,7 @@ export function ImportClient() {
           )}
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <div className="overflow-x-auto rounded-2xl border border-gray-100">
           <table className="text-xs w-full">
             <thead className="bg-gray-50 text-gray-500">
               <tr>
@@ -272,7 +272,7 @@ export function ImportClient() {
                     type="checkbox"
                     checked={allPreviewSelected}
                     onChange={togglePreviewAll}
-                    className="rounded border-gray-300 text-blue-600"
+                    className="rounded border-gray-200 text-[#3182f6]"
                   />
                 </th>
                 <th className="px-3 py-2 text-left">#</th>
@@ -299,7 +299,7 @@ export function ImportClient() {
                         next.has(idx) ? next.delete(idx) : next.add(idx)
                         return next
                       })}
-                      className="rounded border-gray-300 text-blue-600"
+                      className="rounded border-gray-200 text-[#3182f6]"
                     />
                   </td>
                   <td className="px-3 py-2 text-gray-400">{idx + 1}</td>
@@ -331,7 +331,7 @@ export function ImportClient() {
           <button
             onClick={handleImport}
             disabled={isPending || selectedIndices.size === 0}
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="px-4 py-2 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] disabled:opacity-50 transition-colors"
           >
             {isPending ? '가져오는 중...' : `선택한 ${selectedIndices.size}건 가져오기`}
           </button>
@@ -348,18 +348,18 @@ export function ImportClient() {
   if (step === 'result' && result) return (
     <div className="max-w-2xl space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-5 text-center">
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-5 text-center">
           <p className="text-3xl font-bold text-green-600">{result.inserted}</p>
           <p className="text-sm text-green-700 mt-1">성공</p>
         </div>
-        <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-center">
           <p className="text-3xl font-bold text-red-500">{result.errors.length}</p>
           <p className="text-sm text-red-600 mt-1">실패</p>
         </div>
       </div>
 
       {result.errors.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
             <p className="text-sm font-semibold text-gray-700">실패 목록</p>
           </div>
@@ -376,7 +376,7 @@ export function ImportClient() {
       )}
 
       <div className="flex gap-2">
-        <Link href="/companies" className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors">
+        <Link href="/companies" className="px-4 py-2 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] transition-colors">
           거래처 목록으로
         </Link>
         <button onClick={() => { setStep('upload'); setResult(null); setDupes([]); if (fileRef.current) fileRef.current.value = '' }}

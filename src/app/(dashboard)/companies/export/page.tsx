@@ -21,7 +21,7 @@ export default async function ExportPage() {
           </Link>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
+        <div className="bg-white border border-gray-100 rounded-2xl p-6 space-y-5">
           <div>
             <h2 className="text-sm font-semibold text-gray-800 mb-1">CSV 다운로드</h2>
             <p className="text-xs text-gray-400">
@@ -33,7 +33,7 @@ export default async function ExportPage() {
             {/* 상태 필터 */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">상태 필터</label>
-              <select name="status" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select name="status" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30">
                 <option value="">전체 상태</option>
                 {COMPANY_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -43,7 +43,7 @@ export default async function ExportPage() {
             {profile.role !== 'sales' && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">담당자 필터</label>
-                <select name="assigned_to" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select name="assigned_to" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30">
                   <option value="">전체 담당자</option>
                   {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
@@ -53,7 +53,7 @@ export default async function ExportPage() {
             {/* 구분 필터 */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">구분 필터</label>
-              <select name="category" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select name="category" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30">
                 <option value="">전체 구분</option>
                 {options.categories.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -62,7 +62,7 @@ export default async function ExportPage() {
             {/* DB 경로 필터 */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">DB 경로 필터</label>
-              <select name="source" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select name="source" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30">
                 <option value="">전체 경로</option>
                 {options.sources.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -70,7 +70,7 @@ export default async function ExportPage() {
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+              className="w-full py-2.5 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] transition-colors"
             >
               📥 CSV 다운로드
             </button>

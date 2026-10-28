@@ -1,45 +1,11 @@
 import Link from 'next/link'
 import { Header } from '@/components/layout/Header'
 import { TaskSection } from '@/components/tasks/TaskSection'
-import { TeamOverview, type RepOverviewRow } from '@/components/tasks/TeamOverview'
-import { KpiQuickLog } from '@/components/kpi/KpiQuickLog'
-import { createClient } from '@/lib/supabase/server'
-import {
-  getTodayActions, getOverdueActions, getTodayMeetings,
-  getLongNoContact, type TaskCompany,
-} from '@/lib/tasks'
-import { getKpiData, getKpiMetrics, getMyMonthKpiEntries, type KpiRow } from '@/lib/kpi'
-import { CLOSED_STATUSES } from '@/lib/constants'
-import { monthLabelKST } from '@/lib/datetime'
+import { getTodayActions, getOverdueActions, getTodayMeetings } from '@/lib/tasks'
 import { requireAuth, isAdminOrManager } from '@/lib/auth'
 
 interface PageProps {
   searchParams: Promise<Record<string, string | undefined>>
-}
-
-// 담당자별 업무량 집계 (관리자/매니저 팀 현황판용)
-function buildOverviewRows(
-  kpiRows: KpiRow[],
-  lists: { today: TaskCompany[]; overdue: TaskCompany[]; meetings: TaskCompany[]; noContact: TaskCompany[] },
-): RepOverviewRow[] {
-  const rows: RepOverviewRow[] = kpiRows.map(k => ({
-    userId: k.userId,
-    name: k.name,
-    todayActions: 0,
-    overdue: 0,
-    meetings: 0,
-    longNoContact: 0,
-    kpi: k.counts,
-  }))
-  const byId = new Map(rows.map(r => [r.userId, r]))
-
-  for (const c of lists.today)     if (c.assigned_to) { const r = byId.get(c.assigned_to); if (r) r.todayActions++ }
-  for (const c of lists.overdue)   if (c.assigned_to) { const r = byId.get(c.assigned_to); if (r) r.overdue++ }
-  for (const c of lists.meetings)  if (c.assigned_to) { const r = byId.get(c.assigned_to); if (r) r.meetings++ }
-  for (const c of lists.noContact) if (c.assigned_to) { const r = byId.get(c.assigned_to); if (r) r.longNoContact++ }
-
-  // 급한 사람(연체 많은 순) 먼저
-  return rows.sort((a, b) => b.overdue - a.overdue || b.todayActions - a.todayActions)
 }
 
 export default async function TasksPage({ searchParams }: PageProps) {
@@ -51,55 +17,16 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const mineOnly = sp.mine === '1'
   const filters = mineOnly ? { assigned_to: profile.id } : {}
 
-  // 장기 미연락은 감독자 팀 현황판 집계에만 쓰고, 목록 섹션으로는 노출하지 않는다.
-  const [todayActions, overdueActions, todayMeetings, longNoContact, kpiRows, kpiMetrics, monthEntries] =
-    await Promise.all([
-      getTodayActions(filters),
-      getOverdueActions(filters),
-      getTodayMeetings(filters),
-      getLongNoContact(filters),
-      getKpiData(profile),
-      getKpiMetrics(),
-      profile.role === 'sales' ? getMyMonthKpiEntries(profile.id) : Promise.resolve([]),
-    ])
-
-  // 미배정(배분 대기) 건수 — 감독자에게만 표시
-  let unassignedCount: number | undefined
-  if (isSupervisor) {
-    const supabase = await createClient()
-    let q = supabase
-      .from('companies')
-      .select('id', { count: 'exact', head: true })
-      .is('assigned_to', null)
-    for (const s of CLOSED_STATUSES) q = q.neq('status', s)
-    const { count } = await q
-    unassignedCount = count ?? 0
-  }
-
-  const myKpi = kpiRows.find(r => r.userId === profile.id) ?? null
-  const overviewRows = isSupervisor && !mineOnly
-    ? buildOverviewRows(kpiRows, {
-        today: todayActions, overdue: overdueActions,
-        meetings: todayMeetings, noContact: longNoContact,
-      })
-    : []
+  const [todayActions, overdueActions, todayMeetings] = await Promise.all([
+    getTodayActions(filters),
+    getOverdueActions(filters),
+    getTodayMeetings(filters),
+  ])
 
   return (
     <>
       <Header title="오늘 할 일" />
       <main className="flex-1 p-4 sm:p-6 max-w-3xl space-y-4">
-        {/* 영업사원: 개인 KPI 퀵 로그 / 관리자·매니저: 팀 현황판 */}
-        {profile.role === 'sales' ? (
-          <KpiQuickLog
-            metrics={kpiMetrics}
-            myKpi={myKpi}
-            monthEntries={monthEntries}
-            monthLabel={monthLabelKST()}
-          />
-        ) : !mineOnly ? (
-          <TeamOverview rows={overviewRows} metrics={kpiMetrics} unassignedCount={unassignedCount} />
-        ) : null}
-
         {isSupervisor && (
           <div className="flex gap-1 bg-white border border-gray-200 rounded-xl p-1.5 w-fit">
             <Link

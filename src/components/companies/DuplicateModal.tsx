@@ -19,7 +19,7 @@ export function DuplicateModal({ candidates, onConfirm, onCancel, isPending }: D
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
 
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
 
         {/* 헤더 */}
         <div className="px-6 py-5 border-b border-gray-100">
@@ -63,7 +63,7 @@ export function DuplicateModal({ candidates, onConfirm, onCancel, isPending }: D
                   href={`/companies/${c.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="shrink-0 self-start px-3 py-1.5 text-xs border border-gray-300 rounded-md hover:bg-gray-50 whitespace-nowrap transition-colors"
+                  className="shrink-0 self-start px-3 py-1.5 text-xs border border-gray-200 rounded-xl hover:bg-gray-50 whitespace-nowrap transition-colors"
                 >
                   상세 보기 →
                 </Link>
@@ -85,7 +85,7 @@ export function DuplicateModal({ candidates, onConfirm, onCancel, isPending }: D
             type="button"
             onClick={onConfirm}
             disabled={isPending}
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="px-4 py-2 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] disabled:opacity-50 transition-colors"
           >
             {isPending ? '저장 중...' : '그래도 등록하기'}
           </button>

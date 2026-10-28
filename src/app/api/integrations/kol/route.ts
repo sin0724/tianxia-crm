@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { normalizeHandle, sanitizeDeliverables } from '@/lib/kol-fields'
+import { isCurrency } from '@/lib/constants'
 
 // ── KOL 회신 등록 웹훅 (KOC 에고라이트 실행기) ─────────────────
 // 실행기가 팔로워 1만+ 계정에 유료 협업 문의 DM을 보내고, KOL이 답하면(단가표·협업 문의 등)
@@ -20,7 +21,7 @@ import { normalizeHandle, sanitizeDeliverables } from '@/lib/kol-fields'
 //   sender?:       string     // 보낸 인스타 계정 (예: tianxia_koc_ego2) / inbound: 올린 담당자 이름
 //   rate?:         string     // 단가 요약 ("릴스 1개 NT$15,000") — 담당자 확인 필요로 표시
 //   fee_amount?:   number
-//   fee_currency?: 'TWD' | 'KRW'
+//   fee_currency?: 'TWD' | 'KRW' | 'USD' | 'HKD'
 //   deliverables?: string[]
 // }
 
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
   const followers = Number.isFinite(body.followers) && body.followers! > 0 ? Math.round(body.followers!) : null
   const rate = body.rate?.trim() || null
   const feeAmount = Number.isFinite(body.fee_amount) && body.fee_amount! >= 0 ? body.fee_amount! : null
-  const feeCurrency = body.fee_currency === 'KRW' || body.fee_currency === 'TWD' ? body.fee_currency : null
+  const feeCurrency = isCurrency(body.fee_currency) ? body.fee_currency : null
   const deliverables = sanitizeDeliverables(Array.isArray(body.deliverables) ? body.deliverables.map(String) : [])
   // 히스토리 한 줄: "[10/21 에고라이트 @tianxia_koc_ego2] KOL 회신: …" / "… 유료협업 제안 DM 발송 (회신 대기)"
   // 공식계정 인입: "[10/26 공식계정 인입 · 이지아] 메모"

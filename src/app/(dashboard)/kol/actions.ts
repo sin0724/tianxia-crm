@@ -25,7 +25,7 @@ export interface KolInput {
   categories: string[]
   // ── 진행 조건 ── (레거시 rate 원문은 폼에서 수정하지 않고 보존한다)
   fee_amount: string        // 고정비 금액 (빈 값 허용)
-  fee_currency: string      // 'TWD' | 'KRW'
+  fee_currency: string      // 'TWD' | 'KRW' | 'USD' | 'HKD'
   deliverables: string[]    // 제공 항목 칩
   rs_rate: string           // RS 요율(%) 0~100
   gonggu_categories: string[]

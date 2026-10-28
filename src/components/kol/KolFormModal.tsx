@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createKol, updateKol, findSimilarKols, type KolInput, type SimilarKol } from '@/app/(dashboard)/kol/actions'
 import {
-  CURRENCIES, CURRENCY_LABEL, DELIVERABLE_PRESETS, GONGGU_CATEGORY, GONGGU_CATEGORY_COLOR, fmtFollowers,
+  CURRENCIES, CURRENCY_LABEL, DELIVERABLE_PRESETS, isCurrency, GONGGU_CATEGORY, GONGGU_CATEGORY_COLOR, fmtFollowers,
 } from '@/lib/constants'
 import { normalizeHandle } from '@/lib/kol-fields'
 import type { Kol } from '@/lib/kols'
@@ -33,7 +33,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
     followers:    kol?.followers != null ? String(kol.followers) : '',
     categories:   kol?.categories ?? [],
     fee_amount:   kol?.fee_amount != null ? String(kol.fee_amount) : '',
-    fee_currency: kol?.fee_currency === 'KRW' ? 'KRW' : 'TWD',
+    fee_currency: isCurrency(kol?.fee_currency) ? kol.fee_currency : 'TWD',
     deliverables: kol?.deliverables ?? [],
     rs_rate:      kol?.rs_rate != null ? String(kol.rs_rate) : '',
     gonggu_categories: kol?.gonggu_categories ?? [],
@@ -119,7 +119,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
               type="text" name="name" required={!form.instagram.trim()} value={form.name} autoFocus
               onChange={e => set('name', e.target.value)}
               placeholder="활동명 또는 본명"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
           </Field>
 
@@ -129,7 +129,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
                 type="text" name="instagram" value={form.instagram}
                 onChange={e => set('instagram', e.target.value)}
                 placeholder="@핸들 또는 프로필 URL"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
               />
             </Field>
             <Field label="팔로워 수">
@@ -137,7 +137,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
                 type="text" name="followers" value={form.followers}
                 onChange={e => set('followers', e.target.value)}
                 placeholder="예: 95000 또는 1.2만"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
               />
             </Field>
           </div>
@@ -147,7 +147,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
               type="email" name="email" value={form.email}
               onChange={e => set('email', e.target.value)}
               placeholder="contact@example.com"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
           </Field>
 
@@ -161,7 +161,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
                     className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
                       active
                         ? `${c.color} border-transparent ring-1 ring-blue-400`
-                        : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                        : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'
                     }`}
                   >
                     {c.name}
@@ -172,7 +172,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
           </Field>
 
           {/* ── 진행 조건 ─────────────────────────────────────── */}
-          <fieldset className="border border-gray-200 rounded-lg p-3.5 space-y-3">
+          <fieldset className="border border-gray-100 rounded-xl p-3.5 space-y-3">
             <legend className="px-1 text-xs font-semibold text-gray-700">진행 조건</legend>
 
             <div className="grid grid-cols-2 gap-3">
@@ -182,12 +182,12 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
                     type="text" name="fee_amount" value={form.fee_amount} inputMode="numeric"
                     onChange={e => set('fee_amount', e.target.value)}
                     placeholder="예: 13,300"
-                    className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
                   />
                   <select
                     name="fee_currency" value={form.fee_currency} aria-label="고정비 통화"
                     onChange={e => set('fee_currency', e.target.value)}
-                    className="px-2 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-2 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
                   >
                     {CURRENCIES.map(c => (
                       <option key={c} value={c}>{CURRENCY_LABEL[c]}</option>
@@ -201,7 +201,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
                     type="number" name="rs_rate" value={form.rs_rate} min="0" max="100" step="0.1"
                     onChange={e => set('rs_rate', e.target.value)}
                     placeholder="예: 15"
-                    className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
                   />
                   <span className="text-sm text-gray-500">%</span>
                 </div>
@@ -232,7 +232,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
                       className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
                         active
                           ? `${GONGGU_CATEGORY_COLOR[c]} border-transparent ring-1 ring-blue-400`
-                          : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                          : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'
                       }`}
                     >
                       {c}
@@ -244,7 +244,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
 
             {/* 레거시 원문 — 새 필드로 옮겨 적을 때 참고용. 수정 없이 보존한다 */}
             {kol?.rate && (
-              <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2">
                 <p className="text-[11px] font-medium text-amber-800">
                   기존 단가 원문{kol.rate_needs_review && ' — 위 항목으로 정리해 주세요'}
                 </p>
@@ -259,14 +259,14 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
                 type="text" name="visit_note" value={form.visit_note}
                 onChange={e => set('visit_note', e.target.value)}
                 placeholder="예: 7/12~7/15 방문, 7월중 예정"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
               />
             </Field>
             <Field label="대표 날짜 (정렬용, 선택)">
               <input
                 type="date" name="visit_date" value={form.visit_date}
                 onChange={e => set('visit_date', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
               />
             </Field>
           </div>
@@ -276,7 +276,7 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
               name="history" value={form.history} rows={4}
               onChange={e => set('history', e.target.value)}
               placeholder={'예)\n25.05 A브랜드 릴스 진행 (반응 좋음)\n25.03 B클리닉 방문 시술 후기'}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
           </Field>
 
@@ -286,12 +286,12 @@ export function KolFormModal({ kol, categories, onClose }: KolFormModalProps) {
 
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose}
-              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
               취소
             </button>
             <button type="submit" disabled={isPending}
-              className={`px-4 py-2 text-white text-sm font-medium rounded-md disabled:opacity-50 transition-colors ${
-                similar.length > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'
+              className={`px-4 py-2 text-white text-sm font-medium rounded-xl disabled:opacity-50 transition-colors ${
+                similar.length > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#3182f6] hover:bg-[#1b64da]'
               }`}>
               {isPending      ? '저장 중...'
                 : kol         ? '수정 저장'
@@ -343,7 +343,7 @@ function ChipInput({
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {values.map(v => (
-            <span key={v} className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+            <span key={v} className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-[#e8f3ff] text-blue-700 border border-blue-200">
               {v}
               <button
                 type="button" onClick={() => onChange(values.filter(x => x !== v))}
@@ -362,7 +362,7 @@ function ChipInput({
         {presets.map(p => (
           <button
             key={p} type="button" onClick={() => quickAdd(p)}
-            className="px-2 py-0.5 text-[11px] text-gray-600 border border-gray-200 rounded-full hover:bg-gray-50 transition-colors"
+            className="px-2 py-0.5 text-[11px] text-gray-600 border border-gray-100 rounded-full hover:bg-gray-50 transition-colors"
           >
             +{p}
           </button>
@@ -380,11 +380,11 @@ function ChipInput({
             e.preventDefault()  // 폼 제출 방지
             add(draft)
           }}
-          className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
         />
         <button
           type="button" onClick={() => add(draft)}
-          className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+          className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
         >
           추가
         </button>
@@ -399,7 +399,7 @@ const SIMILAR_SHOWN = 5
 
 function SimilarWarning({ matches }: { matches: SimilarKol[] }) {
   return (
-    <div className="rounded-md bg-amber-50 border border-amber-300 px-3 py-2.5 space-y-2">
+    <div className="rounded-xl bg-amber-50 border border-amber-300 px-3 py-2.5 space-y-2">
       <p className="text-xs font-semibold text-amber-800">
         ⚠ 이름이 비슷한 KOL이 이미 {matches.length}명 있습니다 — 같은 사람인지 확인해 주세요.
       </p>

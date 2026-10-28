@@ -14,7 +14,7 @@ import { sumGongguSales, type KolGongguSale } from '@/lib/kol-gonggu-sales'
 import { CURRENCIES, CURRENCY_LABEL, FX_NOTE, fmtMoney, fmtMoneyCompact } from '@/lib/constants'
 import { fmtDateKST } from '@/lib/datetime'
 
-const inputCls = 'w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
+const inputCls = 'w-full px-2 py-1.5 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30'
 
 interface Props {
   kolId: string
@@ -65,10 +65,10 @@ export function KolGongguSalesPanel({ kolId, sales, canEdit }: Props) {
           <p className="text-xs text-gray-600">
             누적{' '}
             <span className="font-semibold text-gray-900">
-              {[
-                totals.twd > 0 ? fmtMoney(totals.twd, 'TWD') : null,
-                totals.krw > 0 ? fmtMoneyCompact(totals.krw, 'KRW') : null,
-              ].filter(Boolean).join(' · ') || fmtMoney(0, 'TWD')}
+              {CURRENCIES
+                .filter(c => totals.byCurrency[c] > 0)
+                .map(c => fmtMoneyCompact(totals.byCurrency[c], c))
+                .join(' · ') || fmtMoney(0, 'TWD')}
             </span>
             <span className="text-gray-400"> · {totals.count}건</span>
             {totals.mixed && (
@@ -83,7 +83,7 @@ export function KolGongguSalesPanel({ kolId, sales, canEdit }: Props) {
         {canEdit && !adding && (
           <button
             type="button" onClick={() => { setAdding(true); setEditingId(null) }}
-            className="ml-auto px-2 py-1 text-[11px] font-medium text-blue-700 border border-blue-200 bg-white rounded-md hover:bg-blue-50 transition-colors"
+            className="ml-auto px-2 py-1 text-[11px] font-medium text-blue-700 border border-blue-200 bg-white rounded-xl hover:bg-[#e8f3ff] transition-colors"
           >
             + 공구매출 추가
           </button>
@@ -101,7 +101,7 @@ export function KolGongguSalesPanel({ kolId, sales, canEdit }: Props) {
       )}
 
       {sales.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-gray-500">
               <tr>
@@ -147,7 +147,7 @@ export function KolGongguSalesPanel({ kolId, sales, canEdit }: Props) {
                       <td className="px-2.5 py-1.5 whitespace-nowrap text-right">
                         <button
                           type="button" onClick={() => { setEditingId(sale.id); setAdding(false) }}
-                          className="px-1.5 py-0.5 text-gray-500 hover:text-blue-600 transition-colors"
+                          className="px-1.5 py-0.5 text-gray-500 hover:text-[#3182f6] transition-colors"
                         >
                           수정
                         </button>
@@ -194,7 +194,7 @@ function SaleForm({
   }
 
   return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-2.5 space-y-2">
+    <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-2.5 space-y-2">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <label className="space-y-0.5">
           <span className="block text-[11px] text-gray-500">진행일</span>
@@ -227,7 +227,7 @@ function SaleForm({
             <select
               value={input.currency} aria-label="공구매출 통화"
               onChange={e => set('currency', e.target.value)}
-              className="px-1.5 py-1.5 border border-gray-300 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="px-1.5 py-1.5 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             >
               {CURRENCIES.map(c => <option key={c} value={c}>{CURRENCY_LABEL[c]}</option>)}
             </select>
@@ -258,7 +258,7 @@ function SaleForm({
         </button>
         <button
           type="button" onClick={() => onSubmit(input)} disabled={isPending}
-          className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="px-3 py-1 text-xs font-medium bg-[#3182f6] text-white rounded-xl hover:bg-[#1b64da] disabled:opacity-50 transition-colors"
         >
           {isPending ? '저장 중...' : sale ? '수정 저장' : '추가'}
         </button>

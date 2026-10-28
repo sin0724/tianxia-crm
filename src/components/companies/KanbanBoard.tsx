@@ -57,14 +57,14 @@ export function KanbanBoard({ companies }: { companies: BoardCompany[] }) {
   return (
     <div className="space-y-3">
       {error && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">{error}</p>
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5">{error}</p>
       )}
 
       <div className="overflow-x-auto pb-4">
         <div className="flex gap-6 min-w-max">
           {STAGES.map(stage => (
             <div key={stage}>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{stage}</p>
+              <p className="text-xs font-semibold text-gray-400   mb-2">{stage}</p>
               <div className="flex gap-3">
                 {STAGE_STATUS[stage].map(status => (
                   <div
@@ -72,8 +72,8 @@ export function KanbanBoard({ companies }: { companies: BoardCompany[] }) {
                     onDragOver={e => { e.preventDefault(); setDragOver(status) }}
                     onDragLeave={() => setDragOver(prev => (prev === status ? null : prev))}
                     onDrop={e => handleDrop(e, status)}
-                    className={`w-56 shrink-0 rounded-xl border p-2 transition-colors ${
-                      dragOver === status ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-gray-50'
+                    className={`w-56 shrink-0 rounded-2xl border p-2 transition-colors ${
+                      dragOver === status ? 'border-blue-400 bg-[#e8f3ff]' : 'border-gray-100 bg-gray-50'
                     }`}
                   >
                     <div className="flex items-center justify-between px-1.5 py-1 mb-1.5">
@@ -89,9 +89,9 @@ export function KanbanBoard({ companies }: { companies: BoardCompany[] }) {
                           key={c.id}
                           draggable
                           onDragStart={e => e.dataTransfer.setData('text/company-id', c.id)}
-                          className="bg-white border border-gray-200 rounded-lg p-2.5 cursor-grab active:cursor-grabbing hover:border-blue-300 transition-colors"
+                          className="bg-white border border-gray-100 rounded-xl p-2.5 cursor-grab active:cursor-grabbing hover:border-blue-300 transition-colors"
                         >
-                          <Link href={`/companies/${c.id}`} className="text-sm font-medium text-gray-900 hover:text-blue-600 block truncate">
+                          <Link href={`/companies/${c.id}`} className="text-sm font-medium text-gray-900 hover:text-[#3182f6] block truncate">
                             {c.company_name}
                           </Link>
                           <p className="mt-1 text-xs text-gray-400 truncate">

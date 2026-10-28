@@ -50,14 +50,14 @@ export default async function KolPage({ searchParams }: PageProps) {
           <div className="flex flex-wrap items-center gap-2">
             {/* 변경 로그는 최고 관리자만 (KOL 담당자에게는 보이지 않는다) */}
             {profile.role === 'admin' && (
-              <Link href="/kol/logs" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+              <Link href="/kol/logs" className="px-3 py-2 text-sm font-medium text-gray-700 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-gray-100 transition-colors">
                 📜 변경 로그
               </Link>
             )}
             {canEdit && (
               <>
                 <KolCategoryManager categories={categoryItems} />
-                <Link href="/kol/import" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                <Link href="/kol/import" className="px-3 py-2 text-sm font-medium text-gray-700 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-gray-100 transition-colors">
                   📥 엑셀 가져오기
                 </Link>
                 <KolCreateButton categories={categoryItems} />

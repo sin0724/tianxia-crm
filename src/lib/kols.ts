@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { normalizeHandle } from '@/lib/kol-fields'
 import { kstStartOfDay } from '@/lib/datetime'
-import { TWD_TO_KRW, isCurrency, type Currency } from '@/lib/constants'
+import { isCurrency, toKrw, type Currency } from '@/lib/constants'
 import type { KolGongguSale } from '@/lib/kol-gonggu-sales'
 
 // 목록 조회는 뷰를 쓴다 — 누적 공구매출 합계, 고정비 환산액(정렬·범위 필터용),
@@ -35,7 +35,9 @@ export interface Kol {
   // ── 뷰 계산 컬럼 (누적 공구매출) ──
   gonggu_sales_twd: number
   gonggu_sales_krw: number
-  /** 정렬용 환산 합계 (TWD_TO_KRW 기준) — 표시는 통화별 값을 쓴다 */
+  gonggu_sales_usd: number
+  gonggu_sales_hkd: number
+  /** 정렬용 환산 합계 (FX_TO_KRW 기준) — 표시는 통화별 값을 쓴다 */
   gonggu_sales_krw_total: number
   gonggu_sales_count: number
   gonggu_sales_last_date: string | null
@@ -50,7 +52,7 @@ export interface KolListFilters {
   followers_max?: string
   fee_min?: string       // 고정비 범위 — fee_cur 통화 기준으로 입력
   fee_max?: string
-  fee_cur?: string       // 'TWD'(기본) | 'KRW' — 범위 입력값의 통화
+  fee_cur?: string       // 'TWD'(기본) | 'KRW' | 'USD' | 'HKD' — 범위 입력값의 통화
   needs_review?: string  // '1'이면 "원문 확인 필요"만
   visit_from?: string    // 방문 대표 날짜 범위 "YYYY-MM-DD"
   visit_to?: string
@@ -82,7 +84,7 @@ function feeToKrw(v: string | undefined, cur: Currency): number | null {
   if (!v) return null
   const n = Number(v.replace(/,/g, ''))
   if (!Number.isFinite(n) || n < 0) return null
-  return cur === 'TWD' ? n * TWD_TO_KRW : n
+  return toKrw(n, cur)
 }
 
 // 정렬·필터 적용 (getKols와 텍스트 복사용 전체 조회가 공유)

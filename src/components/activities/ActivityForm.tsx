@@ -10,7 +10,7 @@ const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-
 
 interface ActivityFormProps {
   companyId: string
-  /** 미팅 KPI 항목 — '미팅'을 고르면 어떤 미팅인지 함께 받아 KPI로 집계한다 */
+  /** 미팅 종류 — '미팅'을 고르면 어떤 미팅인지 함께 받는다 */
   meetingMetrics?: KpiMetric[]
 }
 
@@ -70,11 +70,11 @@ export function ActivityForm({ companyId, meetingMetrics = [] }: ActivityFormPro
           </select>
         </div>
 
-        {/* 미팅은 종류별로 KPI가 따로 잡히므로 여기서 골라 둔다 */}
+        {/* 미팅은 종류(대만마케팅·공구·설명회 등)를 함께 남긴다 */}
         {activityType === '미팅' && meetingMetrics.length > 0 && (
           <div>
             <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-              미팅 종류 <span className="text-purple-600 normal-case">(KPI 집계)</span>
+              미팅 종류
             </label>
             <select name="meeting_type" className={inputCls} defaultValue={
               (meetingMetrics.find(m => m.is_default) ?? meetingMetrics[0]).key

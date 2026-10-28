@@ -26,7 +26,7 @@ export default async function DashboardLayout({
   const todayKey = kstDateString()
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-[#f2f4f6]">
       <Sidebar profile={profile} />
       {/* pb-16: 모바일 하단 탭 바에 콘텐츠가 가려지지 않도록 */}
       <div className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">

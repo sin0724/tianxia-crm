@@ -29,7 +29,6 @@ export interface DashboardStats {
   totalCompanies: number
   newThisMonth: number
   todayActions: number
-  overdueActions: number
   thisWeekMeetings: number
   proposalSent: number
   contractReview: number
@@ -109,7 +108,6 @@ function computeStats(companies: DashCompany[]): DashboardStats {
 
   let newThisMonth    = 0
   let todayActions    = 0
-  let overdueActions  = 0
   let thisWeekMeetings = 0
   let proposalSent    = 0
   let contractReview  = 0
@@ -129,7 +127,6 @@ function computeStats(companies: DashCompany[]): DashboardStats {
     if (c.next_action_at && !EXCLUDED.has(c.status)) {
       const t = new Date(c.next_action_at).getTime()
       if (t >= todayS && t <= todayE)                        todayActions++
-      if (t < todayS)                                        overdueActions++
     }
 
     if (c.meeting_at) {
@@ -159,7 +156,6 @@ function computeStats(companies: DashCompany[]): DashboardStats {
     totalCompanies: total,
     newThisMonth,
     todayActions,
-    overdueActions,
     thisWeekMeetings,
     proposalSent,
     contractReview,

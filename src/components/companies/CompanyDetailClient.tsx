@@ -98,14 +98,14 @@ export function CompanyDetailClient({
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
                 {isDeleting ? '삭제 중...' : '삭제 확인'}
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
                 disabled={isDeleting}
-                className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm font-medium border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
               >
                 취소
               </button>
@@ -114,14 +114,14 @@ export function CompanyDetailClient({
             <>
               <button
                 onClick={() => setEditing(true)}
-                className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm font-medium border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
               >
                 수정
               </button>
               {canDelete && (
                 <button
                   onClick={() => setConfirmDelete(true)}
-                  className="px-4 py-2 text-sm font-medium border border-red-300 text-red-600 rounded-md hover:bg-red-50 transition-colors"
+                  className="px-4 py-2 text-sm font-medium border border-red-300 text-red-600 rounded-xl hover:bg-red-50 transition-colors"
                 >
                   삭제
                 </button>
@@ -132,7 +132,7 @@ export function CompanyDetailClient({
       </div>
 
       {deleteError && (
-        <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-md">{deleteError}</p>
+        <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-xl">{deleteError}</p>
       )}
 
       {/* 기본 정보 */}
@@ -181,7 +181,7 @@ export function CompanyDetailClient({
           <Row label="담당자명"  value={company.contact_name} />
           <Row label="연락처"   value={
             company.phone
-              ? <a href={`tel:${company.phone}`} className="text-blue-600 hover:underline">📞 {company.phone}</a>
+              ? <a href={`tel:${company.phone}`} className="text-[#3182f6] hover:underline">📞 {company.phone}</a>
               : null
           } />
           <Row label="이메일"   value={company.email} />
@@ -217,7 +217,7 @@ export function CompanyDetailClient({
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-6">
+    <div className="bg-white border border-gray-100 rounded-2xl p-6">
       <h3 className="text-sm font-semibold text-gray-900 mb-4">{title}</h3>
       {children}
     </div>
@@ -244,7 +244,7 @@ function LinkRow({ label, url }: { label: string; url: string }) {
     <div className="flex items-center gap-2 text-sm">
       <span className="text-gray-400 w-28 shrink-0 text-xs">{label}</span>
       <a href={url} target="_blank" rel="noopener noreferrer"
-        className="text-blue-600 hover:underline truncate text-xs">
+        className="text-[#3182f6] hover:underline truncate text-xs">
         {url}
       </a>
     </div>

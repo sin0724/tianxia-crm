@@ -10,7 +10,7 @@ import type { KolDuplicateMatch, KolImportResult, KolImportRow } from '@/app/(da
 
 type Step = 'upload' | 'mapping' | 'preview' | 'result'
 
-const inputCls = 'w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
+const inputCls = 'w-full px-2 py-1.5 border border-gray-200 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30'
 
 // ── 매핑 적용 ─────────────────────────────────────────────────
 
@@ -148,13 +148,13 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
       <div className="flex justify-end mb-3">
         <button
           onClick={downloadTemplate}
-          className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+          className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
         >
           📥 양식 다운로드
         </button>
       </div>
       <div
-        className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:border-blue-400 transition-colors"
+        className="border-2 border-dashed border-gray-200 rounded-2xl p-10 text-center cursor-pointer hover:border-blue-400 transition-colors"
         onClick={() => fileRef.current?.click()}
       >
         <p className="text-4xl mb-3">📂</p>
@@ -164,13 +164,13 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
       </div>
       {fileError && <p className="mt-3 text-sm text-red-600">{fileError}</p>}
 
-      <div className="mt-6 bg-gray-50 rounded-lg p-4 text-xs text-gray-500 space-y-1">
+      <div className="mt-6 bg-gray-50 rounded-xl p-4 text-xs text-gray-500 space-y-1">
         <p className="font-semibold text-gray-700 mb-2">입력 안내</p>
         <p>• <strong>이름 또는 인스타그램</strong> 중 하나만 있으면 되고, 이름이 비면 IG 핸들이 이름으로 들어갑니다.</p>
         <p>• 인스타그램은 @핸들·프로필 URL 모두 가능하고, 중복 핸들은 자동으로 걸러집니다.</p>
         <p>• 팔로워는 &quot;95000&quot;, &quot;95,000&quot;, &quot;9.5만&quot;, &quot;1.2만명&quot; 모두 인식합니다.</p>
         <p>• 카테고리는 쉼표로 여러 개 입력 (예: &quot;뷰티, 라이프스타일&quot;)</p>
-        <p>• <strong>고정비</strong>는 금액만(13300), <strong>통화</strong>는 &quot;NTD&quot; 또는 &quot;원&quot; — 통화가 없으면 NTD로 봅니다.</p>
+        <p>• <strong>고정비</strong>는 금액만(13300), <strong>통화</strong>는 &quot;NTD&quot; · &quot;원&quot; · &quot;USD&quot; · &quot;HKD&quot; 중 하나 — 통화가 없으면 NTD로 봅니다.</p>
         <p>• <strong>제공 항목</strong>은 쉼표로 구분 (예: &quot;릴스 1개, 스토리 5개 이상&quot;), <strong>RS 요율</strong>은 0~100.</p>
         <p>• 고정비/제공 항목 컬럼이 없으면 <strong>진행 단가(원문)</strong>에서 자동 분해하고, 애매한 건은 목록에 &quot;원문 확인 필요&quot;로 표시됩니다.</p>
       </div>
@@ -186,7 +186,7 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
         총 <span className="font-medium">{rows.length}행</span> 데이터
       </p>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-xs text-gray-500">
             <tr>
@@ -220,7 +220,7 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
       {fileError && <p className="text-sm text-red-600">{fileError}</p>}
 
       <div className="flex gap-2">
-        <button onClick={handleGoPreview} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors">
+        <button onClick={handleGoPreview} className="px-4 py-2 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] transition-colors">
           미리보기 →
         </button>
         <button onClick={() => setStep('upload')} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 transition-colors">
@@ -252,7 +252,7 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
       <div className="space-y-4">
         <div className="flex items-center gap-4 text-sm flex-wrap">
           <span className="text-gray-500">전체 <strong>{rows.length}행</strong></span>
-          <span className="text-blue-600 font-medium">선택 <strong>{selectedIndices.size}건</strong> 가져오기 예정</span>
+          <span className="text-[#3182f6] font-medium">선택 <strong>{selectedIndices.size}건</strong> 가져오기 예정</span>
           {isPending && <span className="text-gray-400">중복 검사 중...</span>}
           {!isPending && dupes.length > 0 && (
             <span className="text-orange-600 font-medium">⚠ 중복 후보 {dupes.length}건 (체크 해제됨)</span>
@@ -262,7 +262,7 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
           )}
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <div className="overflow-x-auto rounded-2xl border border-gray-100">
           <table className="text-xs w-full">
             <thead className="bg-gray-50 text-gray-500">
               <tr>
@@ -271,7 +271,7 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
                     type="checkbox"
                     checked={allPreviewSelected}
                     onChange={togglePreviewAll}
-                    className="rounded border-gray-300 text-blue-600"
+                    className="rounded border-gray-200 text-[#3182f6]"
                   />
                 </th>
                 <th className="px-3 py-2 text-left">#</th>
@@ -301,7 +301,7 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
                         else next.add(idx)
                         return next
                       })}
-                      className="rounded border-gray-300 text-blue-600"
+                      className="rounded border-gray-200 text-[#3182f6]"
                     />
                   </td>
                   <td className="px-3 py-2 text-gray-400">{idx + 1}</td>
@@ -356,7 +356,7 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
           <button
             onClick={handleImport}
             disabled={isPending || selectedIndices.size === 0}
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="px-4 py-2 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] disabled:opacity-50 transition-colors"
           >
             {isPending ? '가져오는 중...' : `선택한 ${selectedIndices.size}건 가져오기`}
           </button>
@@ -373,18 +373,18 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
   if (step === 'result' && result) return (
     <div className="max-w-2xl space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-5 text-center">
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-5 text-center">
           <p className="text-3xl font-bold text-green-600">{result.inserted}</p>
           <p className="text-sm text-green-700 mt-1">성공</p>
         </div>
-        <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-center">
           <p className="text-3xl font-bold text-red-500">{result.errors.length}</p>
           <p className="text-sm text-red-600 mt-1">실패</p>
         </div>
       </div>
 
       {result.errors.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
             <p className="text-sm font-semibold text-gray-700">실패 목록</p>
           </div>
@@ -401,7 +401,7 @@ export function KolImportClient({ categoryNames }: { categoryNames: string[] }) 
       )}
 
       <div className="flex gap-2">
-        <Link href="/kol" className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors">
+        <Link href="/kol" className="px-4 py-2 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] transition-colors">
           KOL 리스트로
         </Link>
         <button onClick={() => { setStep('upload'); setResult(null); setDupes([]); if (fileRef.current) fileRef.current.value = '' }}

@@ -19,18 +19,18 @@ export function KolLogTable({ logs }: { logs: KolAuditLog[] }) {
 
   if (logs.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-xl p-10 text-center text-sm text-gray-400">
+      <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center text-sm text-gray-400">
         조건에 맞는 기록이 없습니다.
       </div>
     )
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-xs text-gray-400">
+            <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
               <th className="px-4 py-2.5 font-medium whitespace-nowrap">시각</th>
               <th className="px-3 py-2.5 font-medium">작업자</th>
               <th className="px-3 py-2.5 font-medium">작업</th>

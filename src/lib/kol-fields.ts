@@ -71,12 +71,12 @@ export function parseFollowers(v: string | undefined | null): number | null {
 
 // ── 진행 조건 (고정비 · 통화 · 제공 항목 · RS 요율) ─────────────
 
-// "13,300" / "13,300 NTD" / "8000원" / "1,200만원" / "1.5만" → 숫자. 해석 불가 시 null
+// "13,300" / "13,300 NTD" / "8000원" / "1,200만원" / "1.5만" / "US$500" → 숫자. 해석 불가 시 null
 export function parseAmount(v: string | undefined | null): number | null {
   if (!v) return null
   const s = v
     .trim()
-    .replace(/NT\$|NTD|TWD|KRW|₩|元|원/gi, '')  // 통화 표기 제거 (통화는 parseCurrency가 따로 읽음)
+    .replace(/(?:NT|US|HK)\$|NTD|TWD|KRW|USD|HKD|(?:대만|미국|홍콩)?달러|\$|₩|港?元|원/gi, '')  // 통화 표기 제거 (통화는 parseCurrency가 따로 읽음)
     .replace(/[,\s]/g, '')
   if (!s) return null
   const unit = s.match(/^(\d+(?:\.\d+)?)(만|천)$/)
@@ -86,12 +86,18 @@ export function parseAmount(v: string | undefined | null): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null
 }
 
-// "NTD" / "NT$" / "대만달러" → TWD, "원" / "KRW" / "₩" → KRW. 판단 불가 시 null
-// NTD 표기를 먼저 본다 — "원고료 13,300 NTD"처럼 둘이 섞이면 명시적 코드가 우선.
+// "NTD" / "NT$" / "대만달러" → TWD, "원" / "KRW" / "₩" → KRW,
+// "HKD" / "HK$" / "홍콩달러" → HKD, "USD" / "US$" / "달러" → USD. 판단 불가 시 null
+// 명시적 코드를 먼저 본다 — "원고료 13,300 NTD"처럼 섞이면 원화보다 우선.
+// 순서가 중요하다: HKD를 먼저 봐야 "港元"의 元이 TWD로 잡히지 않고,
+// TWD를 USD보다 먼저 봐야 "대만달러"가 USD로 잡히지 않는다.
 export function parseCurrency(v: string | undefined | null): Currency | null {
   if (!v) return null
   const s = v.trim()
-  if (/(NT\$|NTD|TWD|대만|臺|台|元)/i.test(s)) return 'TWD'
+  if (/(HK\$|HKD|홍콩\s*달러|港元|港币|港幣)/i.test(s)) return 'HKD'
+  if (/(NT\$|NTD|TWD|대만|臺|台)/i.test(s)) return 'TWD'
+  if (/(US\$|USD|달러|美元|美金)/i.test(s)) return 'USD'
+  if (/元/.test(s)) return 'TWD'
   if (/(KRW|₩|원|한국)/i.test(s)) return 'KRW'
   return null
 }

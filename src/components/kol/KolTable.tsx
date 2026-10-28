@@ -96,28 +96,28 @@ export function KolTable({ kols, canEdit, categories, salesByKol, now }: KolTabl
 
   if (kols.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-xl p-10 text-center text-sm text-gray-400">
+      <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center text-sm text-gray-400">
         조건에 맞는 KOL이 없습니다.
       </div>
     )
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
       {error && <p className="px-4 pt-3 text-sm text-red-600">{error}</p>}
 
       {/* 선택 복사 바 — 체크한 행이 있을 때만 표시 */}
       {selectedOnPage.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 bg-blue-50 border-b border-blue-100 text-sm">
+        <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 bg-[#e8f3ff] border-b border-blue-100 text-sm">
           <span className="font-medium text-blue-700">{selectedOnPage.length}명 선택됨</span>
           <button
             onClick={onCopySelected}
-            className={`px-3 py-1 text-xs font-medium border rounded-md transition-colors ${
+            className={`px-3 py-1 text-xs font-medium border rounded-xl transition-colors ${
               copyStatus === 'copied'
                 ? 'text-green-700 border-green-300 bg-green-50'
                 : copyStatus === 'error'
                   ? 'text-red-600 border-red-300 bg-red-50'
-                  : 'text-blue-700 border-blue-300 bg-white hover:bg-blue-50'
+                  : 'text-blue-700 border-blue-300 bg-white hover:bg-[#e8f3ff]'
             }`}
           >
             {copyStatus === 'copied' ? '✓ 복사됨'
@@ -128,7 +128,7 @@ export function KolTable({ kols, canEdit, categories, salesByKol, now }: KolTabl
             <button
               onClick={onDeleteSelected}
               disabled={isPending}
-              className="px-3 py-1 text-xs font-medium border border-red-200 text-red-600 bg-white rounded-md hover:bg-red-50 disabled:opacity-50 transition-colors"
+              className="px-3 py-1 text-xs font-medium border border-red-200 text-red-600 bg-white rounded-xl hover:bg-red-50 disabled:opacity-50 transition-colors"
             >
               {isPending ? '삭제 중...' : '🗑 선택 삭제'}
             </button>
@@ -145,14 +145,14 @@ export function KolTable({ kols, canEdit, categories, salesByKol, now }: KolTabl
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-xs text-gray-400">
+            <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
               <th className="px-3 py-2.5 w-8">
                 <input
                   type="checkbox"
                   checked={allSelected}
                   onChange={toggleSelectAll}
                   title="이 페이지 전체 선택"
-                  className="rounded border-gray-300 text-blue-600"
+                  className="rounded border-gray-200 text-[#3182f6]"
                 />
               </th>
               <th className="px-4 py-2.5 font-medium">이름</th>
@@ -182,7 +182,7 @@ export function KolTable({ kols, canEdit, categories, salesByKol, now }: KolTabl
                         type="checkbox"
                         checked={selectedIds.has(kol.id)}
                         onChange={() => toggleSelect(kol.id)}
-                        className="rounded border-gray-300 text-blue-600"
+                        className="rounded border-gray-200 text-[#3182f6]"
                       />
                     </td>
                     <td className="px-4 py-2.5">
@@ -253,7 +253,7 @@ export function KolTable({ kols, canEdit, categories, salesByKol, now }: KolTabl
                       <td className="px-3 py-2.5 whitespace-nowrap text-right">
                         <button
                           onClick={e => { e.stopPropagation(); setEditing(kol) }}
-                          className="px-2 py-1 text-xs text-gray-500 hover:text-blue-600 transition-colors"
+                          className="px-2 py-1 text-xs text-gray-500 hover:text-[#3182f6] transition-colors"
                         >
                           수정
                         </button>
@@ -276,7 +276,7 @@ export function KolTable({ kols, canEdit, categories, salesByKol, now }: KolTabl
                             {kol.email && (
                               <span>
                                 이메일{' '}
-                                <a href={`mailto:${kol.email}`} onClick={e => e.stopPropagation()} className="text-blue-600 hover:underline">
+                                <a href={`mailto:${kol.email}`} onClick={e => e.stopPropagation()} className="text-[#3182f6] hover:underline">
                                   {kol.email}
                                 </a>
                               </span>
@@ -311,7 +311,7 @@ export function KolTable({ kols, canEdit, categories, salesByKol, now }: KolTabl
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <span className="text-xs text-gray-400">제공 항목</span>
                                 {kol.deliverables.map(d => (
-                                  <span key={d} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                                  <span key={d} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#e8f3ff] text-blue-700 border border-blue-200">
                                     {d}
                                   </span>
                                 ))}
@@ -364,13 +364,18 @@ export function KolTable({ kols, canEdit, categories, salesByKol, now }: KolTabl
 
 // 누적 공구매출 — 통화가 섞이면 단순 합산이 틀리므로 통화별로 나눠 표기한다
 function GongguTotal({ kol }: { kol: Kol }) {
-  const twd = Number(kol.gonggu_sales_twd ?? 0)
-  const krw = Number(kol.gonggu_sales_krw ?? 0)
-  if (twd === 0 && krw === 0) return <span className="text-gray-300">—</span>
+  const totals = ([
+    ['TWD', kol.gonggu_sales_twd],
+    ['KRW', kol.gonggu_sales_krw],
+    ['USD', kol.gonggu_sales_usd],
+    ['HKD', kol.gonggu_sales_hkd],
+  ] as const).map(([c, v]) => [c, Number(v ?? 0)] as const).filter(([, v]) => v > 0)
+  if (totals.length === 0) return <span className="text-gray-300">—</span>
   return (
     <div className="whitespace-nowrap">
-      {twd > 0 && <div className="font-medium text-gray-900">{fmtMoney(twd, 'TWD')}</div>}
-      {krw > 0 && <div className="font-medium text-gray-900">{fmtMoneyCompact(krw, 'KRW')}</div>}
+      {totals.map(([c, v]) => (
+        <div key={c} className="font-medium text-gray-900">{fmtMoneyCompact(v, c)}</div>
+      ))}
       <div className="text-[11px] text-gray-400">{Number(kol.gonggu_sales_count ?? 0)}건</div>
     </div>
   )

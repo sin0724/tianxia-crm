@@ -3,7 +3,7 @@
 // 용어는 "공구매출"로 고정 — gonggu-admin의 캠페인 실적과 혼동을 피한다.
 // (조회는 서버 전용인 lib/kols.ts의 getKolGongguSales — 이 파일은 클라이언트에서도 쓴다)
 
-import { TWD_TO_KRW, type Currency } from '@/lib/constants'
+import { CURRENCIES, isCurrency, toKrw, type Currency } from '@/lib/constants'
 
 export interface KolGongguSale {
   id: string
@@ -20,29 +20,26 @@ export interface KolGongguSale {
 }
 
 export interface GongguSalesTotals {
-  twd: number
-  krw: number
+  /** 통화별 합계 */
+  byCurrency: Record<Currency, number>
   count: number
   /** 비교·표기용 원화 환산 합계 (적용 환율은 화면에 명시) */
   krwTotal: number
-  /** 두 통화가 섞여 단순 합산이 불가능한 경우 */
+  /** 두 통화 이상이 섞여 단순 합산이 불가능한 경우 */
   mixed: boolean
 }
 
 // 통화가 섞이면 단순 합산이 틀리므로 통화별로 나눠 집계하고,
 // 비교용 환산 합계를 함께 돌려준다.
 export function sumGongguSales(rows: KolGongguSale[]): GongguSalesTotals {
-  let twd = 0
-  let krw = 0
+  const byCurrency = Object.fromEntries(CURRENCIES.map(c => [c, 0])) as Record<Currency, number>
   for (const r of rows) {
-    if (r.currency === 'KRW') krw += Number(r.amount)
-    else twd += Number(r.amount)
+    byCurrency[isCurrency(r.currency) ? r.currency : 'TWD'] += Number(r.amount)
   }
   return {
-    twd,
-    krw,
+    byCurrency,
     count: rows.length,
-    krwTotal: krw + twd * TWD_TO_KRW,
-    mixed: twd > 0 && krw > 0,
+    krwTotal: CURRENCIES.reduce((sum, c) => sum + toKrw(byCurrency[c], c), 0),
+    mixed: CURRENCIES.filter(c => byCurrency[c] > 0).length > 1,
   }
 }

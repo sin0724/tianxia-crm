@@ -105,10 +105,10 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
       {(newCount > 0 || isNew) && (
         <button
           onClick={() => push(isNew ? { new: '' } : { new: '1', sort: 'assigned' })}
-          className={`flex w-full items-center justify-between gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+          className={`flex w-full items-center justify-between gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium transition-colors ${
             isNew
               ? 'border-blue-300 bg-blue-100 text-blue-800'
-              : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+              : 'border-blue-200 bg-[#e8f3ff] text-blue-700 hover:bg-blue-100'
           }`}
         >
           <span>🆕 신규 배정 DB {newCount > 0 && `${newCount}건`}</span>
@@ -119,14 +119,14 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
       )}
 
       {/* 영업 단계 탭: 잠재(반응 전) / 가망(반응 있음) / 고객 / 종료 */}
-      <div className="flex flex-wrap gap-1 bg-white border border-gray-200 rounded-xl p-1.5">
+      <div className="flex flex-wrap gap-1 bg-white border border-gray-100 rounded-2xl p-1.5">
         <StageTab label="전체" active={!stage} onClick={() => onStage('')} />
         {STAGES.map(s => (
           <StageTab key={s} label={s} active={stage === s} onClick={() => onStage(s)} />
         ))}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+      <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           <Sel label="상태" value={status} onChange={v => onSelect('status', v)}>
             <option value="">전체 상태</option>
@@ -177,7 +177,7 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
             value={assignedFrom}
             max={assignedUntil || undefined}
             onChange={e => onSelect('assigned_from', e.target.value)}
-            className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-2 py-1.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
           />
           <span className="text-gray-400">~</span>
           <input
@@ -186,7 +186,7 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
             value={assignedUntil}
             min={assignedFrom || undefined}
             onChange={e => onSelect('assigned_until', e.target.value)}
-            className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-2 py-1.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
           />
           <div className="flex flex-wrap gap-1">
             <PresetBtn label="오늘" onClick={() => onAssignedPreset(1)} />
@@ -206,15 +206,15 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
               value={q}
               onChange={e => setQ(e.target.value)}
               placeholder="상호명, 연락처, 메모 검색..."
-              className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 py-1.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
-            <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
+            <button type="submit" className="px-3 py-1.5 bg-[#3182f6] text-white text-sm rounded-xl hover:bg-[#1b64da] transition-colors">
               검색
             </button>
           </form>
 
           {hasFilter && (
-            <button onClick={onClear} className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-800 border border-gray-200 rounded-md transition-colors">
+            <button onClick={onClear} className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-800 border border-gray-100 rounded-xl transition-colors">
               초기화
             </button>
           )}
@@ -242,7 +242,7 @@ function PresetBtn({ label, onClick }: { label: string; onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="px-2 py-1 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+      className="px-2 py-1 text-xs text-gray-600 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors"
     >
       {label}
     </button>
@@ -253,8 +253,8 @@ function StageTab({ label, active, onClick }: { label: string; active: boolean; 
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-        active ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'
+      className={`px-4 py-1.5 text-sm font-medium rounded-xl transition-colors ${
+        active ? 'bg-[#3182f6] text-white' : 'text-gray-500 hover:bg-gray-100'
       }`}
     >
       {label}
@@ -273,7 +273,7 @@ function Sel({ label, value, onChange, children }: {
       aria-label={label}
       value={value}
       onChange={e => onChange(e.target.value)}
-      className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="px-2 py-1.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
     >
       {children}
     </select>

@@ -31,7 +31,7 @@ export default async function AssignmentsPage() {
           <p className="text-sm text-gray-500">
             담당자별 보유 거래처와 배분 이력 (마지막 배정 기준)
           </p>
-          <Link href="/companies" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+          <Link href="/companies" className="px-3 py-2 text-sm font-medium text-gray-700 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-gray-100 transition-colors">
             ← 거래처 목록
           </Link>
         </div>
@@ -39,16 +39,16 @@ export default async function AssignmentsPage() {
         {/* 미배정 대기 */}
         <Link
           href="/companies?assigned_to=none&sort=recent"
-          className="block bg-white border border-gray-200 rounded-xl px-4 py-3 hover:bg-gray-50 transition-colors"
+          className="block bg-white border border-gray-100 rounded-2xl px-4 py-3 hover:bg-gray-50 transition-colors"
         >
           <span className="text-sm text-gray-500">미배정 (배분 대기)</span>
           <span className="ml-3 text-lg font-semibold text-gray-900">{unassigned}건</span>
-          <span className="ml-2 text-sm text-blue-600">목록 보기 →</span>
+          <span className="ml-2 text-sm text-[#3182f6]">목록 보기 →</span>
         </Link>
 
         {/* 담당자별 보유 현황 */}
-        <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <h2 className="px-4 py-3 text-sm font-semibold text-gray-900 border-b border-gray-200">
+        <section className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+          <h2 className="px-4 py-3 text-sm font-semibold text-gray-900 border-b border-gray-100">
             담당자별 보유 현황
           </h2>
           <div className="overflow-x-auto">
@@ -78,13 +78,13 @@ export default async function AssignmentsPage() {
                     <td className="px-4 py-2.5">
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-blue-500 rounded-full"
+                          className="h-full bg-[#3182f6] rounded-full"
                           style={{ width: `${Math.round((l.total / maxLoad) * 100)}%` }}
                         />
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-right">
-                      <Link href={`/companies?assigned_to=${l.id}&sort=assigned`} className="text-blue-600 hover:underline whitespace-nowrap">
+                      <Link href={`/companies?assigned_to=${l.id}&sort=assigned`} className="text-[#3182f6] hover:underline whitespace-nowrap">
                         보기
                       </Link>
                     </td>
@@ -98,8 +98,8 @@ export default async function AssignmentsPage() {
         {/* 담당자별 배분 합계 + 배분 이력 (admin 전용) */}
         {isAdmin && (
         <>
-        <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <h2 className="px-4 py-3 text-sm font-semibold text-gray-900 border-b border-gray-200">
+        <section className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+          <h2 className="px-4 py-3 text-sm font-semibold text-gray-900 border-b border-gray-100">
             담당자별 배분 합계 <span className="font-normal text-gray-400">— 월별 (배정 시각 기준)</span>
           </h2>
           {monthly.length === 0 ? (
@@ -134,7 +134,7 @@ export default async function AssignmentsPage() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-gray-50 border-t border-gray-200 text-gray-900">
+                  <tr className="bg-gray-50 border-t border-gray-100 text-gray-900">
                     <td className="px-4 py-2.5 whitespace-nowrap font-semibold">전체</td>
                     <td className="px-4 py-2.5 text-right tabular-nums font-semibold">
                       {monthlyAssignees.reduce((s, a) => s + a.total, 0)}건
@@ -149,8 +149,8 @@ export default async function AssignmentsPage() {
           )}
         </section>
 
-        <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <h2 className="px-4 py-3 text-sm font-semibold text-gray-900 border-b border-gray-200">
+        <section className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+          <h2 className="px-4 py-3 text-sm font-semibold text-gray-900 border-b border-gray-100">
             배분 이력 <span className="font-normal text-gray-400">— 배정 시각 기준, 최근 50회</span>
           </h2>
           <div className="overflow-x-auto">

@@ -65,7 +65,7 @@ export function KolLogFilters({ total, actors }: Props) {
   const hasFilter = [q, from, to, action, target, actor].some(Boolean)
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+    <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
       {/* 작업 종류 */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium text-gray-500 w-16">작업</span>
@@ -104,15 +104,15 @@ export function KolLogFilters({ total, actors }: Props) {
           <input
             type="date" value={from} aria-label="시작일"
             onChange={e => setFrom(e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-2 py-1 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
           />
           <span className="text-xs text-gray-400">~</span>
           <input
             type="date" value={to} aria-label="종료일"
             onChange={e => setTo(e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-2 py-1 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
           />
-          <button type="submit" className="px-2.5 py-1 text-xs bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors">
+          <button type="submit" className="px-2.5 py-1 text-xs bg-gray-800 text-white rounded-xl hover:bg-gray-900 transition-colors">
             적용
           </button>
         </form>
@@ -123,7 +123,7 @@ export function KolLogFilters({ total, actors }: Props) {
         <select
           aria-label="작업자" value={actor}
           onChange={e => push({ actor: e.target.value })}
-          className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-2 py-1.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
         >
           <option value="">작업자 전체</option>
           {actors.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -134,15 +134,15 @@ export function KolLogFilters({ total, actors }: Props) {
             type="text" value={q}
             onChange={e => setQ(e.target.value)}
             placeholder="KOL 이름, 변경 내용, 작업자 검색..."
-            className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-3 py-1.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
           />
-          <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
+          <button type="submit" className="px-3 py-1.5 bg-[#3182f6] text-white text-sm rounded-xl hover:bg-[#1b64da] transition-colors">
             검색
           </button>
         </form>
 
         {hasFilter && (
-          <button onClick={onClear} className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-800 border border-gray-200 rounded-md transition-colors">
+          <button onClick={onClear} className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-800 border border-gray-100 rounded-xl transition-colors">
             초기화
           </button>
         )}
@@ -159,8 +159,8 @@ function Pill({ label, active, onClick }: { label: string; active: boolean; onCl
       onClick={onClick}
       className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
         active
-          ? 'bg-blue-600 text-white border-blue-600'
-          : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+          ? 'bg-[#3182f6] text-white border-blue-600'
+          : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'
       }`}
     >
       {label}

@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { fetchKolCopyRows } from '@/app/(dashboard)/kol/copy-actions'
 import { buildKolCopyText, copyToClipboard } from '@/lib/kol-copy'
 import { kstDateString } from '@/lib/datetime'
+import { CURRENCY_LABEL, isCurrency } from '@/lib/constants'
 
 // "2026-07-07" → "07.07"
 function shortDate(s: string): string {
@@ -29,7 +30,8 @@ function buildHeader(sp: URLSearchParams, count: number): string {
 
   const feeMin = sp.get('fee_min')
   const feeMax = sp.get('fee_max')
-  const feeCur = sp.get('fee_cur') === 'KRW' ? '원' : 'NTD'
+  const feeCurParam = sp.get('fee_cur')
+  const feeCur = CURRENCY_LABEL[isCurrency(feeCurParam) ? feeCurParam : 'TWD']
   if (feeMin && feeMax) parts.push(`고정비 ${feeMin}~${feeMax}${feeCur}`)
   else if (feeMin)      parts.push(`고정비 ${feeMin}${feeCur}~`)
   else if (feeMax)      parts.push(`고정비 ~${feeMax}${feeCur}`)
@@ -94,12 +96,12 @@ export function KolCopyButton({ total }: { total: number }) {
       onClick={onCopy}
       disabled={isPending || total === 0}
       title="필터에 걸린 전체 리스트를 '인스타 링크 · 팔로워 · 방문 예정' 텍스트로 복사 (일부만 필요하면 표에서 체크 후 선택 복사)"
-      className={`px-3 py-1.5 text-sm border rounded-md transition-colors disabled:opacity-40 whitespace-nowrap ${
+      className={`px-3 py-1.5 text-sm border rounded-xl transition-colors disabled:opacity-40 whitespace-nowrap ${
         status === 'copied'
           ? 'text-green-700 border-green-300 bg-green-50'
           : status === 'error'
             ? 'text-red-600 border-red-300 bg-red-50'
-            : 'text-gray-600 border-gray-300 hover:bg-gray-50'
+            : 'text-gray-600 border-gray-200 hover:bg-gray-50'
       }`}
     >
       {isPending ? '복사 준비 중...'

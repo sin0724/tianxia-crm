@@ -95,14 +95,14 @@ export function KolFilters({ total, categoryNames }: { total: number; categoryNa
   return (
     <div className="space-y-3">
       {/* 카테고리 탭 */}
-      <div className="flex flex-wrap gap-1 bg-white border border-gray-200 rounded-xl p-1.5">
+      <div className="flex flex-wrap gap-1 bg-white border border-gray-100 rounded-2xl p-1.5">
         <CategoryTab label="전체" active={!category} onClick={() => push({ category: '' })} />
         {categoryNames.map(c => (
           <CategoryTab key={c} label={c} active={category === c} onClick={() => push({ category: category === c ? '' : c })} />
         ))}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+      <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
         {/* 팔로워 범위 */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-gray-500">팔로워</span>
@@ -113,8 +113,8 @@ export function KolFilters({ total, categoryNames }: { total: number; categoryNa
                 key={p.label} onClick={() => onPreset(p)}
                 className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
                   active
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                    ? 'bg-[#3182f6] text-white border-blue-600'
+                    : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'
                 }`}
               >
                 {p.label}
@@ -126,17 +126,17 @@ export function KolFilters({ total, categoryNames }: { total: number; categoryNa
               type="number" min="0" step="0.1" value={min}
               onChange={e => setMin(e.target.value)}
               placeholder="최소"
-              className="w-18 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-18 px-2 py-1 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
             <span className="text-xs text-gray-400">만 ~</span>
             <input
               type="number" min="0" step="0.1" value={max}
               onChange={e => setMax(e.target.value)}
               placeholder="최대"
-              className="w-18 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-18 px-2 py-1 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
             <span className="text-xs text-gray-400">만</span>
-            <button type="submit" className="px-2.5 py-1 text-xs bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors">
+            <button type="submit" className="px-2.5 py-1 text-xs bg-gray-800 text-white rounded-xl hover:bg-gray-900 transition-colors">
               적용
             </button>
           </form>
@@ -150,23 +150,23 @@ export function KolFilters({ total, categoryNames }: { total: number; categoryNa
               type="text" inputMode="numeric" value={feeMin} aria-label="고정비 최소"
               onChange={e => setFeeMin(e.target.value)}
               placeholder="최소"
-              className="w-20 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-20 px-2 py-1 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
             <span className="text-xs text-gray-400">~</span>
             <input
               type="text" inputMode="numeric" value={feeMax} aria-label="고정비 최대"
               onChange={e => setFeeMax(e.target.value)}
               placeholder="최대"
-              className="w-20 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-20 px-2 py-1 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
             <select
               value={feeCur} aria-label="고정비 범위 통화"
               onChange={e => setFeeCur(e.target.value)}
-              className="px-1.5 py-1 border border-gray-300 rounded-md text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-1.5 py-1 border border-gray-200 rounded-xl text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             >
               {CURRENCIES.map(c => <option key={c} value={c}>{CURRENCY_LABEL[c]}</option>)}
             </select>
-            <button type="submit" className="px-2.5 py-1 text-xs bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors">
+            <button type="submit" className="px-2.5 py-1 text-xs bg-gray-800 text-white rounded-xl hover:bg-gray-900 transition-colors">
               적용
             </button>
           </form>
@@ -209,8 +209,8 @@ export function KolFilters({ total, categoryNames }: { total: number; categoryNa
                 key={p.label} onClick={() => onVisitPreset(p)}
                 className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
                   active
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                    ? 'bg-[#3182f6] text-white border-blue-600'
+                    : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'
                 }`}
               >
                 {p.label}
@@ -221,15 +221,15 @@ export function KolFilters({ total, categoryNames }: { total: number; categoryNa
             <input
               type="date" value={visitFrom} aria-label="방문 시작일"
               onChange={e => setVisitFrom(e.target.value)}
-              className="px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
             <span className="text-xs text-gray-400">~</span>
             <input
               type="date" value={visitTo} aria-label="방문 종료일"
               onChange={e => setVisitTo(e.target.value)}
-              className="px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
-            <button type="submit" className="px-2.5 py-1 text-xs bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors">
+            <button type="submit" className="px-2.5 py-1 text-xs bg-gray-800 text-white rounded-xl hover:bg-gray-900 transition-colors">
               적용
             </button>
           </form>
@@ -242,9 +242,9 @@ export function KolFilters({ total, categoryNames }: { total: number; categoryNa
               type="text" value={q}
               onChange={e => setQ(e.target.value)}
               placeholder="이름, IG 핸들·링크, 제공 항목, 협업 브랜드, 히스토리 검색..."
-              className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 py-1.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
-            <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
+            <button type="submit" className="px-3 py-1.5 bg-[#3182f6] text-white text-sm rounded-xl hover:bg-[#1b64da] transition-colors">
               검색
             </button>
           </form>
@@ -259,7 +259,7 @@ export function KolFilters({ total, categoryNames }: { total: number; categoryNa
           <select
             aria-label="정렬" value={sort}
             onChange={e => push({ sort: e.target.value })}
-            className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-2 py-1.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
           >
             <option value="">최신화순</option>
             <option value="followers">팔로워 많은순</option>
@@ -271,7 +271,7 @@ export function KolFilters({ total, categoryNames }: { total: number; categoryNa
           </select>
 
           {hasFilter && (
-            <button onClick={onClear} className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-800 border border-gray-200 rounded-md transition-colors">
+            <button onClick={onClear} className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-800 border border-gray-100 rounded-xl transition-colors">
               초기화
             </button>
           )}
@@ -291,8 +291,8 @@ function Pill({ label, active, onClick }: { label: string; active: boolean; onCl
       onClick={onClick}
       className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
         active
-          ? 'bg-blue-600 text-white border-blue-600'
-          : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+          ? 'bg-[#3182f6] text-white border-blue-600'
+          : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'
       }`}
     >
       {label}
@@ -304,8 +304,8 @@ function CategoryTab({ label, active, onClick }: { label: string; active: boolea
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-        active ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'
+      className={`px-3 py-1.5 text-sm font-medium rounded-xl transition-colors ${
+        active ? 'bg-[#3182f6] text-white' : 'text-gray-500 hover:bg-gray-100'
       }`}
     >
       {label}

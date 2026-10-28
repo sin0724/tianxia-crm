@@ -53,7 +53,7 @@ function ReassignBadge({ previousName }: { previousName?: string | null }) {
 
 function NewBadge() {
   return (
-    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-600 text-white leading-none">
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#3182f6] text-white leading-none">
       NEW
     </span>
   )
@@ -206,7 +206,7 @@ export function CompanyTable({
 
   if (companies.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-xl py-16 text-center">
+      <div className="bg-white border border-gray-100 rounded-2xl py-16 text-center">
         <p className="text-sm text-gray-400">조건에 맞는 거래처가 없습니다.</p>
       </div>
     )
@@ -215,15 +215,15 @@ export function CompanyTable({
   return (
     <div className="space-y-2">
       {deleteError && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">{deleteError}</p>
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5">{deleteError}</p>
       )}
       {assignedMsg && (
-        <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">✓ {assignedMsg}</p>
+        <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-2xl px-4 py-2.5">✓ {assignedMsg}</p>
       )}
 
       {/* 선택 액션 바 */}
       {someSelected && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-[#e8f3ff] border border-blue-200 rounded-2xl px-4 py-2.5">
           <span className="text-sm font-medium text-blue-700">{selectedIds.size}개 선택됨</span>
           <div className="flex-1" />
           {bulkConfirm ? (
@@ -234,7 +234,7 @@ export function CompanyTable({
               <button
                 onClick={handleBulkDelete}
                 disabled={isDeleting}
-                className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+                className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-xl hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
                 {isDeleting ? '삭제 중...' : '삭제 확인'}
               </button>
@@ -250,7 +250,7 @@ export function CompanyTable({
             <>
               <button
                 onClick={() => setSelectedIds(new Set(companies.map(c => c.id)))}
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-[#3182f6] hover:underline"
               >
                 전체 {companies.length}개 선택
               </button>
@@ -258,7 +258,7 @@ export function CompanyTable({
               <button
                 onClick={() => setShowBulkEdit(v => !v)}
                 disabled={isDeleting}
-                className="px-3 py-1.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-white disabled:opacity-50 transition-colors"
+                className="px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-white disabled:opacity-50 transition-colors"
               >
                 ✏️ 일괄 수정
               </button>
@@ -269,7 +269,7 @@ export function CompanyTable({
                     value={assignee}
                     onChange={e => setAssignee(e.target.value)}
                     disabled={isDeleting}
-                    className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-2 py-1.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
                     aria-label="배분할 담당자"
                   >
                     <option value="">담당자 선택</option>
@@ -278,7 +278,7 @@ export function CompanyTable({
                   <button
                     onClick={() => handleAssign(assignee)}
                     disabled={isDeleting || !assignee}
-                    className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    className="px-3 py-1.5 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] disabled:opacity-50 transition-colors"
                   >
                     배분
                   </button>
@@ -286,7 +286,7 @@ export function CompanyTable({
                     onClick={() => handleAssign('auto')}
                     disabled={isDeleting}
                     title="활성 영업사원에게 돌아가며 균등하게 배분합니다"
-                    className="px-3 py-1.5 border border-blue-300 text-blue-700 text-sm font-medium rounded-md hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                    className="px-3 py-1.5 border border-blue-300 text-blue-700 text-sm font-medium rounded-xl hover:bg-blue-100 disabled:opacity-50 transition-colors"
                   >
                     ⚖️ 균등 배분
                   </button>
@@ -296,7 +296,7 @@ export function CompanyTable({
               {canDelete && (
                 <button
                   onClick={() => { setBulkConfirm(true) }}
-                  className="px-3 py-1.5 border border-red-300 text-red-600 text-sm font-medium rounded-md hover:bg-red-50 transition-colors"
+                  className="px-3 py-1.5 border border-red-300 text-red-600 text-sm font-medium rounded-xl hover:bg-red-50 transition-colors"
                 >
                   선택 삭제 ({selectedIds.size}개)
                 </button>
@@ -308,27 +308,27 @@ export function CompanyTable({
 
       {/* 일괄 수정 패널 — 비워둔 항목은 변경하지 않음 */}
       {someSelected && showBulkEdit && (
-        <div className="flex flex-wrap items-end gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3">
+        <div className="flex flex-wrap items-end gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">상태</label>
             <select
               value={bulkStatus}
               onChange={e => setBulkStatus(e.target.value)}
-              className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             >
               <option value="">변경 안 함</option>
               {COMPANY_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
 
-          {/* 미팅진행으로 올리면 담당자 월 KPI에 미팅이 자동 기록된다 — 종류를 여기서 고른다 */}
+          {/* 미팅진행으로 올리면 미팅 활동이 자동 기록된다 — 종류를 여기서 고른다 */}
           {bulkStatus === '미팅진행' && meetingMetrics.length > 0 && (
             <div>
-              <label className="block text-xs font-medium text-purple-600 mb-1">미팅 종류 (KPI)</label>
+              <label className="block text-xs font-medium text-purple-600 mb-1">미팅 종류</label>
               <select
                 value={bulkMeeting}
                 onChange={e => setBulkMeeting(e.target.value)}
-                className="px-2 py-1.5 border border-purple-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="px-2 py-1.5 border border-purple-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
                 <option value="">기본 미팅 항목</option>
                 {meetingMetrics.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
@@ -344,7 +344,7 @@ export function CompanyTable({
               value={bulkCategory}
               onChange={e => setBulkCategory(e.target.value)}
               placeholder="변경 안 함"
-              className="w-36 px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-36 px-2 py-1.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
             <datalist id="bulk-category-options">
               {categories.map(v => <option key={v} value={v} />)}
@@ -358,7 +358,7 @@ export function CompanyTable({
               value={bulkSource}
               onChange={e => setBulkSource(e.target.value)}
               placeholder="변경 안 함"
-              className="w-36 px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-36 px-2 py-1.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
             <datalist id="bulk-source-options">
               {sources.map(v => <option key={v} value={v} />)}
@@ -370,13 +370,13 @@ export function CompanyTable({
               type="month"
               value={bulkInflow}
               onChange={e => setBulkInflow(e.target.value)}
-              className="px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
             />
           </div>
           <button
             onClick={handleBulkEdit}
             disabled={isDeleting || (!bulkStatus && !bulkCategory.trim() && !bulkSource.trim() && !bulkInflow)}
-            className="px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="px-4 py-1.5 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] disabled:opacity-50 transition-colors"
           >
             {isDeleting ? '수정 중...' : `선택한 ${selectedIds.size}건 수정`}
           </button>
@@ -397,21 +397,21 @@ export function CompanyTable({
             type="checkbox"
             checked={allSelected}
             onChange={toggleAll}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            className="rounded border-gray-200 text-[#3182f6] focus:ring-[#3182f6]/30"
           />
           전체 선택
         </label>
         {companies.map(c => (
           <div
             key={c.id}
-            className={`bg-white border rounded-xl p-4 ${selectedIds.has(c.id) ? 'border-blue-300 bg-blue-50/50' : 'border-gray-200'}`}
+            className={`bg-white border rounded-2xl p-4 ${selectedIds.has(c.id) ? 'border-blue-300 bg-blue-50/50' : 'border-gray-100'}`}
           >
             <div className="flex items-start gap-3">
               <input
                 type="checkbox"
                 checked={selectedIds.has(c.id)}
                 onChange={() => toggleRow(c.id)}
-                className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="mt-1 rounded border-gray-200 text-[#3182f6] focus:ring-[#3182f6]/30"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
@@ -419,7 +419,7 @@ export function CompanyTable({
                     {isNewAssigned(c) && <NewBadge />}
                     {isReassigned(c) && <ReassignBadge previousName={c.previous_assignee_name} />}
                     {isAssigned(c) && <AssignBadge assignedTo={c.assigned_to} name={c.profiles?.name} />}
-                    <Link href={`/companies/${c.id}`} className="font-medium text-gray-900 truncate hover:text-blue-600">
+                    <Link href={`/companies/${c.id}`} className="font-medium text-gray-900 truncate hover:text-[#3182f6]">
                       {c.company_name}
                     </Link>
                   </span>
@@ -435,7 +435,7 @@ export function CompanyTable({
                   ].filter(Boolean).join(' · ') || '—'}
                 </p>
                 {c.phone && (
-                  <a href={`tel:${c.phone}`} className="mt-1 inline-block text-xs text-blue-600 hover:underline">
+                  <a href={`tel:${c.phone}`} className="mt-1 inline-block text-xs text-[#3182f6] hover:underline">
                     📞 {c.phone}
                   </a>
                 )}
@@ -456,13 +456,13 @@ export function CompanyTable({
                       <button
                         onClick={() => handleDelete(c.id)}
                         disabled={isDeleting}
-                        className="text-xs px-3 py-1.5 border border-red-300 text-red-600 rounded-md hover:bg-red-50 disabled:opacity-50"
+                        className="text-xs px-3 py-1.5 border border-red-300 text-red-600 rounded-xl hover:bg-red-50 disabled:opacity-50"
                       >
                         확인
                       </button>
                       <button
                         onClick={() => setConfirmId(null)}
-                        className="text-xs px-3 py-1.5 border border-gray-300 text-gray-500 rounded-md"
+                        className="text-xs px-3 py-1.5 border border-gray-200 text-gray-500 rounded-xl"
                       >
                         취소
                       </button>
@@ -471,14 +471,14 @@ export function CompanyTable({
                     <>
                       <Link
                         href={`/companies/${c.id}`}
-                        className="text-xs px-3 py-1.5 border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50"
+                        className="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50"
                       >
                         수정
                       </Link>
                       {canDelete && (
                         <button
                           onClick={() => setConfirmId(c.id)}
-                          className="text-xs px-3 py-1.5 border border-gray-300 text-gray-500 rounded-md hover:bg-gray-50"
+                          className="text-xs px-3 py-1.5 border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50"
                         >
                           삭제
                         </button>
@@ -493,7 +493,7 @@ export function CompanyTable({
       </div>
 
       {/* 데스크탑: 테이블 */}
-      <div className="hidden md:block bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="hidden md:block bg-white border border-gray-100 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -503,11 +503,11 @@ export function CompanyTable({
                     type="checkbox"
                     checked={allSelected}
                     onChange={toggleAll}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded border-gray-200 text-[#3182f6] focus:ring-[#3182f6]/30"
                   />
                 </th>
                 {['상호명','구분','지역','DB 경로','유입월','담당자','배분일','상태','미팅 예정일','마지막 연락일','다음 액션일','최근 특이사항','작업'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500   whitespace-nowrap">
                     {h}
                   </th>
                 ))}
@@ -515,20 +515,20 @@ export function CompanyTable({
             </thead>
             <tbody className="divide-y divide-gray-50">
               {companies.map(c => (
-                <tr key={c.id} className={`transition-colors ${selectedIds.has(c.id) ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                <tr key={c.id} className={`transition-colors ${selectedIds.has(c.id) ? 'bg-[#e8f3ff]' : 'hover:bg-gray-50'}`}>
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
                       checked={selectedIds.has(c.id)}
                       onChange={() => toggleRow(c.id)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-200 text-[#3182f6] focus:ring-[#3182f6]/30"
                     />
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
                       {isNewAssigned(c) && <NewBadge />}
                       {isReassigned(c) && <ReassignBadge previousName={c.previous_assignee_name} />}
-                      <Link href={`/companies/${c.id}`} className="hover:text-blue-600 hover:underline">
+                      <Link href={`/companies/${c.id}`} className="hover:text-[#3182f6] hover:underline">
                         {c.company_name}
                       </Link>
                     </span>
@@ -572,7 +572,7 @@ export function CompanyTable({
                         </button>
                         <button
                           onClick={() => setConfirmId(null)}
-                          className="text-xs px-2 py-0.5 border border-gray-300 text-gray-500 rounded hover:bg-gray-50"
+                          className="text-xs px-2 py-0.5 border border-gray-200 text-gray-500 rounded hover:bg-gray-50"
                         >
                           취소
                         </button>
@@ -581,14 +581,14 @@ export function CompanyTable({
                       <span className="inline-flex items-center gap-1">
                         <Link
                           href={`/companies/${c.id}`}
-                          className="text-xs px-2 py-0.5 border border-gray-300 text-gray-500 rounded hover:bg-gray-50"
+                          className="text-xs px-2 py-0.5 border border-gray-200 text-gray-500 rounded hover:bg-gray-50"
                         >
                           수정
                         </Link>
                         {canDelete && (
                           <button
                             onClick={() => setConfirmId(c.id)}
-                            className="text-xs px-2 py-0.5 border border-gray-300 text-gray-500 rounded hover:bg-gray-50"
+                            className="text-xs px-2 py-0.5 border border-gray-200 text-gray-500 rounded hover:bg-gray-50"
                           >
                             삭제
                           </button>

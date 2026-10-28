@@ -14,8 +14,8 @@ export function BarChart({ title, items, emptyMessage = '데이터 없음' }: Ba
   const max = Math.max(...items.map(i => i.value), 1)
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-5">
-      <h3 className="text-sm font-semibold text-gray-900 mb-4">{title}</h3>
+    <div className="bg-white rounded-2xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+      <h3 className="text-[15px] font-bold tracking-tight text-gray-900 mb-4">{title}</h3>
 
       {items.length === 0 ? (
         <p className="text-sm text-gray-400 py-4 text-center">{emptyMessage}</p>
@@ -26,9 +26,9 @@ export function BarChart({ title, items, emptyMessage = '데이터 없음' }: Ba
               <span className="text-xs text-gray-500 w-16 sm:w-24 shrink-0 truncate text-right">
                 {item.label}
               </span>
-              <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
+              <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
                 <div
-                  className="bg-blue-500 h-full rounded-full transition-all"
+                  className="bg-[#3182f6] h-full rounded-full transition-all"
                   style={{ width: `${Math.max((item.value / max) * 100, 2)}%` }}
                 />
               </div>

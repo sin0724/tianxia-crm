@@ -56,7 +56,7 @@ export function KolCategoryManager({ categories }: { categories: CategoryItem[] 
     <>
       <button
         onClick={() => setOpen(true)}
-        className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+        className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
       >
         🏷 카테고리 관리
       </button>
@@ -77,12 +77,12 @@ export function KolCategoryManager({ categories }: { categories: CategoryItem[] 
             </p>
 
             {readOnly && (
-              <p className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-md px-3 py-2">
+              <p className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
                 아직 기본 카테고리로 동작 중입니다. Supabase SQL 편집기에서 schema.sql의 &quot;11. KOL 카테고리 관리&quot; 섹션을 실행하면 여기서 자유롭게 수정할 수 있습니다.
               </p>
             )}
 
-            {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">{error}</p>}
+            {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl">{error}</p>}
 
             <form onSubmit={onAdd} className="flex gap-2">
               <input
@@ -90,17 +90,17 @@ export function KolCategoryManager({ categories }: { categories: CategoryItem[] 
                 onChange={e => setNewName(e.target.value)}
                 placeholder="새 카테고리 이름"
                 disabled={readOnly || isPending}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30 disabled:bg-gray-50"
               />
               <button
                 type="submit" disabled={readOnly || isPending || !newName.trim()}
-                className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="px-3 py-2 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] disabled:opacity-50 transition-colors"
               >
                 추가
               </button>
             </form>
 
-            <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg">
+            <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl">
               {categories.map((c, i) => (
                 <div key={c.id} className="flex items-center gap-2 px-3 py-2">
                   {editingId === c.id ? (
@@ -111,10 +111,10 @@ export function KolCategoryManager({ categories }: { categories: CategoryItem[] 
                       <input
                         type="text" value={editName} autoFocus
                         onChange={e => setEditName(e.target.value)}
-                        className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 min-w-0 px-2 py-1 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
                       />
                       <button type="submit" disabled={isPending || !editName.trim()}
-                        className="px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 disabled:opacity-50">
+                        className="px-2 py-1 bg-[#3182f6] text-white text-xs font-medium rounded-xl hover:bg-[#1b64da] disabled:opacity-50">
                         저장
                       </button>
                       <button type="button" onClick={() => setEditingId(null)} disabled={isPending}
@@ -139,7 +139,7 @@ export function KolCategoryManager({ categories }: { categories: CategoryItem[] 
                       <button
                         onClick={() => { setEditingId(c.id); setEditName(c.name) }}
                         disabled={readOnly || isPending}
-                        className="px-2 py-1 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30 transition-colors"
+                        className="px-2 py-1 text-xs text-gray-500 hover:text-[#3182f6] disabled:opacity-30 transition-colors"
                       >
                         이름 변경
                       </button>

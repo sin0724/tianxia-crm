@@ -38,14 +38,14 @@ export default async function KolLogsPage({ searchParams }: PageProps) {
           </p>
           <Link
             href="/kol"
-            className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            className="px-3 py-2 text-sm font-medium text-gray-700 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-gray-100 transition-colors"
           >
             ← KOL 리스트
           </Link>
         </div>
 
         {result.tableMissing ? (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-sm text-amber-800">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-sm text-amber-800">
             <p className="font-medium">로그 테이블이 아직 없습니다.</p>
             <p className="mt-1 text-amber-700">
               Supabase SQL 편집기에서 <code className="px-1 bg-amber-100 rounded">supabase/schema.sql</code>의

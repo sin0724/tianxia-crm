@@ -51,55 +51,50 @@ export function AssignmentNotice({ count, reassigned = 0, todayKey, href }: Assi
     setClosedThisSession(true)
   }
 
+  // 토스식 바텀시트 — 모바일은 하단에서 올라오고, 데스크톱은 가운데 카드로 뜬다
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:px-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="assignment-notice-title"
     >
-      <div className="w-full max-w-sm rounded-xl bg-white shadow-xl">
-        <div className="px-6 pt-6 pb-5 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-2xl">
-            🏢
-          </div>
-          <h2 id="assignment-notice-title" className="mt-4 text-lg font-bold text-gray-900">
-            새 거래처 배분
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            오늘 <span className="font-semibold text-blue-600">{count}건</span>의 거래처가
-            새로 배분되었습니다.
-          </p>
-          {/* 신규 / 재배분(기존 DB) 구분 — 재배분이 있을 때만 */}
-          {reassigned > 0 && (
-            <div className="mt-3 flex justify-center gap-2 text-xs font-medium">
-              {count - reassigned > 0 && (
-                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">
-                  🆕 신규 {count - reassigned}건
-                </span>
-              )}
-              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">
-                ♻️ 재배분 {reassigned}건 (기존 DB)
-              </span>
+      <div className="w-full max-w-sm rounded-t-3xl bg-white px-6 pb-6 pt-7 shadow-xl sm:rounded-3xl">
+        <p className="text-[13px] font-medium text-[#3182f6]">오늘 배분</p>
+        <h2 id="assignment-notice-title" className="mt-1 text-[22px] font-bold leading-snug tracking-tight text-gray-900">
+          거래처 {count}곳이<br />새로 배분됐어요
+        </h2>
+        {/* 신규 / 재배분(기존 DB) 구분 — 재배분이 있을 때만 */}
+        {reassigned > 0 && (
+          <div className="mt-4 space-y-2 rounded-2xl bg-gray-50 px-4 py-3 text-sm">
+            {count - reassigned > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">신규</span>
+                <span className="font-semibold text-gray-900">{count - reassigned}곳</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-500">재배분 (기존 DB)</span>
+              <span className="font-semibold text-gray-900">{reassigned}곳</span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        <div className="flex flex-col gap-2 border-t border-gray-100 px-6 py-4">
-          <Link
-            href={href}
-            onClick={() => setClosedThisSession(true)}
-            className="w-full rounded-md bg-blue-600 py-2.5 text-center text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            내 거래처 보기
-          </Link>
+        <div className="mt-6 flex gap-2">
           <button
             type="button"
             onClick={dismissForToday}
-            className="w-full rounded-md py-2 text-center text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+            className="flex-1 rounded-2xl bg-gray-100 py-3.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200"
           >
-            오늘 하루 안 보기
+            오늘 그만 보기
           </button>
+          <Link
+            href={href}
+            onClick={() => setClosedThisSession(true)}
+            className="flex-[1.4] rounded-2xl bg-[#3182f6] py-3.5 text-center text-sm font-semibold text-white transition-colors hover:bg-[#1b64da]"
+          >
+            내 거래처 보기
+          </Link>
         </div>
       </div>
     </div>

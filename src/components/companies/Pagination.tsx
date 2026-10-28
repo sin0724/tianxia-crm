@@ -20,7 +20,7 @@ export function Pagination({ page, pageCount, total, basePath = '/companies' }: 
       <button
         onClick={() => goto(page - 1)}
         disabled={page <= 1}
-        className="px-3 py-1.5 text-sm border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="px-3 py-1.5 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         ← 이전
       </button>
@@ -30,7 +30,7 @@ export function Pagination({ page, pageCount, total, basePath = '/companies' }: 
       <button
         onClick={() => goto(page + 1)}
         disabled={page >= pageCount}
-        className="px-3 py-1.5 text-sm border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="px-3 py-1.5 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         다음 →
       </button>

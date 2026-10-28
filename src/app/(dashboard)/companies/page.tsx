@@ -47,20 +47,20 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
           <p className="text-sm text-gray-500">거래처 목록</p>
           <div className="flex flex-wrap items-center gap-2">
             {(profile.role === 'admin' || profile.role === 'manager') && (
-              <Link href="/companies/assignments" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+              <Link href="/companies/assignments" className="px-3 py-2 text-sm font-medium text-gray-700 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-gray-100 transition-colors">
                 ⚖️ 배분 현황
               </Link>
             )}
-            <Link href="/companies/board" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+            <Link href="/companies/board" className="px-3 py-2 text-sm font-medium text-gray-700 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-gray-100 transition-colors">
               📋 보드 보기
             </Link>
-            <Link href="/companies/import" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+            <Link href="/companies/import" className="px-3 py-2 text-sm font-medium text-gray-700 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-gray-100 transition-colors">
               📥 가져오기
             </Link>
-            <Link href="/companies/export" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+            <Link href="/companies/export" className="px-3 py-2 text-sm font-medium text-gray-700 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-gray-100 transition-colors">
               📤 내보내기
             </Link>
-            <Link href="/companies/new" className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors">
+            <Link href="/companies/new" className="px-4 py-2 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] transition-colors">
               + 거래처 추가
             </Link>
           </div>

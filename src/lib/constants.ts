@@ -130,12 +130,6 @@ export const DEFAULT_KPI_METRICS = [
   { key: 'meeting_seminar', label: '설명회 미팅',      kind: 'meeting' as KpiMetricKind, monthly_target: 4,  sort_order: 5, is_default: false },
 ] as const
 
-// 구 버전 kpi_entries.entry_type(한글 표기) → metric_key. 마이그레이션 전 데이터 보호용.
-export const LEGACY_KPI_ENTRY_TYPE: Record<string, string> = {
-  'KOL 제안':      'kol',
-  '스레드 업로드': 'thread',
-}
-
 // ── KOL 아카이브 ─────────────────────────────────────────────
 // KOL 콘텐츠 카테고리 — 거래처 업종(병의원/F&B/뷰티/숙박 등)에 매칭해 제안하는 기준.
 // 한 KOL이 여러 카테고리를 가질 수 있다 (kols.categories TEXT[]).
@@ -160,29 +154,37 @@ export const KOL_CATEGORY_COLOR: Record<string, string> = {
 }
 
 // ── KOL 진행 조건 (고정비 · RS 요율 · 제공 항목) ────────────────
-// 대만 KOL은 NTD, 국내 KOL은 원화로 단가를 받는다. 숫자만 저장하면 13,300이
-// 원인지 대만달러인지 알 수 없어 예산 계산이 40배 이상 틀어지므로 통화를 함께 둔다.
-export const CURRENCIES = ['TWD', 'KRW'] as const
+// 대만 KOL은 NTD, 국내 KOL은 원화로 단가를 받는다(홍콩·해외 건은 HKD·USD). 숫자만 저장하면
+// 13,300이 원인지 대만달러인지 알 수 없어 예산 계산이 40배 이상 틀어지므로 통화를 함께 둔다.
+export const CURRENCIES = ['TWD', 'KRW', 'USD', 'HKD'] as const
 export type Currency = typeof CURRENCIES[number]
 
 // DB에는 ISO 코드(TWD)로 저장하고, 화면에는 현장에서 쓰는 표기(NTD)로 보여준다.
-export const CURRENCY_LABEL: Record<Currency, string> = { TWD: 'NTD', KRW: '원' }
+export const CURRENCY_LABEL: Record<Currency, string> = { TWD: 'NTD', KRW: '원', USD: 'USD', HKD: 'HKD' }
+
+// 금액 앞에 붙는 기호 (원화는 뒤에 "원")
+const CURRENCY_PREFIX: Record<Currency, string> = { TWD: 'NT$', KRW: '', USD: 'US$', HKD: 'HK$' }
 
 // 통화가 섞인 값을 "비교"할 때만 쓰는 기준 환율 (정렬·범위 필터·누적 합산 환산).
 // 표시는 항상 원문 통화 그대로. 값을 바꿀 때 supabase/schema.sql의
-// twd_to_krw_rate()도 같은 값으로 수정해야 정렬 기준과 화면 표기가 일치한다.
-export const TWD_TO_KRW = 44
-export const FX_NOTE = `NT$1 = ${TWD_TO_KRW}원 기준`
+// fx_to_krw()도 같은 값으로 수정해야 정렬 기준과 화면 표기가 일치한다.
+export const FX_TO_KRW: Record<Currency, number> = { TWD: 44, KRW: 1, USD: 1400, HKD: 180 }
+export const FX_NOTE = `NT$1 = ${FX_TO_KRW.TWD}원 · US$1 = ${FX_TO_KRW.USD.toLocaleString('ko-KR')}원 · HK$1 = ${FX_TO_KRW.HKD}원 기준`
 
-export function isCurrency(v: string | null | undefined): v is Currency {
-  return v === 'TWD' || v === 'KRW'
+export function toKrw(amount: number, currency: Currency): number {
+  return amount * FX_TO_KRW[currency]
 }
 
-// 13300 + TWD → "NT$13,300" / 8000 + KRW → "8,000원"
+export function isCurrency(v: string | null | undefined): v is Currency {
+  return (CURRENCIES as readonly string[]).includes(v ?? '')
+}
+
+// 13300 + TWD → "NT$13,300" / 8000 + KRW → "8,000원" / 500 + USD → "US$500"
 export function fmtMoney(amount: number | null | undefined, currency: string): string {
   if (amount === null || amount === undefined) return '—'
   const n = amount.toLocaleString('ko-KR')
-  return currency === 'KRW' ? `${n}원` : `NT$${n}`
+  if (currency === 'KRW') return `${n}원`
+  return `${isCurrency(currency) ? CURRENCY_PREFIX[currency] : 'NT$'}${n}`
 }
 
 // 누적 공구매출처럼 큰 금액용 — 원화만 만 단위로 줄인다 (12000000 → "1,200만원")

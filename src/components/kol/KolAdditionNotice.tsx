@@ -56,7 +56,7 @@ export function KolAdditionNotice({ count, todayKey }: KolAdditionNoticeProps) {
       aria-modal="true"
       aria-labelledby="kol-notice-title"
     >
-      <div className="w-full max-w-sm rounded-xl bg-white shadow-xl">
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl">
         <div className="px-6 pt-6 pb-5 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-2xl">
             ⭐
@@ -74,14 +74,14 @@ export function KolAdditionNotice({ count, todayKey }: KolAdditionNoticeProps) {
           <Link
             href="/kol"
             onClick={() => setClosedThisSession(true)}
-            className="w-full rounded-md bg-blue-600 py-2.5 text-center text-sm font-semibold text-white hover:bg-blue-700"
+            className="w-full rounded-xl bg-[#3182f6] py-2.5 text-center text-sm font-semibold text-white hover:bg-[#1b64da]"
           >
             KOL 리스트 보기
           </Link>
           <button
             type="button"
             onClick={dismissForToday}
-            className="w-full rounded-md py-2 text-center text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+            className="w-full rounded-xl py-2 text-center text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700"
           >
             오늘 하루 안 보기
           </button>

@@ -36,7 +36,7 @@ function toDateTimeLocal(v: string | null | undefined) {
   return kst.toISOString().slice(0, 16)
 }
 
-const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30 focus:border-transparent'
 
 export function CompanyForm({
   profiles, defaultValues: d = {}, companyId, onCancel,
@@ -199,10 +199,9 @@ export function CompanyForm({
             </select>
           </Field>
 
-          {/* '미팅진행'으로 새로 바뀌면 미팅 활동 + 담당자 월 KPI가 자동 기록된다.
-              어떤 미팅이었는지는 여기서 고른 종류로 집계된다. */}
+          {/* '미팅진행'으로 새로 바뀌면 미팅 활동이 자동 기록된다 — 어떤 미팅이었는지 여기서 고른다 */}
           {status === '미팅진행' && d.status !== '미팅진행' && meetingMetrics.length > 0 && (
-            <Field label="미팅 종류 (KPI 자동 기록)">
+            <Field label="미팅 종류">
               <select
                 name="meeting_kpi_type"
                 className={inputCls}
@@ -210,9 +209,6 @@ export function CompanyForm({
               >
                 {meetingMetrics.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
               </select>
-              <p className="mt-1 text-xs text-purple-600">
-                저장하면 이 미팅이 담당자의 이번 달 KPI로 바로 집계됩니다.
-              </p>
             </Field>
           )}
           <Field label="관심도">
@@ -257,16 +253,16 @@ export function CompanyForm({
         </Card>
 
         {error && (
-          <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-md">{error}</p>
+          <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-xl">{error}</p>
         )}
 
         <div className="flex gap-3">
           <button type="submit" disabled={isPending}
-            className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+            className="px-6 py-2 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
             {isPending ? (companyId ? '저장 중...' : '확인 중...') : companyId ? '수정 완료' : '등록'}
           </button>
           <button type="button" onClick={handleCancel} disabled={isPending}
-            className="px-6 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors">
+            className="px-6 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors">
             취소
           </button>
         </div>
@@ -277,7 +273,7 @@ export function CompanyForm({
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-6">
+    <div className="bg-white border border-gray-100 rounded-2xl p-6">
       <h3 className="text-sm font-semibold text-gray-900 mb-4">{title}</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{children}</div>
     </div>
@@ -287,7 +283,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+      <label className="block text-xs font-medium text-gray-500   mb-1.5">
         {label}{required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       {children}

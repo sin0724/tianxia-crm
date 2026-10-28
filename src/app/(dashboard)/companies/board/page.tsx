@@ -24,7 +24,7 @@ export default async function BoardPage() {
           <p className="text-sm text-gray-500">
             카드를 드래그해서 상태를 변경할 수 있습니다.
           </p>
-          <Link href="/companies" className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+          <Link href="/companies" className="px-3 py-2 text-sm font-medium text-gray-700 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-gray-100 transition-colors">
             ☰ 목록 보기
           </Link>
         </div>

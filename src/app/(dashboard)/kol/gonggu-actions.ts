@@ -18,7 +18,7 @@ export interface KolGongguSaleInput {
   brand: string      // 진행 브랜드/업체
   sale_date: string  // "YYYY-MM-DD" 또는 빈 값
   amount: string     // 공구매출 금액
-  currency: string   // 'TWD' | 'KRW'
+  currency: string   // 'TWD' | 'KRW' | 'USD' | 'HKD'
   quantity: string   // 판매 수량
   notes: string      // 반응, 재구매율 등
 }

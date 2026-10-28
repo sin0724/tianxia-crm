@@ -60,12 +60,10 @@ export default async function SettingsPage() {
 
           {profile.role === 'admin' && (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-sm font-semibold text-gray-900 mb-1">KPI 항목 관리</h2>
+              <h2 className="text-sm font-semibold text-gray-900 mb-1">미팅 종류 관리</h2>
               <p className="text-sm text-gray-400 mb-4">
-                영업사원 KPI 항목과 <strong className="text-gray-500">월 목표치</strong>를 자유롭게 조정할 수 있습니다.
-                여기서 바꾸면 대시보드·할 일 화면의 KPI가 곧바로 따라갑니다.
-                &lsquo;미팅 자동 기록&rsquo; 항목은 담당자가 거래처 상태를 &lsquo;미팅진행&rsquo;으로 바꾸거나
-                미팅 활동을 남길 때 자동으로 쌓입니다.
+                거래처 상태를 &lsquo;미팅진행&rsquo;으로 바꾸거나 미팅 활동을 남길 때 고르는 미팅 종류입니다.
+                &lsquo;미팅 자동 기록&rsquo; 항목만 선택지에 나옵니다.
               </p>
               <KpiMetricSettings metrics={kpiMetrics} />
             </div>
