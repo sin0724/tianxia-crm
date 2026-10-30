@@ -3,7 +3,12 @@ import { Header } from '@/components/layout/Header'
 import { ProjectStatusView } from '@/components/projects/ProjectStatusView'
 import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { FINANCE_ALIAS_ACTIVITY, type FinanceClientAlias } from '@/lib/finance-alias'
+import {
+  FINANCE_ALIAS_ACTIVITY,
+  FINANCE_ASSIGNEE_OVERRIDE_TYPE,
+  normalizeAssigneeCompanyName,
+  type FinanceClientAlias,
+} from '@/lib/finance-alias'
 import {
   PROJECT_STATUSES,
   loadStaffProgress,
@@ -71,36 +76,76 @@ async function loadAssigneeDirectory(): Promise<CompanyAssigneeRecord[]> {
   }
 }
 
+async function financeReader() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (url && serviceKey) {
+    return createServiceClient(url, serviceKey, { auth: { persistSession: false } })
+  }
+  return createClient()
+}
+
 async function loadFinanceAliases(): Promise<FinanceClientAlias[]> {
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const supabase = url && serviceKey
-      ? createServiceClient(url, serviceKey, { auth: { persistSession: false } })
-      : await createClient()
-    const rows: FinanceClientAlias[] = []
-    for (let from = 0; from < 5000; from += 1000) {
-      const { data, error } = await supabase
-        .from('activities')
-        .select('company_id, memo, created_at')
-        .eq('activity_type', FINANCE_ALIAS_ACTIVITY)
-        .order('created_at', { ascending: false })
-        .range(from, from + 999)
-      if (error || !data) break
-      for (const row of data as { company_id: string | null; memo: string | null; created_at: string }[]) {
-        if (!row.company_id || !row.memo?.trim()) continue
-        rows.push({
-          company_id: row.company_id,
-          normalized: row.memo.trim(),
-          created_at: row.created_at,
-        })
-      }
-      if (data.length < 1000) break
-    }
-    return rows
+    const supabase = await financeReader()
+    const [companyAliases, overrides] = await Promise.all([
+      loadCompanyAliases(supabase),
+      loadAssigneeOverrides(supabase),
+    ])
+    return [...overrides, ...companyAliases]
   } catch {
     return []
   }
+}
+
+async function loadCompanyAliases(supabase: Awaited<ReturnType<typeof financeReader>>): Promise<FinanceClientAlias[]> {
+  const rows: FinanceClientAlias[] = []
+  for (let from = 0; from < 5000; from += 1000) {
+    const { data, error } = await supabase
+      .from('activities')
+      .select('company_id, memo, created_at')
+      .eq('activity_type', FINANCE_ALIAS_ACTIVITY)
+      .order('created_at', { ascending: false })
+      .range(from, from + 999)
+    if (error || !data) break
+    for (const row of data as { company_id: string | null; memo: string | null; created_at: string }[]) {
+      const normalized = row.memo?.trim() ?? ''
+      if (!row.company_id || !normalized) continue
+      rows.push({
+        company_id: row.company_id,
+        normalized,
+        created_at: row.created_at,
+      })
+    }
+    if (data.length < 1000) break
+  }
+  return rows
+}
+
+async function loadAssigneeOverrides(supabase: Awaited<ReturnType<typeof financeReader>>): Promise<FinanceClientAlias[]> {
+  const rows: FinanceClientAlias[] = []
+  for (let from = 0; from < 5000; from += 1000) {
+    const { data, error } = await supabase
+      .from('notification_logs')
+      .select('message, created_at, profiles(name)')
+      .eq('notification_type', FINANCE_ASSIGNEE_OVERRIDE_TYPE)
+      .order('created_at', { ascending: false })
+      .range(from, from + 999)
+    if (error || !data) break
+    for (const row of data as { message: string | null; created_at: string; profiles: unknown }[]) {
+      const normalized = normalizeAssigneeCompanyName(row.message ?? '')
+      const assigneeName = readProfileName(row.profiles)
+      if (!normalized || !assigneeName) continue
+      rows.push({
+        company_id: '',
+        normalized,
+        created_at: row.created_at,
+        assignee_name: assigneeName,
+      })
+    }
+    if (data.length < 1000) break
+  }
+  return rows
 }
 
 // 로그인한 사용자가 볼 수 있는 거래처만 연결한다. sales 는 본인 담당 건만 열린다.

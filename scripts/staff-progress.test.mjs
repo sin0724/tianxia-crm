@@ -318,6 +318,15 @@ test('matches a CRM assignee after trimming, dropping spaces and company suffixe
   assert.equal(api.assigneeNameFor('(주)하늘', companies), '김영업')
   assert.equal(api.assigneeNameFor('abc   corp', companies), 'Lee')
   assert.equal(api.assigneeNameFor('겹침', companies), '미매칭')
+  assert.equal(api.assigneeNameFor('아비쥬의원', [
+    ...companies,
+    { id: 'avi-1', company_name: '아비쥬의원', assignee_name: '김영업' },
+    { id: 'avi-2', company_name: '(주) 아비쥬의원', assignee_name: '김영업' },
+  ]), '김영업')
+  assert.equal(api.assigneeNameFor('톡스앤필 명동', [
+    { id: 'tox-1', company_name: '톡스앤필 명동', assignee_name: '김영업' },
+    { id: 'tox-2', company_name: '톡스앤필명동', assignee_name: null },
+  ]), '미매칭')
   assert.equal(api.assigneeNameFor('주식회사', companies), '미매칭')
   assert.equal(api.assigneeNameFor('무담당', companies), '미매칭')
   assert.equal(api.assigneeNameFor('없는 고객', companies), '미매칭')
@@ -408,6 +417,14 @@ test('buckets contract and deposit revenue by assignee and KST month, and aliase
   ]
   assert.equal(api.assigneeNameFor('(주) 옛바다', companies, aliases), '김영업')
   assert.equal(api.assigneeNameFor('하늘', companies, [{ company_id: 'sea', normalized: '하늘', created_at: '2026-03-01T00:00:00.000Z' }]), '김영업')
+  assert.equal(api.assigneeNameFor('하늘', companies, [
+    { company_id: '', normalized: '하늘', created_at: '2026-01-01T00:00:00.000Z', assignee_name: '박매니저' },
+    { company_id: 'sea', normalized: '하늘', created_at: '2026-06-01T00:00:00.000Z' },
+  ]), '박매니저')
+  assert.equal(api.assigneeNameFor('없는고객', companies, [
+    { company_id: '', normalized: '없는고객', created_at: '2026-01-01T00:00:00.000Z', assignee_name: '김영업' },
+    { company_id: '', normalized: '없는고객', created_at: '2026-04-01T00:00:00.000Z', assignee_name: '박매니저' },
+  ]), '박매니저')
 
   const table = api.buildRevenueTable(rows, companies, 2026, 'contract', aliases)
   assert.equal(table.months.join(','), '2026-01,2026-02,2026-03,2026-04,2026-05,2026-06,2026-07,2026-08,2026-09,2026-10,2026-11,2026-12')

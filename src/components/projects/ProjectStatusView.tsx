@@ -99,7 +99,7 @@ export function ProjectStatusView({
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
-        재무 시스템 기준 · 약 1분마다 갱신됩니다. 담당자는 고객사명을 CRM 거래처와 맞춰 표시하고, 맞지 않으면 미매칭입니다.
+        재무 시스템 기준 · 약 1분마다 갱신됩니다. 담당자는 직접 지정한 이름, 그다음 고객사명과 맞는 CRM 거래처 담당자 순으로 표시하고, 맞지 않으면 미매칭입니다.
       </p>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
