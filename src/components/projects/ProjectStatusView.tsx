@@ -2,7 +2,7 @@ import Link from 'next/link'
 import {
   PROJECT_STATUSES,
   assigneeChoices,
-  assigneeLabel,
+  assigneeNameFor,
   categoryChoices,
   filterProjects,
   formatContractDate,
@@ -12,6 +12,7 @@ import {
   statusLabel,
   summarize,
   summarizeByAssignee,
+  type CompanyAssigneeRecord,
   type ProjectListFilters,
   type StaffProject,
 } from '@/lib/staff-progress'
@@ -66,22 +67,26 @@ function ItemList({ project, category }: { project: StaffProject; category?: str
 export function ProjectStatusView({
   projects,
   companies,
+  assigneeDirectory,
   filters,
 }: {
   projects: StaffProject[]
   companies: { id: string; company_name: string }[]
+  assigneeDirectory: CompanyAssigneeRecord[]
   filters: ProjectListFilters
 }) {
-  const filtered = sortProjects(filterProjects(projects, filters))
+  const filtered = sortProjects(filterProjects(projects, filters, assigneeDirectory))
   const summary = summarize(filtered, filters.category)
-  const byAssignee = summarizeByAssignee(filtered, projects, filters.category)
-  const assignees = assigneeChoices(projects)
+  const byAssignee = summarizeByAssignee(filtered, assigneeDirectory, filters.category)
+  const assignees = assigneeChoices(projects, assigneeDirectory)
   const categories = categoryChoices(projects)
   const hasFilter = Boolean(filters.assignee || filters.status || filters.category || filters.q?.trim())
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">재무 시스템 기준 · 약 1분마다 갱신됩니다.</p>
+      <p className="text-sm text-gray-500">
+        재무 시스템 기준 · 약 1분마다 갱신됩니다. 담당자는 고객사명을 CRM 거래처와 맞춰 표시하고, 맞지 않으면 미매칭입니다.
+      </p>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="진행중 프로젝트 수" value={fmtCount(summary.ongoing)} />
@@ -171,7 +176,7 @@ export function ProjectStatusView({
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-800 whitespace-nowrap">{project.project_name}</td>
-                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{assigneeLabel(project, projects)}</td>
+                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{assigneeNameFor(project.client_name, assigneeDirectory)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[project.status] ?? 'bg-gray-100 text-gray-600'}`}>
                         {statusLabel(project.status)}

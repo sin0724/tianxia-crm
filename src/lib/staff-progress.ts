@@ -1,7 +1,8 @@
 import { unstable_cache } from 'next/cache'
 
 // 재무 앱의 프로젝트 현황. 시크릿은 서버에서만 읽고 응답·에러에 넣지 않는다.
-// 항목은 카테고리, 상품명, 계약 수량만 쓰고 진행·잔여는 받지 않는다.
+// 항목은 카테고리, 상품명, 계약 수량만 쓰고 진행·잔여와 담당자는 받지 않는다.
+// 담당자는 고객사명을 CRM 거래처와 맞춰 companies.assigned_to 의 프로필 이름으로 정한다.
 //
 // 대시보드 레이아웃이 dynamic = 'force-dynamic' 이라 fetch 캐시가 no-store 로 꺼진다.
 // 그래서 데이터 캐시(unstable_cache, 60초)로 직원 전체가 같은 응답을 재사용한다.
@@ -24,6 +25,8 @@ export const STAFF_PROGRESS_UNCONFIGURED_MESSAGE =
 
 export const STAFF_PROGRESS_UNAVAILABLE_MESSAGE =
   '재무 시스템에서 프로젝트 현황을 가져오지 못했습니다. 잠시 후 다시 확인해 주세요.'
+
+export const UNMATCHED_ASSIGNEE = '미매칭'
 
 const AUTH_FAILED_MESSAGE =
   '재무 시스템 인증에 실패했습니다. 연동 설정을 확인해 주세요.'
@@ -49,8 +52,6 @@ export interface StaffProject {
   project_name: string
   status: string
   contract_date: string | null
-  assignee_employee_id: string | null
-  assignee_name: string | null
   contract_amount: number
   paid_amount: number
   items: StaffProjectItem[]
@@ -80,6 +81,12 @@ export interface AssigneeSummary extends ProgressSummary {
   projects: number
 }
 
+export interface CompanyAssigneeRecord {
+  id: string
+  company_name: string
+  assignee_name: string | null
+}
+
 interface FetcherResponse {
   ok: boolean
   status: number
@@ -96,9 +103,19 @@ export type StaffProgressFetcher = (
   },
 ) => Promise<FetcherResponse>
 
-// 거래처 중복 검사(duplicate-actions)와 같은 규칙. 공백·괄호·구분 기호를 뺀 소문자.
+// 거래처 링크용. 중복 검사(duplicate-actions)와 같은 규칙으로 공백·괄호·구분 기호를 뺀다.
 export function normalizeCompanyName(name: string): string {
   return name.toLowerCase().replace(/[\s()[\]（）【】·•\-_.,'"]/g, '')
+}
+
+// 담당자 매칭용. 앞뒤 공백, 사이 공백, (주), 주식회사를 빼고 대소문자를 무시한다.
+export function normalizeAssigneeCompanyName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replaceAll('(주)', '')
+    .replaceAll('주식회사', '')
 }
 
 export function statusLabel(status: string): string {
@@ -125,25 +142,21 @@ export function formatContractDate(value: string | null): string {
   return `${year}.${month}.${day}`
 }
 
-export function assigneeLabel(project: StaffProject, projects: StaffProject[]): string {
-  const name = project.assignee_name?.trim() || '미배정'
-  const ids = new Set(
-    projects
-      .filter(row => (row.assignee_name?.trim() || '미배정') === name)
-      .map(row => row.assignee_employee_id)
-      .filter((id): id is string => !!id),
-  )
-  if (ids.size > 1 && project.assignee_employee_id) {
-    return `${name} (${project.assignee_employee_id})`
-  }
-  return name
+export function assigneeNameFor(clientName: string, companies: CompanyAssigneeRecord[]): string {
+  const key = normalizeAssigneeCompanyName(clientName)
+  if (!key) return UNMATCHED_ASSIGNEE
+  const matches = companies.filter(company => normalizeAssigneeCompanyName(company.company_name) === key)
+  const names = [...new Set(matches.map(company => company.assignee_name?.trim() || '').filter(Boolean))]
+  const agreed = names.length === 1
+    && matches.every(company => (company.assignee_name?.trim() || '') === names[0])
+  return agreed ? names[0] : UNMATCHED_ASSIGNEE
 }
 
-export function assigneeChoices(projects: StaffProject[]): string[] {
-  const labels = [...new Set(projects.map(project => assigneeLabel(project, projects)))]
+export function assigneeChoices(projects: StaffProject[], companies: CompanyAssigneeRecord[]): string[] {
+  const labels = [...new Set(projects.map(project => assigneeNameFor(project.client_name, companies)))]
   return labels.sort((a, b) => {
-    if (a === '미배정') return 1
-    if (b === '미배정') return -1
+    if (a === UNMATCHED_ASSIGNEE) return 1
+    if (b === UNMATCHED_ASSIGNEE) return -1
     return a.localeCompare(b, 'ko')
   })
 }
@@ -167,13 +180,17 @@ function clientMatches(name: string, query: string): boolean {
   return normalizedQuery.length > 0 && normalizeCompanyName(name).includes(normalizedQuery)
 }
 
-export function filterProjects(projects: StaffProject[], filters: ProjectListFilters): StaffProject[] {
+export function filterProjects(
+  projects: StaffProject[],
+  filters: ProjectListFilters,
+  companies: CompanyAssigneeRecord[] = [],
+): StaffProject[] {
   const assignee = filters.assignee?.trim() ?? ''
   const status = filters.status?.trim() ?? ''
   const category = filters.category?.trim() ?? ''
   const query = filters.q?.trim().toLowerCase() ?? ''
   return projects.filter(project => {
-    if (assignee && assigneeLabel(project, projects) !== assignee) return false
+    if (assignee && assigneeNameFor(project.client_name, companies) !== assignee) return false
     if (status && project.status !== status) return false
     if (category && !project.items.some(item => item.category === category)) return false
     if (query && !clientMatches(project.client_name, query)) return false
@@ -204,12 +221,12 @@ export function summarize(projects: StaffProject[], category?: string): Progress
 
 export function summarizeByAssignee(
   projects: StaffProject[],
-  all: StaffProject[],
+  companies: CompanyAssigneeRecord[] = [],
   category?: string,
 ): AssigneeSummary[] {
   const grouped = new Map<string, AssigneeSummary>()
   for (const project of projects) {
-    const assignee = assigneeLabel(project, all)
+    const assignee = assigneeNameFor(project.client_name, companies)
     const row = grouped.get(assignee) ?? {
       assignee,
       projects: 0,
@@ -225,9 +242,11 @@ export function summarizeByAssignee(
     row.contractedCount += contractedCountOf(project, category)
     grouped.set(assignee, row)
   }
-  return [...grouped.values()].sort(
-    (a, b) => b.contractAmount - a.contractAmount || a.assignee.localeCompare(b.assignee, 'ko'),
-  )
+  return [...grouped.values()].sort((a, b) => {
+    if (a.assignee === UNMATCHED_ASSIGNEE) return 1
+    if (b.assignee === UNMATCHED_ASSIGNEE) return -1
+    return b.contractAmount - a.contractAmount || a.assignee.localeCompare(b.assignee, 'ko')
+  })
 }
 
 const STATUS_RANK: Record<string, number> = { ongoing: 0, completed: 1, cancelled: 2 }
@@ -315,8 +334,6 @@ function parseProject(raw: unknown): StaffProject | null {
     project_name: asText(row.project_name) ?? '—',
     status,
     contract_date: asText(row.contract_date),
-    assignee_employee_id: asText(row.assignee_employee_id),
-    assignee_name: asText(row.assignee_name),
     contract_amount: asNumber(row.contract_amount),
     paid_amount: asNumber(row.paid_amount),
     items,

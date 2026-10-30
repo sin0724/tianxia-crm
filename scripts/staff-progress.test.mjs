@@ -107,6 +107,8 @@ test('sends the bearer token to the staff-progress path and keeps it out of the 
   assert.equal(result.projects[0].totals.contracted, 6)
   assert.equal('delivered' in result.projects[0].items[0], false)
   assert.equal('remaining' in result.projects[0].totals, false)
+  assert.equal('assignee_name' in result.projects[0], false)
+  assert.equal('assignee_employee_id' in result.projects[0], false)
   assert.equal(JSON.stringify(result).includes(secret), false)
   assert.equal(JSON.stringify(calls[0].url).includes(secret), false)
 })
@@ -177,7 +179,7 @@ test('turns HTTP, redirect, and network failures into a message without the resp
   assert.equal(offline.message.includes(secret), false)
 })
 
-test('filters by assignee, status, category, and client, then sums contracted counts', () => {
+test('filters by CRM assignee, status, category, and client, then sums contracted counts', () => {
   const rows = [
     project(),
     project({
@@ -185,8 +187,6 @@ test('filters by assignee, status, category, and client, then sums contracted co
       client_name: '주식회사 다른가게',
       project_name: '종료건',
       status: 'cancelled',
-      assignee_name: '박매니저',
-      assignee_employee_id: 'e2',
       contract_amount: 500,
       paid_amount: 500,
       items: [{ project_item_id: 'i3', category: 'Dcard', product_name: '게시', contracted: 1, delivered: 0, remaining: 1 }],
@@ -195,7 +195,6 @@ test('filters by assignee, status, category, and client, then sums contracted co
     project({
       project_id: 'p3',
       client_name: '미배정 고객',
-      assignee_name: null,
       status: 'ongoing',
       contract_amount: 10,
       paid_amount: 0,
@@ -203,7 +202,12 @@ test('filters by assignee, status, category, and client, then sums contracted co
       totals: { contracted: 2, delivered: 0, remaining: 2 },
     }),
   ]
-  const kol = api.filterProjects(rows, { category: 'KOL', status: 'ongoing' })
+  const companies = [
+    { id: 'c1', company_name: '(주) 티엔샤', assignee_name: '김영업' },
+    { id: 'c2', company_name: '다른가게', assignee_name: '박매니저' },
+    { id: 'c-dup', company_name: '다른 가게', assignee_name: '박매니저' },
+  ]
+  const kol = api.filterProjects(rows, { category: 'KOL', status: 'ongoing' }, companies)
   assert.equal(kol.map(row => row.project_id).join(','), 'p1,p3')
   assert.equal(api.itemsFor(kol[0], 'KOL').map(item => item.project_item_id).join(','), 'i1')
 
@@ -213,17 +217,39 @@ test('filters by assignee, status, category, and client, then sums contracted co
   assert.equal(summary.paidAmount, 400000)
   assert.equal(summary.contractedCount, 6)
 
-  const byName = api.filterProjects(rows, { q: '다른 가게' })
+  const byName = api.filterProjects(rows, { q: '다른 가게' }, companies)
   assert.equal(byName.map(row => row.project_id).join(','), 'p2')
-  const byAssignee = api.filterProjects(rows, { assignee: '박매니저' })
+  const byAssignee = api.filterProjects(rows, { assignee: '박매니저' }, companies)
   assert.equal(byAssignee.length, 1)
+  const unmatched = api.filterProjects(rows, { assignee: '미매칭' }, companies)
+  assert.equal(unmatched.map(row => row.project_id).join(','), 'p3')
 
-  const people = api.summarizeByAssignee(rows, rows)
-  assert.equal(people.map(row => row.assignee).join(','), '김영업,박매니저,미배정')
+  const people = api.summarizeByAssignee(rows, companies)
+  assert.equal(people.map(row => row.assignee).join(','), '김영업,박매니저,미매칭')
   assert.equal(people[0].projects, 1)
   assert.equal(people[0].ongoing, 1)
   assert.equal(people[2].contractedCount, 2)
+  assert.equal(api.assigneeChoices(rows, companies).join(','), '김영업,박매니저,미매칭')
   assert.equal(api.categoryChoices(rows).slice(0, 6).join(','), 'Dcard,PTT,Threads,PR,KOC,KOL')
+})
+
+test('matches a CRM assignee after trimming, dropping spaces and company suffixes, and ignoring case', () => {
+  const companies = [
+    { id: 'a', company_name: '주식회사 (주) 하늘', assignee_name: ' 김영업 ' },
+    { id: 'b', company_name: 'ABC Corp', assignee_name: 'Lee' },
+    { id: 'c1', company_name: '겹침', assignee_name: '김영업' },
+    { id: 'c2', company_name: '(주)겹침', assignee_name: '박매니저' },
+    { id: 'd', company_name: '주식회사', assignee_name: '김영업' },
+    { id: 'e', company_name: '무담당', assignee_name: null },
+  ]
+  assert.equal(api.normalizeAssigneeCompanyName('  (주) 하늘  '), '하늘')
+  assert.equal(api.assigneeNameFor('(주)하늘', companies), '김영업')
+  assert.equal(api.assigneeNameFor('abc   corp', companies), 'Lee')
+  assert.equal(api.assigneeNameFor('겹침', companies), '미매칭')
+  assert.equal(api.assigneeNameFor('주식회사', companies), '미매칭')
+  assert.equal(api.assigneeNameFor('무담당', companies), '미매칭')
+  assert.equal(api.assigneeNameFor('없는 고객', companies), '미매칭')
+  assert.equal(api.UNMATCHED_ASSIGNEE, '미매칭')
 })
 
 test('links a client only when the company name matches exactly or uniquely after normalization', () => {
