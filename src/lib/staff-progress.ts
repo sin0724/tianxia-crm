@@ -1,10 +1,19 @@
 import { unstable_cache } from 'next/cache'
+import { kstMonthString } from '@/lib/datetime'
+import {
+  normalizeAssigneeCompanyName,
+  type FinanceClientAlias,
+} from '@/lib/finance-alias'
+
+export { normalizeAssigneeCompanyName }
+export type { FinanceClientAlias }
 
 // 재무 앱의 프로젝트 현황. 시크릿은 서버에서만 읽고 응답·에러에 넣지 않는다.
 // 응답은 { projects } 하나다. 각 행 키는 client, project, status, contract_date,
 // contract_amount, paid_amount, items, totals 뿐이고 id 는 없다.
 // items 는 { category, product_name, contracted }, totals 는 { contracted } 다.
-// 빠진 선택 필드는 비우거나 0 으로 두고, 담당자는 CRM 거래처 배정으로 맞춘다.
+// payments 는 [{ paid_at, amount }] 이고 없으면 빈 배열로 둔다.
+// 빠진 선택 필드는 비우거나 0 으로 두고, 담당자는 CRM 거래처명 또는 재무 별칭으로 맞춘다.
 //
 // 대시보드 레이아웃이 dynamic = 'force-dynamic' 이라 fetch 캐시가 no-store 로 꺼진다.
 // 그래서 데이터 캐시(unstable_cache, 60초)로 직원 전체가 같은 응답을 재사용한다.
@@ -46,6 +55,11 @@ export interface StaffProjectTotals {
   contracted: number
 }
 
+export interface StaffProjectPayment {
+  paid_at: string | null
+  amount: number
+}
+
 export interface StaffProject {
   client: string | null
   project: string
@@ -55,6 +69,7 @@ export interface StaffProject {
   paid_amount: number
   items: StaffProjectItem[]
   totals: StaffProjectTotals
+  payments: StaffProjectPayment[]
 }
 
 export type StaffProgressResult =
@@ -107,16 +122,6 @@ export function normalizeCompanyName(name: string): string {
   return name.toLowerCase().replace(/[\s()[\]（）【】·•\-_.,'"]/g, '')
 }
 
-// 담당자 매칭용. 앞뒤 공백, 사이 공백, (주), 주식회사를 빼고 대소문자를 무시한다.
-export function normalizeAssigneeCompanyName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '')
-    .replaceAll('(주)', '')
-    .replaceAll('주식회사', '')
-}
-
 export function statusLabel(status: string): string {
   return status in PROJECT_STATUS_LABEL
     ? PROJECT_STATUS_LABEL[status as ProjectStatus]
@@ -141,7 +146,7 @@ export function formatContractDate(value: string | null): string {
   return `${year}.${month}.${day}`
 }
 
-export function assigneeNameFor(clientName: string, companies: CompanyAssigneeRecord[]): string {
+function assigneeFromCompanyName(clientName: string, companies: CompanyAssigneeRecord[]): string {
   const key = normalizeAssigneeCompanyName(clientName)
   if (!key) return UNMATCHED_ASSIGNEE
   const matches = companies.filter(company => normalizeAssigneeCompanyName(company.company_name) === key)
@@ -151,8 +156,38 @@ export function assigneeNameFor(clientName: string, companies: CompanyAssigneeRe
   return agreed ? names[0] : UNMATCHED_ASSIGNEE
 }
 
-export function assigneeChoices(projects: StaffProject[], companies: CompanyAssigneeRecord[]): string[] {
-  const labels = [...new Set(projects.map(project => assigneeNameFor(project.client ?? '', companies)))]
+function assigneeFromAlias(
+  clientName: string,
+  companies: CompanyAssigneeRecord[],
+  aliases: FinanceClientAlias[],
+): string {
+  const key = normalizeAssigneeCompanyName(clientName)
+  if (!key) return UNMATCHED_ASSIGNEE
+  const ranked = aliases
+    .filter(alias => alias.normalized === key && alias.company_id)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at) || a.company_id.localeCompare(b.company_id))
+  const winner = ranked[0]
+  if (!winner) return UNMATCHED_ASSIGNEE
+  const name = companies.find(company => company.id === winner.company_id)?.assignee_name?.trim()
+  return name || UNMATCHED_ASSIGNEE
+}
+
+export function assigneeNameFor(
+  clientName: string,
+  companies: CompanyAssigneeRecord[],
+  aliases: FinanceClientAlias[] = [],
+): string {
+  const byName = assigneeFromCompanyName(clientName, companies)
+  if (byName !== UNMATCHED_ASSIGNEE) return byName
+  return assigneeFromAlias(clientName, companies, aliases)
+}
+
+export function assigneeChoices(
+  projects: StaffProject[],
+  companies: CompanyAssigneeRecord[],
+  aliases: FinanceClientAlias[] = [],
+): string[] {
+  const labels = [...new Set(projects.map(project => assigneeNameFor(project.client ?? '', companies, aliases)))]
   return labels.sort((a, b) => {
     if (a === UNMATCHED_ASSIGNEE) return 1
     if (b === UNMATCHED_ASSIGNEE) return -1
@@ -184,13 +219,14 @@ export function filterProjects(
   projects: StaffProject[],
   filters: ProjectListFilters,
   companies: CompanyAssigneeRecord[] = [],
+  aliases: FinanceClientAlias[] = [],
 ): StaffProject[] {
   const assignee = filters.assignee?.trim() ?? ''
   const status = filters.status?.trim() ?? ''
   const category = filters.category?.trim() ?? ''
   const query = filters.q?.trim().toLowerCase() ?? ''
   return projects.filter(project => {
-    if (assignee && assigneeNameFor(project.client ?? '', companies) !== assignee) return false
+    if (assignee && assigneeNameFor(project.client ?? '', companies, aliases) !== assignee) return false
     if (status && project.status !== status) return false
     if (category && !project.items.some(item => item.category === category)) return false
     if (query && !clientMatches(project.client ?? '', query)) return false
@@ -223,10 +259,11 @@ export function summarizeByAssignee(
   projects: StaffProject[],
   companies: CompanyAssigneeRecord[] = [],
   category?: string,
+  aliases: FinanceClientAlias[] = [],
 ): AssigneeSummary[] {
   const grouped = new Map<string, AssigneeSummary>()
   for (const project of projects) {
-    const assignee = assigneeNameFor(project.client ?? '', companies)
+    const assignee = assigneeNameFor(project.client ?? '', companies, aliases)
     const row = grouped.get(assignee) ?? {
       assignee,
       projects: 0,
@@ -293,6 +330,122 @@ function asNumber(value: unknown): number {
   return 0
 }
 
+export type RevenueMetric = 'contract' | 'deposit'
+
+export interface RevenueRow {
+  assignee: string
+  amounts: number[]
+  total: number
+}
+
+export interface RevenueTable {
+  year: number
+  months: string[]
+  rows: RevenueRow[]
+  totals: number[]
+  grand: number
+}
+
+export interface AssigneeAmount {
+  assignee: string
+  amount: number
+}
+
+const MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/
+
+export function selectedMonthOrCurrent(value: string | null | undefined, now: Date = new Date()): string {
+  const trimmed = value?.trim() ?? ''
+  if (MONTH_RE.test(trimmed)) return trimmed
+  return kstMonthString(now)
+}
+
+// 날짜만 있으면 그 달력 월을 쓰고, 시각이 있으면 KST 달로 묶는다.
+export function monthOf(value: string | null | undefined): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed.slice(0, 7)
+  if (MONTH_RE.test(trimmed)) return trimmed
+  const time = Date.parse(trimmed)
+  if (Number.isNaN(time)) return null
+  return kstMonthString(new Date(time))
+}
+
+export function yearMonths(year: number): string[] {
+  return Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, '0')}`)
+}
+
+function paymentsOf(project: StaffProject): StaffProjectPayment[] {
+  return Array.isArray(project.payments) ? project.payments : []
+}
+
+function metricAmount(project: StaffProject, month: string, metric: RevenueMetric): number {
+  if (metric === 'contract') {
+    return monthOf(project.contract_date) === month ? project.contract_amount : 0
+  }
+  return paymentsOf(project).reduce((sum, payment) => (
+    monthOf(payment.paid_at) === month ? sum + payment.amount : sum
+  ), 0)
+}
+
+function pickTop(entries: AssigneeAmount[]): AssigneeAmount | null {
+  const ranked = entries.filter(entry => entry.amount > 0).sort((a, b) => {
+    if (b.amount !== a.amount) return b.amount - a.amount
+    if (a.assignee === UNMATCHED_ASSIGNEE) return 1
+    if (b.assignee === UNMATCHED_ASSIGNEE) return -1
+    return a.assignee.localeCompare(b.assignee, 'ko')
+  })
+  return ranked[0] ?? null
+}
+
+export function buildRevenueTable(
+  projects: StaffProject[],
+  companies: CompanyAssigneeRecord[],
+  year: number,
+  metric: RevenueMetric,
+  aliases: FinanceClientAlias[] = [],
+): RevenueTable {
+  const months = yearMonths(year)
+  const assignees = [...new Set(projects.map(project => assigneeNameFor(project.client ?? '', companies, aliases)))]
+  const rows = assignees.map(assignee => {
+    const owned = projects.filter(project => assigneeNameFor(project.client ?? '', companies, aliases) === assignee)
+    const amounts = months.map(month => owned.reduce((sum, project) => sum + metricAmount(project, month, metric), 0))
+    return { assignee, amounts, total: amounts.reduce((sum, amount) => sum + amount, 0) }
+  }).sort((a, b) => {
+    if (a.assignee === UNMATCHED_ASSIGNEE) return 1
+    if (b.assignee === UNMATCHED_ASSIGNEE) return -1
+    return b.total - a.total || a.assignee.localeCompare(b.assignee, 'ko')
+  })
+  const totals = months.map((_, index) => rows.reduce((sum, row) => sum + row.amounts[index], 0))
+  return {
+    year,
+    months,
+    rows,
+    totals,
+    grand: totals.reduce((sum, amount) => sum + amount, 0),
+  }
+}
+
+export function monthSnapshot(
+  projects: StaffProject[],
+  companies: CompanyAssigneeRecord[],
+  month: string,
+  aliases: FinanceClientAlias[] = [],
+): { contract: number; deposit: number; topContract: AssigneeAmount | null; topDeposit: AssigneeAmount | null } {
+  const year = Number(month.slice(0, 4))
+  const contractTable = buildRevenueTable(projects, companies, year, 'contract', aliases)
+  const depositTable = buildRevenueTable(projects, companies, year, 'deposit', aliases)
+  const index = contractTable.months.indexOf(month)
+  const column = (table: RevenueTable) => (
+    index < 0 ? [] : table.rows.map(row => ({ assignee: row.assignee, amount: row.amounts[index] }))
+  )
+  return {
+    contract: index < 0 ? 0 : contractTable.totals[index],
+    deposit: index < 0 ? 0 : depositTable.totals[index],
+    topContract: pickTop(column(contractTable)),
+    topDeposit: pickTop(column(depositTable)),
+  }
+}
+
 function parseItem(raw: unknown): StaffProjectItem | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const row = raw as Record<string, unknown>
@@ -300,6 +453,15 @@ function parseItem(raw: unknown): StaffProjectItem | null {
     category: asNullableText(row.category),
     product_name: asNullableText(row.product_name),
     contracted: asNumber(row.contracted),
+  }
+}
+
+function parsePayment(raw: unknown): StaffProjectPayment | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const row = raw as Record<string, unknown>
+  return {
+    paid_at: asNullableText(row.paid_at),
+    amount: asNumber(row.amount),
   }
 }
 
@@ -331,6 +493,9 @@ function parseProject(raw: unknown): StaffProject | null {
     paid_amount: asNumber(row.paid_amount),
     items,
     totals: parseTotals(row.totals, items),
+    payments: Array.isArray(row.payments)
+      ? row.payments.map(parsePayment).filter((payment): payment is StaffProjectPayment => payment !== null)
+      : [],
   }
 }
 

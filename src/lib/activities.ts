@@ -1,3 +1,4 @@
+import { FINANCE_ALIAS_ACTIVITY } from '@/lib/finance-alias'
 import { createClient } from '@/lib/supabase/server'
 
 export interface Activity {
@@ -20,6 +21,7 @@ export async function getActivities(companyId: string): Promise<Activity[]> {
     .from('activities')
     .select('id, company_id, user_id, activity_type, activity_result, memo, next_action_at, meeting_type, created_at, profiles(name)')
     .eq('company_id', companyId)
+    .neq('activity_type', FINANCE_ALIAS_ACTIVITY)
     .order('created_at', { ascending: false })
     .limit(100)
   return (data as unknown as Activity[]) ?? []
