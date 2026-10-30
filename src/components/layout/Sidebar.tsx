@@ -15,6 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: '대시보드',   href: '/dashboard', icon: '📊', roles: ['admin', 'manager', 'sales'] },
   { label: '오늘 할 일', href: '/tasks',     icon: '✅', roles: ['admin', 'manager', 'sales'] },
   { label: '거래처 관리', href: '/companies', icon: '🏢', roles: ['admin', 'manager', 'sales'] },
+  { label: '프로젝트',   href: '/projects',  icon: '📁', roles: ['admin', 'manager', 'sales'] },
   { label: 'KOL 리스트', href: '/kol',       icon: '⭐', roles: ['admin', 'manager', 'sales'] },
   { label: '설정',      href: '/settings',  icon: '⚙️', roles: ['admin', 'manager', 'sales'] },
 ]
@@ -72,12 +73,12 @@ export function Sidebar({ profile }: SidebarProps) {
 
       {/* 모바일: 하단 탭 바 */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-gray-100 pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {visibleItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-1 py-2 text-[11px] transition-colors ${
+              className={`flex flex-col items-center gap-1 px-0.5 py-2 text-[10px] leading-tight text-center transition-colors ${
                 isActive(item) ? 'font-bold text-gray-900' : 'font-medium text-gray-400'
               }`}
             >

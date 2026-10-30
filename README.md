@@ -1,5 +1,14 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## 프로젝트 현황 (`/projects`)
+
+로그인한 직원이 재무 시스템의 프로젝트 진행을 보는 화면입니다. 서버가 `GET ${FINANCE_API_URL}/api/integrations/staff-progress` 를 `Authorization: Bearer <FINANCE_STAFF_PROGRESS_SECRET>` 으로 호출합니다. 두 값은 서버 환경변수이고 브라우저로 내려가지 않습니다. 응답은 약 60초 캐시됩니다. 값이 없거나 재무 API가 실패하면 화면은 안내 문구만 보여 줍니다.
+
+```bash
+node --test scripts/staff-progress.test.mjs
+```
+
+
 ## Getting Started
 
 First, run the development server:
