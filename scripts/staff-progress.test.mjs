@@ -38,25 +38,28 @@ const api = lib.exports
 
 const secret = 'staff-progress-test-secret'
 
+const PROJECT_KEYS = 'client,project,status,contract_date,contract_amount,paid_amount,items,totals'
+const ITEM_KEYS = 'category,product_name,contracted'
+
 function project(overrides = {}) {
   return {
-    project_id: 'p1',
-    client_id: 'c1',
-    client_name: '티엔샤',
-    project_name: '대만 캠페인',
+    client: '티엔샤',
+    project: '대만 캠페인',
     status: 'ongoing',
     contract_date: '2026-03-01',
-    assignee_employee_id: 'e1',
-    assignee_name: '김영업',
     contract_amount: 1000000,
     paid_amount: 400000,
     items: [
-      { project_item_id: 'i1', category: 'KOL', product_name: '릴스', contracted: 4, delivered: 1, remaining: 3 },
-      { project_item_id: 'i2', category: 'PR', product_name: '기사', contracted: 2, delivered: 2, remaining: 0 },
+      { category: 'KOL', product_name: '릴스', contracted: 4 },
+      { category: 'PR', product_name: '기사', contracted: 2 },
     ],
-    totals: { contracted: 6, delivered: 3, remaining: 3 },
+    totals: { contracted: 6 },
     ...overrides,
   }
+}
+
+function feed(rows) {
+  return { projects: rows }
 }
 
 function jsonResponse(body, status = 200) {
@@ -94,7 +97,14 @@ test('sends the bearer token to the staff-progress path and keeps it out of the 
     secret,
     fetchImpl: async (url, init) => {
       calls.push({ url, init })
-      return jsonResponse([project()])
+      return jsonResponse(feed([project({
+        project_id: 'drop-me',
+        client_id: 'c1',
+        client_name: '옛이름',
+        assignee_name: '김영업',
+        items: [{ project_item_id: 'i1', category: 'KOL', product_name: '릴스', contracted: 4, delivered: 1, remaining: 3 }],
+        totals: { contracted: 6, delivered: 1, remaining: 3 },
+      })]))
     },
   })
   assert.equal(calls.length, 1)
@@ -103,47 +113,92 @@ test('sends the bearer token to the staff-progress path and keeps it out of the 
   assert.equal(calls[0].init.redirect, 'manual')
   assert.equal(calls[0].init.headers.Authorization, `Bearer ${secret}`)
   assert.equal(result.ok, true)
-  assert.equal(result.projects[0].client_name, '티엔샤')
+  assert.equal(result.projects[0].client, '티엔샤')
+  assert.equal(result.projects[0].project, '대만 캠페인')
   assert.equal(result.projects[0].totals.contracted, 6)
-  assert.equal('delivered' in result.projects[0].items[0], false)
-  assert.equal('remaining' in result.projects[0].totals, false)
-  assert.equal('assignee_name' in result.projects[0], false)
-  assert.equal('assignee_employee_id' in result.projects[0], false)
+  assert.equal(Object.keys(result.projects[0]).join(','), PROJECT_KEYS)
+  assert.equal(Object.keys(result.projects[0].items[0]).join(','), ITEM_KEYS)
+  assert.equal(Object.keys(result.projects[0].totals).join(','), 'contracted')
   assert.equal(JSON.stringify(result).includes(secret), false)
+  assert.equal(JSON.stringify(result).includes('김영업'), false)
+  assert.equal(JSON.stringify(result).includes('drop-me'), false)
   assert.equal(JSON.stringify(calls[0].url).includes(secret), false)
 })
 
-test('accepts wrapped rows, computes missing totals, and rejects a payload with no projects', async () => {
+test('reads only the projects wrapper, fills missing fields, and can ask for one status', async () => {
+  const calls = []
   const wrapped = await api.fetchStaffProgress({
     apiUrl: 'https://finance.example.com',
     secret,
-    fetchImpl: async () => jsonResponse({
-      projects: [{
-        project_id: 7,
-        client_name: '브랜드',
-        project_name: '3월',
-        status: 'completed',
-        contract_amount: '2500',
-        paid_amount: 0,
-        items: [{ project_item_id: 'a', category: 'Threads', product_name: '게시', contracted: 3, delivered: 1, remaining: 2 }],
-      }],
-    }),
+    status: 'completed',
+    fetchImpl: async (url) => {
+      calls.push(url)
+      return jsonResponse(feed([
+        {
+          client: null,
+          project: '이름만',
+          status: 'completed',
+          contract_date: null,
+          contract_amount: '1500000.50',
+          paid_amount: '400000',
+          items: [
+            { category: 'Dcard', product_name: '디카드', contracted: '3' },
+            { category: null, product_name: null, contracted: 1 },
+            { contracted: 2 },
+            null,
+          ],
+        },
+        { client: '  ', project: '' },
+      ]))
+    },
   })
+  assert.equal(calls[0], 'https://finance.example.com/api/integrations/staff-progress?status=completed')
   assert.equal(wrapped.ok, true)
-  assert.equal(wrapped.projects[0].project_id, '7')
-  assert.equal(wrapped.projects[0].contract_amount, 2500)
-  assert.equal(wrapped.projects[0].totals.contracted, 3)
-  assert.equal(wrapped.projects[0].items[0].contracted, 3)
-  assert.equal(Object.keys(wrapped.projects[0].totals).join(','), 'contracted')
-  assert.equal(Object.keys(wrapped.projects[0].items[0]).join(','), 'project_item_id,category,product_name,contracted')
+  assert.equal(wrapped.projects[0].client, null)
+  assert.equal(wrapped.projects[0].project, '이름만')
+  assert.equal(wrapped.projects[0].contract_date, null)
+  assert.equal(wrapped.projects[0].contract_amount, 1500000.5)
+  assert.equal(wrapped.projects[0].paid_amount, 400000)
+  assert.equal(wrapped.projects[0].totals.contracted, 6)
+  assert.equal(wrapped.projects[0].items[1].category, null)
+  assert.equal(wrapped.projects[0].items[1].product_name, null)
+  assert.equal(wrapped.projects[0].items[2].category, null)
+  assert.equal(wrapped.projects[0].items.length, 3)
+  assert.equal(wrapped.projects[1].client, null)
+  assert.equal(wrapped.projects[1].project, '')
+  assert.equal(wrapped.projects[1].status, '')
+  assert.equal(wrapped.projects[1].contract_amount, 0)
+  assert.equal(wrapped.projects[1].items.length, 0)
+  assert.equal(wrapped.projects[1].totals.contracted, 0)
+  assert.equal(Object.keys(wrapped.projects[1]).join(','), PROJECT_KEYS)
 
-  const bad = await api.fetchStaffProgress({
+  for (const body of [[project()], { rows: [project()] }, { data: [project()] }, { projects: [null] }, { hello: 'nope' }]) {
+    const bad = await api.fetchStaffProgress({
+      apiUrl: 'https://finance.example.com',
+      secret,
+      fetchImpl: async () => jsonResponse(body),
+    })
+    assert.equal(bad.ok, false)
+    assert.match(bad.message, /형식/)
+  }
+
+  let called = 0
+  const invalidStatus = await api.fetchStaffProgress({
     apiUrl: 'https://finance.example.com',
     secret,
-    fetchImpl: async () => jsonResponse({ hello: 'nope' }),
+    status: 'paused',
+    fetchImpl: async () => { called += 1; return jsonResponse(feed([])) },
   })
-  assert.equal(bad.ok, false)
-  assert.match(bad.message, /형식/)
+  assert.equal(invalidStatus.ok, false)
+  assert.equal(called, 0)
+
+  const empty = await api.fetchStaffProgress({
+    apiUrl: 'https://finance.example.com',
+    secret,
+    fetchImpl: async () => jsonResponse(feed([])),
+  })
+  assert.equal(empty.ok, true)
+  assert.equal(empty.projects.length, 0)
 })
 
 test('turns HTTP, redirect, and network failures into a message without the response body', async () => {
@@ -183,23 +238,22 @@ test('filters by CRM assignee, status, category, and client, then sums contracte
   const rows = [
     project(),
     project({
-      project_id: 'p2',
-      client_name: '주식회사 다른가게',
-      project_name: '종료건',
+      client: '주식회사 다른가게',
+      project: '종료건',
       status: 'cancelled',
       contract_amount: 500,
       paid_amount: 500,
-      items: [{ project_item_id: 'i3', category: 'Dcard', product_name: '게시', contracted: 1, delivered: 0, remaining: 1 }],
-      totals: { contracted: 1, delivered: 0, remaining: 1 },
+      items: [{ category: 'Dcard', product_name: '게시', contracted: 1 }],
+      totals: { contracted: 1 },
     }),
     project({
-      project_id: 'p3',
-      client_name: '미배정 고객',
+      client: '미배정 고객',
+      project: '미배정건',
       status: 'ongoing',
       contract_amount: 10,
       paid_amount: 0,
-      items: [{ project_item_id: 'i4', category: 'KOL', product_name: '피드', contracted: 2, delivered: 0, remaining: 2 }],
-      totals: { contracted: 2, delivered: 0, remaining: 2 },
+      items: [{ category: 'KOL', product_name: '피드', contracted: 2 }],
+      totals: { contracted: 2 },
     }),
   ]
   const companies = [
@@ -208,8 +262,8 @@ test('filters by CRM assignee, status, category, and client, then sums contracte
     { id: 'c-dup', company_name: '다른 가게', assignee_name: '박매니저' },
   ]
   const kol = api.filterProjects(rows, { category: 'KOL', status: 'ongoing' }, companies)
-  assert.equal(kol.map(row => row.project_id).join(','), 'p1,p3')
-  assert.equal(api.itemsFor(kol[0], 'KOL').map(item => item.project_item_id).join(','), 'i1')
+  assert.equal(kol.map(row => row.project).join(','), '대만 캠페인,미배정건')
+  assert.equal(api.itemsFor(kol[0], 'KOL').map(item => item.product_name).join(','), '릴스')
 
   const summary = api.summarize(kol, 'KOL')
   assert.equal(summary.ongoing, 2)
@@ -218,11 +272,11 @@ test('filters by CRM assignee, status, category, and client, then sums contracte
   assert.equal(summary.contractedCount, 6)
 
   const byName = api.filterProjects(rows, { q: '다른 가게' }, companies)
-  assert.equal(byName.map(row => row.project_id).join(','), 'p2')
+  assert.equal(byName.map(row => row.project).join(','), '종료건')
   const byAssignee = api.filterProjects(rows, { assignee: '박매니저' }, companies)
   assert.equal(byAssignee.length, 1)
   const unmatched = api.filterProjects(rows, { assignee: '미매칭' }, companies)
-  assert.equal(unmatched.map(row => row.project_id).join(','), 'p3')
+  assert.equal(unmatched.map(row => row.project).join(','), '미배정건')
 
   const people = api.summarizeByAssignee(rows, companies)
   assert.equal(people.map(row => row.assignee).join(','), '김영업,박매니저,미매칭')

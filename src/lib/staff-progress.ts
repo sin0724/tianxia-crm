@@ -1,8 +1,10 @@
 import { unstable_cache } from 'next/cache'
 
 // 재무 앱의 프로젝트 현황. 시크릿은 서버에서만 읽고 응답·에러에 넣지 않는다.
-// 항목은 카테고리, 상품명, 계약 수량만 쓰고 진행·잔여와 담당자는 받지 않는다.
-// 담당자는 고객사명을 CRM 거래처와 맞춰 companies.assigned_to 의 프로필 이름으로 정한다.
+// 응답은 { projects } 하나다. 각 행 키는 client, project, status, contract_date,
+// contract_amount, paid_amount, items, totals 뿐이고 id 는 없다.
+// items 는 { category, product_name, contracted }, totals 는 { contracted } 다.
+// 빠진 선택 필드는 비우거나 0 으로 두고, 담당자는 CRM 거래처 배정으로 맞춘다.
 //
 // 대시보드 레이아웃이 dynamic = 'force-dynamic' 이라 fetch 캐시가 no-store 로 꺼진다.
 // 그래서 데이터 캐시(unstable_cache, 60초)로 직원 전체가 같은 응답을 재사용한다.
@@ -35,9 +37,8 @@ const BAD_PAYLOAD_MESSAGE =
   '재무 시스템 응답 형식을 해석하지 못했습니다.'
 
 export interface StaffProjectItem {
-  project_item_id: string
-  category: string
-  product_name: string
+  category: string | null
+  product_name: string | null
   contracted: number
 }
 
@@ -46,10 +47,8 @@ export interface StaffProjectTotals {
 }
 
 export interface StaffProject {
-  project_id: string
-  client_id: string | null
-  client_name: string
-  project_name: string
+  client: string | null
+  project: string
   status: string
   contract_date: string | null
   contract_amount: number
@@ -153,7 +152,7 @@ export function assigneeNameFor(clientName: string, companies: CompanyAssigneeRe
 }
 
 export function assigneeChoices(projects: StaffProject[], companies: CompanyAssigneeRecord[]): string[] {
-  const labels = [...new Set(projects.map(project => assigneeNameFor(project.client_name, companies)))]
+  const labels = [...new Set(projects.map(project => assigneeNameFor(project.client ?? '', companies)))]
   return labels.sort((a, b) => {
     if (a === UNMATCHED_ASSIGNEE) return 1
     if (b === UNMATCHED_ASSIGNEE) return -1
@@ -165,6 +164,7 @@ export function categoryChoices(projects: StaffProject[]): string[] {
   const extras = new Set<string>()
   for (const project of projects) {
     for (const item of project.items) {
+      if (!item.category) continue
       if (!(PROJECT_CATEGORIES as readonly string[]).includes(item.category)) extras.add(item.category)
     }
   }
@@ -190,10 +190,10 @@ export function filterProjects(
   const category = filters.category?.trim() ?? ''
   const query = filters.q?.trim().toLowerCase() ?? ''
   return projects.filter(project => {
-    if (assignee && assigneeNameFor(project.client_name, companies) !== assignee) return false
+    if (assignee && assigneeNameFor(project.client ?? '', companies) !== assignee) return false
     if (status && project.status !== status) return false
     if (category && !project.items.some(item => item.category === category)) return false
-    if (query && !clientMatches(project.client_name, query)) return false
+    if (query && !clientMatches(project.client ?? '', query)) return false
     return true
   })
 }
@@ -226,7 +226,7 @@ export function summarizeByAssignee(
 ): AssigneeSummary[] {
   const grouped = new Map<string, AssigneeSummary>()
   for (const project of projects) {
-    const assignee = assigneeNameFor(project.client_name, companies)
+    const assignee = assigneeNameFor(project.client ?? '', companies)
     const row = grouped.get(assignee) ?? {
       assignee,
       projects: 0,
@@ -257,7 +257,7 @@ export function sortProjects(projects: StaffProject[]): StaffProject[] {
     if (rank !== 0) return rank
     const date = (b.contract_date ?? '').localeCompare(a.contract_date ?? '')
     if (date !== 0) return date
-    return a.client_name.localeCompare(b.client_name, 'ko')
+    return (a.client ?? '').localeCompare(b.client ?? '', 'ko')
   })
 }
 
@@ -277,13 +277,14 @@ export function linkCompanyId(
   return normalized.length === 1 ? normalized[0].id : null
 }
 
-function asText(value: unknown): string | null {
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    return trimmed ? trimmed : null
-  }
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  return null
+function asNullableText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed ? trimmed : null
+}
+
+function asPlainText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
 }
 
 function asNumber(value: unknown): number {
@@ -293,14 +294,11 @@ function asNumber(value: unknown): number {
 }
 
 function parseItem(raw: unknown): StaffProjectItem | null {
-  if (!raw || typeof raw !== 'object') return null
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const row = raw as Record<string, unknown>
-  const id = asText(row.project_item_id)
-  if (!id) return null
   return {
-    project_item_id: id,
-    category: asText(row.category) ?? '—',
-    product_name: asText(row.product_name) ?? '—',
+    category: asNullableText(row.category),
+    product_name: asNullableText(row.product_name),
     contracted: asNumber(row.contracted),
   }
 }
@@ -319,21 +317,16 @@ function parseTotals(raw: unknown, items: StaffProjectItem[]): StaffProjectTotal
 }
 
 function parseProject(raw: unknown): StaffProject | null {
-  if (!raw || typeof raw !== 'object') return null
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const row = raw as Record<string, unknown>
-  const projectId = asText(row.project_id)
-  if (!projectId) return null
   const items = Array.isArray(row.items)
     ? row.items.map(parseItem).filter((item): item is StaffProjectItem => item !== null)
     : []
-  const status = asText(row.status) ?? ''
   return {
-    project_id: projectId,
-    client_id: asText(row.client_id),
-    client_name: asText(row.client_name) ?? '—',
-    project_name: asText(row.project_name) ?? '—',
-    status,
-    contract_date: asText(row.contract_date),
+    client: asNullableText(row.client),
+    project: asPlainText(row.project),
+    status: asPlainText(row.status),
+    contract_date: asNullableText(row.contract_date),
     contract_amount: asNumber(row.contract_amount),
     paid_amount: asNumber(row.paid_amount),
     items,
@@ -341,26 +334,16 @@ function parseProject(raw: unknown): StaffProject | null {
   }
 }
 
-function rowsFromPayload(payload: unknown): unknown[] | null {
-  if (Array.isArray(payload)) return payload
-  if (!payload || typeof payload !== 'object') return null
-  const row = payload as Record<string, unknown>
-  for (const key of ['projects', 'rows', 'data']) {
-    if (Array.isArray(row[key])) return row[key]
-  }
-  if (asText(row.project_id)) return [row]
-  return null
-}
-
 export function parseStaffProjects(payload: unknown): StaffProject[] | null {
-  const rows = rowsFromPayload(payload)
-  if (!rows) return null
-  const projects = rows.map(parseProject).filter((project): project is StaffProject => project !== null)
-  if (rows.length > 0 && projects.length === 0) return null
-  return projects
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  const projects = (payload as Record<string, unknown>).projects
+  if (!Array.isArray(projects)) return null
+  const parsed = projects.map(parseProject).filter((project): project is StaffProject => project !== null)
+  if (projects.length > 0 && parsed.length === 0) return null
+  return parsed
 }
 
-function progressUrl(apiUrl: string): string | null {
+function progressUrl(apiUrl: string, status?: string): string | null {
   let base: URL
   try {
     base = new URL(apiUrl)
@@ -369,12 +352,15 @@ function progressUrl(apiUrl: string): string | null {
   }
   if (base.protocol !== 'http:' && base.protocol !== 'https:') return null
   if (base.username || base.password) return null
-  return `${base.toString().replace(/\/$/, '')}/api/integrations/staff-progress`
+  const url = `${base.toString().replace(/\/$/, '')}/api/integrations/staff-progress`
+  if (!status) return url
+  return `${url}?status=${encodeURIComponent(status)}`
 }
 
 export async function fetchStaffProgress(options?: {
   apiUrl?: string | null
   secret?: string | null
+  status?: string | null
   fetchImpl?: StaffProgressFetcher
 }): Promise<StaffProgressResult> {
   const apiUrl = (options?.apiUrl ?? process.env.FINANCE_API_URL)?.trim() ?? ''
@@ -382,7 +368,11 @@ export async function fetchStaffProgress(options?: {
   if (!apiUrl || !secret) {
     return { ok: false, reason: 'unconfigured', message: STAFF_PROGRESS_UNCONFIGURED_MESSAGE }
   }
-  const url = progressUrl(apiUrl)
+  const status = options?.status?.trim() ?? ''
+  if (status && !(PROJECT_STATUSES as readonly string[]).includes(status)) {
+    return { ok: false, reason: 'error', message: STAFF_PROGRESS_UNAVAILABLE_MESSAGE }
+  }
+  const url = progressUrl(apiUrl, status || undefined)
   if (!url) {
     return { ok: false, reason: 'error', message: STAFF_PROGRESS_UNAVAILABLE_MESSAGE }
   }

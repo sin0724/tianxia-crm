@@ -34,6 +34,11 @@ function fmtCount(count: number): string {
   return count.toLocaleString('ko-KR')
 }
 
+function displayText(value: string | null): string {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : '—'
+}
+
 function StatCard({ label, value, accent }: { label: string; value: string; accent?: 'blue' | 'green' }) {
   const color = accent === 'green' ? 'text-[#3182f6]' : 'text-gray-900'
   return (
@@ -49,13 +54,13 @@ function ItemList({ project, category }: { project: StaffProject; category?: str
   if (items.length === 0) return <span className="text-xs text-gray-400">항목 없음</span>
   return (
     <ul className="space-y-1.5 min-w-[180px]">
-      {items.map(item => (
-        <li key={item.project_item_id} className="flex items-center justify-between gap-3">
+      {items.map((item, index) => (
+        <li key={`${index}-${item.category ?? ''}-${item.product_name ?? ''}`} className="flex items-center justify-between gap-3">
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
-              {item.category}
+              {displayText(item.category)}
             </span>
-            <span className="truncate text-xs font-medium text-gray-800">{item.product_name}</span>
+            <span className="truncate text-xs font-medium text-gray-800">{displayText(item.product_name)}</span>
           </span>
           <span className="shrink-0 text-xs text-gray-700">{fmtCount(item.contracted)}</span>
         </li>
@@ -162,21 +167,21 @@ export function ProjectStatusView({
                     {hasFilter ? '조건에 맞는 프로젝트가 없습니다.' : '표시할 프로젝트가 없습니다.'}
                   </td>
                 </tr>
-              ) : filtered.map(project => {
-                const companyId = linkCompanyId(project.client_name, companies)
+              ) : filtered.map((project, index) => {
+                const companyId = project.client ? linkCompanyId(project.client, companies) : null
                 return (
-                  <tr key={project.project_id} className="align-top hover:bg-gray-50 transition-colors">
+                  <tr key={`${index}-${project.client ?? ''}-${project.project}`} className="align-top hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 whitespace-nowrap">
                       {companyId ? (
                         <Link href={`/companies/${companyId}`} className="font-medium text-gray-900 hover:text-[#3182f6] hover:underline">
-                          {project.client_name}
+                          {project.client}
                         </Link>
                       ) : (
-                        <span className="font-medium text-gray-900">{project.client_name}</span>
+                        <span className="font-medium text-gray-900">{displayText(project.client)}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-800 whitespace-nowrap">{project.project_name}</td>
-                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{assigneeNameFor(project.client_name, assigneeDirectory)}</td>
+                    <td className="px-4 py-3 text-gray-800 whitespace-nowrap">{displayText(project.project)}</td>
+                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{assigneeNameFor(project.client ?? '', assigneeDirectory)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[project.status] ?? 'bg-gray-100 text-gray-600'}`}>
                         {statusLabel(project.status)}
