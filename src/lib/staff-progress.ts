@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache'
 
-// 재무 앱의 프로젝트 진행 현황. 시크릿은 서버에서만 읽고 응답·에러에 넣지 않는다.
+// 재무 앱의 프로젝트 현황. 시크릿은 서버에서만 읽고 응답·에러에 넣지 않는다.
+// 항목은 카테고리, 상품명, 계약 수량만 쓰고 진행·잔여는 받지 않는다.
 //
 // 대시보드 레이아웃이 dynamic = 'force-dynamic' 이라 fetch 캐시가 no-store 로 꺼진다.
 // 그래서 데이터 캐시(unstable_cache, 60초)로 직원 전체가 같은 응답을 재사용한다.
@@ -35,14 +36,10 @@ export interface StaffProjectItem {
   category: string
   product_name: string
   contracted: number
-  delivered: number
-  remaining: number
 }
 
 export interface StaffProjectTotals {
   contracted: number
-  delivered: number
-  remaining: number
 }
 
 export interface StaffProject {
@@ -75,7 +72,7 @@ export interface ProgressSummary {
   ongoing: number
   contractAmount: number
   paidAmount: number
-  remaining: number
+  contractedCount: number
 }
 
 export interface AssigneeSummary extends ProgressSummary {
@@ -126,11 +123,6 @@ export function formatContractDate(value: string | null): string {
   }).format(new Date(time))
   const [year, month, day] = parts.split('-')
   return `${year}.${month}.${day}`
-}
-
-export function progressPercent(contracted: number, delivered: number): number {
-  if (contracted <= 0) return delivered > 0 ? 100 : 0
-  return Math.max(0, Math.min(100, Math.round((delivered / contracted) * 100)))
 }
 
 export function assigneeLabel(project: StaffProject, projects: StaffProject[]): string {
@@ -195,9 +187,9 @@ export function itemsFor(project: StaffProject, category?: string): StaffProject
   return project.items.filter(item => item.category === selected)
 }
 
-function remainingOf(project: StaffProject, category?: string): number {
-  if (!category?.trim()) return project.totals.remaining
-  return itemsFor(project, category).reduce((sum, item) => sum + item.remaining, 0)
+function contractedCountOf(project: StaffProject, category?: string): number {
+  if (!category?.trim()) return project.totals.contracted
+  return itemsFor(project, category).reduce((sum, item) => sum + item.contracted, 0)
 }
 
 export function summarize(projects: StaffProject[], category?: string): ProgressSummary {
@@ -205,9 +197,9 @@ export function summarize(projects: StaffProject[], category?: string): Progress
     if (project.status === 'ongoing') acc.ongoing += 1
     acc.contractAmount += project.contract_amount
     acc.paidAmount += project.paid_amount
-    acc.remaining += remainingOf(project, category)
+    acc.contractedCount += contractedCountOf(project, category)
     return acc
-  }, { ongoing: 0, contractAmount: 0, paidAmount: 0, remaining: 0 })
+  }, { ongoing: 0, contractAmount: 0, paidAmount: 0, contractedCount: 0 })
 }
 
 export function summarizeByAssignee(
@@ -224,13 +216,13 @@ export function summarizeByAssignee(
       ongoing: 0,
       contractAmount: 0,
       paidAmount: 0,
-      remaining: 0,
+      contractedCount: 0,
     }
     row.projects += 1
     if (project.status === 'ongoing') row.ongoing += 1
     row.contractAmount += project.contract_amount
     row.paidAmount += project.paid_amount
-    row.remaining += remainingOf(project, category)
+    row.contractedCount += contractedCountOf(project, category)
     grouped.set(assignee, row)
   }
   return [...grouped.values()].sort(
@@ -291,28 +283,19 @@ function parseItem(raw: unknown): StaffProjectItem | null {
     category: asText(row.category) ?? '—',
     product_name: asText(row.product_name) ?? '—',
     contracted: asNumber(row.contracted),
-    delivered: asNumber(row.delivered),
-    remaining: asNumber(row.remaining),
   }
 }
 
-function sumItems(items: StaffProjectItem[]): StaffProjectTotals {
-  return items.reduce<StaffProjectTotals>((acc, item) => {
-    acc.contracted += item.contracted
-    acc.delivered += item.delivered
-    acc.remaining += item.remaining
-    return acc
-  }, { contracted: 0, delivered: 0, remaining: 0 })
+function sumContracted(items: StaffProjectItem[]): number {
+  return items.reduce((sum, item) => sum + item.contracted, 0)
 }
 
 function parseTotals(raw: unknown, items: StaffProjectItem[]): StaffProjectTotals {
-  const fallback = sumItems(items)
-  if (!raw || typeof raw !== 'object') return fallback
+  const fallback = sumContracted(items)
+  if (!raw || typeof raw !== 'object') return { contracted: fallback }
   const row = raw as Record<string, unknown>
   return {
-    contracted: 'contracted' in row ? asNumber(row.contracted) : fallback.contracted,
-    delivered: 'delivered' in row ? asNumber(row.delivered) : fallback.delivered,
-    remaining: 'remaining' in row ? asNumber(row.remaining) : fallback.remaining,
+    contracted: 'contracted' in row ? asNumber(row.contracted) : fallback,
   }
 }
 

@@ -8,7 +8,6 @@ import {
   formatContractDate,
   itemsFor,
   linkCompanyId,
-  progressPercent,
   sortProjects,
   statusLabel,
   summarize,
@@ -44,30 +43,22 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
   )
 }
 
-function ItemProgress({ project, category }: { project: StaffProject; category?: string }) {
+function ItemList({ project, category }: { project: StaffProject; category?: string }) {
   const items = itemsFor(project, category)
   if (items.length === 0) return <span className="text-xs text-gray-400">항목 없음</span>
   return (
-    <ul className="space-y-2.5 min-w-[220px]">
-      {items.map(item => {
-        const pct = progressPercent(item.contracted, item.delivered)
-        return (
-          <li key={item.project_item_id}>
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-gray-800 truncate">{item.product_name}</span>
-              <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
-                {item.category}
-              </span>
-            </div>
-            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100" aria-hidden>
-              <div className="h-full rounded-full bg-[#3182f6]" style={{ width: `${pct}%` }} />
-            </div>
-            <p className="mt-0.5 text-[11px] text-gray-400">
-              계약 {fmtCount(item.contracted)} · 진행 {fmtCount(item.delivered)} · 잔여 {fmtCount(item.remaining)}
-            </p>
-          </li>
-        )
-      })}
+    <ul className="space-y-1.5 min-w-[180px]">
+      {items.map(item => (
+        <li key={item.project_item_id} className="flex items-center justify-between gap-3">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+              {item.category}
+            </span>
+            <span className="truncate text-xs font-medium text-gray-800">{item.product_name}</span>
+          </span>
+          <span className="shrink-0 text-xs text-gray-700">{fmtCount(item.contracted)}</span>
+        </li>
+      ))}
     </ul>
   )
 }
@@ -96,11 +87,11 @@ export function ProjectStatusView({
         <StatCard label="진행중 프로젝트 수" value={fmtCount(summary.ongoing)} />
         <StatCard label="계약금액 합계" value={fmtWon(summary.contractAmount)} accent="green" />
         <StatCard label="입금액 합계" value={fmtWon(summary.paidAmount)} accent="green" />
-        <StatCard label="잔여 건수" value={fmtCount(summary.remaining)} />
+        <StatCard label="계약 건수 합계" value={fmtCount(summary.contractedCount)} />
       </div>
       {filters.category && (
         <p className="text-xs text-gray-400">
-          금액은 프로젝트 전체 기준이고, 잔여 건수와 항목 막대는 선택한 카테고리만 합산합니다.
+          금액은 프로젝트 전체 기준이고, 계약 건수는 선택한 카테고리만 합산합니다.
         </p>
       )}
 
@@ -156,7 +147,7 @@ export function ProjectStatusView({
                 <th className="px-4 py-3 text-left whitespace-nowrap">계약일</th>
                 <th className="px-4 py-3 text-right whitespace-nowrap">계약금액</th>
                 <th className="px-4 py-3 text-right whitespace-nowrap">입금액</th>
-                <th className="px-4 py-3 text-left whitespace-nowrap">항목별 계약/진행/잔여</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">항목 (카테고리/상품/계약)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -189,7 +180,7 @@ export function ProjectStatusView({
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatContractDate(project.contract_date)}</td>
                     <td className="px-4 py-3 text-right text-gray-800 whitespace-nowrap">{fmtWon(project.contract_amount)}</td>
                     <td className="px-4 py-3 text-right text-gray-800 whitespace-nowrap">{fmtWon(project.paid_amount)}</td>
-                    <td className="px-4 py-3"><ItemProgress project={project} category={filters.category} /></td>
+                    <td className="px-4 py-3"><ItemList project={project} category={filters.category} /></td>
                   </tr>
                 )
               })}
@@ -210,7 +201,7 @@ export function ProjectStatusView({
                   <th className="px-4 py-3 text-right whitespace-nowrap">진행중</th>
                   <th className="px-4 py-3 text-right whitespace-nowrap">계약금액</th>
                   <th className="px-4 py-3 text-right whitespace-nowrap">입금액</th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap">잔여</th>
+                  <th className="px-4 py-3 text-right whitespace-nowrap">계약 건수</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -225,7 +216,7 @@ export function ProjectStatusView({
                     <td className="px-4 py-3 text-right text-blue-700">{fmtCount(row.ongoing)}</td>
                     <td className="px-4 py-3 text-right text-gray-800 whitespace-nowrap">{fmtWon(row.contractAmount)}</td>
                     <td className="px-4 py-3 text-right text-gray-800 whitespace-nowrap">{fmtWon(row.paidAmount)}</td>
-                    <td className="px-4 py-3 text-right text-gray-800">{fmtCount(row.remaining)}</td>
+                    <td className="px-4 py-3 text-right text-gray-800">{fmtCount(row.contractedCount)}</td>
                   </tr>
                 ))}
               </tbody>

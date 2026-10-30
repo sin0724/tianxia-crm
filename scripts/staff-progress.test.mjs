@@ -104,7 +104,9 @@ test('sends the bearer token to the staff-progress path and keeps it out of the 
   assert.equal(calls[0].init.headers.Authorization, `Bearer ${secret}`)
   assert.equal(result.ok, true)
   assert.equal(result.projects[0].client_name, '티엔샤')
-  assert.equal(result.projects[0].totals.remaining, 3)
+  assert.equal(result.projects[0].totals.contracted, 6)
+  assert.equal('delivered' in result.projects[0].items[0], false)
+  assert.equal('remaining' in result.projects[0].totals, false)
   assert.equal(JSON.stringify(result).includes(secret), false)
   assert.equal(JSON.stringify(calls[0].url).includes(secret), false)
 })
@@ -129,8 +131,9 @@ test('accepts wrapped rows, computes missing totals, and rejects a payload with 
   assert.equal(wrapped.projects[0].project_id, '7')
   assert.equal(wrapped.projects[0].contract_amount, 2500)
   assert.equal(wrapped.projects[0].totals.contracted, 3)
-  assert.equal(wrapped.projects[0].totals.delivered, 1)
-  assert.equal(wrapped.projects[0].totals.remaining, 2)
+  assert.equal(wrapped.projects[0].items[0].contracted, 3)
+  assert.equal(Object.keys(wrapped.projects[0].totals).join(','), 'contracted')
+  assert.equal(Object.keys(wrapped.projects[0].items[0]).join(','), 'project_item_id,category,product_name,contracted')
 
   const bad = await api.fetchStaffProgress({
     apiUrl: 'https://finance.example.com',
@@ -174,7 +177,7 @@ test('turns HTTP, redirect, and network failures into a message without the resp
   assert.equal(offline.message.includes(secret), false)
 })
 
-test('filters by assignee, status, category, and client, then summarizes what remains', () => {
+test('filters by assignee, status, category, and client, then sums contracted counts', () => {
   const rows = [
     project(),
     project({
@@ -208,7 +211,7 @@ test('filters by assignee, status, category, and client, then summarizes what re
   assert.equal(summary.ongoing, 2)
   assert.equal(summary.contractAmount, 1000010)
   assert.equal(summary.paidAmount, 400000)
-  assert.equal(summary.remaining, 5)
+  assert.equal(summary.contractedCount, 6)
 
   const byName = api.filterProjects(rows, { q: '다른 가게' })
   assert.equal(byName.map(row => row.project_id).join(','), 'p2')
@@ -219,7 +222,7 @@ test('filters by assignee, status, category, and client, then summarizes what re
   assert.equal(people.map(row => row.assignee).join(','), '김영업,박매니저,미배정')
   assert.equal(people[0].projects, 1)
   assert.equal(people[0].ongoing, 1)
-  assert.equal(people[2].remaining, 2)
+  assert.equal(people[2].contractedCount, 2)
   assert.equal(api.categoryChoices(rows).slice(0, 6).join(','), 'Dcard,PTT,Threads,PR,KOC,KOL')
 })
 
@@ -236,6 +239,4 @@ test('links a client only when the company name matches exactly or uniquely afte
   assert.equal(api.linkCompanyId('없는 고객', companies), null)
   assert.equal(api.formatContractDate('2026-03-01'), '2026.03.01')
   assert.equal(api.formatContractDate('2026-10-29T16:30:00.000Z'), '2026.10.30')
-  assert.equal(api.progressPercent(4, 1), 25)
-  assert.equal(api.progressPercent(0, 2), 100)
 })
