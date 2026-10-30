@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { kstMonthString } from '@/lib/datetime'
 import {
   normalizeAssigneeCompanyName,
+  sharedAssigneeName,
   type FinanceClientAlias,
 } from '@/lib/finance-alias'
 
@@ -13,7 +14,7 @@ export type { FinanceClientAlias }
 // contract_amount, paid_amount, items, totals 뿐이고 id 는 없다.
 // items 는 { category, product_name, contracted }, totals 는 { contracted } 다.
 // payments 는 [{ paid_at, amount }] 이고 없으면 빈 배열로 둔다.
-// 빠진 선택 필드는 비우거나 0 으로 두고, 담당자는 CRM 거래처명 또는 재무 별칭으로 맞춘다.
+// 빠진 선택 필드는 비우거나 0 으로 두고, 담당자는 직접 지정, CRM 거래처명, 재무 별칭 순으로 맞춘다.
 //
 // 대시보드 레이아웃이 dynamic = 'force-dynamic' 이라 fetch 캐시가 no-store 로 꺼진다.
 // 그래서 데이터 캐시(unstable_cache, 60초)로 직원 전체가 같은 응답을 재사용한다.
@@ -146,14 +147,20 @@ export function formatContractDate(value: string | null): string {
   return `${year}.${month}.${day}`
 }
 
+function assigneeFromOverride(clientName: string, aliases: FinanceClientAlias[]): string | null {
+  const key = normalizeAssigneeCompanyName(clientName)
+  if (!key) return null
+  const ranked = aliases
+    .filter(alias => alias.normalized === key && (alias.assignee_name?.trim() || ''))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at) || (a.assignee_name ?? '').localeCompare(b.assignee_name ?? '', 'ko'))
+  return ranked[0]?.assignee_name?.trim() || null
+}
+
 function assigneeFromCompanyName(clientName: string, companies: CompanyAssigneeRecord[]): string {
   const key = normalizeAssigneeCompanyName(clientName)
   if (!key) return UNMATCHED_ASSIGNEE
   const matches = companies.filter(company => normalizeAssigneeCompanyName(company.company_name) === key)
-  const names = [...new Set(matches.map(company => company.assignee_name?.trim() || '').filter(Boolean))]
-  const agreed = names.length === 1
-    && matches.every(company => (company.assignee_name?.trim() || '') === names[0])
-  return agreed ? names[0] : UNMATCHED_ASSIGNEE
+  return sharedAssigneeName(matches.map(company => company.assignee_name)) ?? UNMATCHED_ASSIGNEE
 }
 
 function assigneeFromAlias(
@@ -177,6 +184,8 @@ export function assigneeNameFor(
   companies: CompanyAssigneeRecord[],
   aliases: FinanceClientAlias[] = [],
 ): string {
+  const override = assigneeFromOverride(clientName, aliases)
+  if (override) return override
   const byName = assigneeFromCompanyName(clientName, companies)
   if (byName !== UNMATCHED_ASSIGNEE) return byName
   return assigneeFromAlias(clientName, companies, aliases)

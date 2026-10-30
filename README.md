@@ -2,20 +2,24 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## 프로젝트 현황 (`/projects`)
 
-로그인한 직원이 재무 시스템의 프로젝트 현황을 보는 화면입니다. 항목은 카테고리, 상품명, 계약 수량만 보여 주고 진행·잔여와 진행 막대는 쓰지 않습니다. 요약 카드는 진행중 프로젝트 수, 계약금액 합계, 입금액 합계, 계약 건수 합계입니다. 담당자는 재무 피드에 없고, 고객사명을 CRM 거래처명 또는 아래 재무 별칭과 맞춰(앞뒤·사이 공백, `(주)`, `주식회사` 제거, 대소문자 무시) 그 거래처의 담당자 이름을 씁니다. 맞지 않거나 담당자가 없으면 미매칭이며 필터할 수 있습니다. 서버가 `GET ${FINANCE_API_URL}/api/integrations/staff-progress` 를 `Authorization: Bearer <FINANCE_STAFF_PROGRESS_SECRET>` 으로 호출합니다. `status` 쿼리는 생략하고 전체를 받은 뒤 화면에서 거릅니다. 본문은 `{ projects: [...] }` 이고, 각 행은 `client`, `project`, `status`, `contract_date`, `contract_amount`, `paid_amount`, `items`, `totals` 만 있습니다. `items` 는 `{ category, product_name, contracted }`, `totals` 는 `{ contracted }` 입니다. 두 환경변수는 서버에만 있고 브라우저로 내려가지 않습니다. 응답은 약 60초 캐시됩니다. 값이 없거나 재무 API가 실패하면 화면은 안내 문구만 보여 줍니다. 각 프로젝트에 `payments: [{ paid_at, amount }]` 가 있으면 입금일(한국 시간)로 월별 입금매출을 만들고, 없으면 그 프로젝트의 월별 입금은 0입니다. 계약매출은 `contract_amount` 를 `contract_date` 의 월에 넣습니다. 화면에서 기준 월(기본값은 이번 달)과 계약매출/입금매출을 고릅니다.
+로그인한 직원이 재무 시스템의 프로젝트 현황을 보는 화면입니다. 항목은 카테고리, 상품명, 계약 수량만 보여 주고 진행·잔여와 진행 막대는 쓰지 않습니다. 요약 카드는 진행중 프로젝트 수, 계약금액 합계, 입금액 합계, 계약 건수 합계입니다. 담당자는 재무 피드에 없다. 직접 지정한 담당자를 먼저 쓰고, 없으면 고객사명을 CRM 거래처명 또는 아래 재무 별칭과 맞춰(앞뒤·사이 공백, `(주)`, `주식회사` 제거, 대소문자 무시) 그 거래처의 담당자 이름을 쓴다. 같은 이름으로 겹친 거래처의 담당자가 모두 같으면 그 이름을 쓴다. 맞지 않거나 담당자가 없으면 미매칭이며 필터할 수 있습니다. 서버가 `GET ${FINANCE_API_URL}/api/integrations/staff-progress` 를 `Authorization: Bearer <FINANCE_STAFF_PROGRESS_SECRET>` 으로 호출합니다. `status` 쿼리는 생략하고 전체를 받은 뒤 화면에서 거릅니다. 본문은 `{ projects: [...] }` 이고, 각 행은 `client`, `project`, `status`, `contract_date`, `contract_amount`, `paid_amount`, `items`, `totals` 만 있습니다. `items` 는 `{ category, product_name, contracted }`, `totals` 는 `{ contracted }` 입니다. 두 환경변수는 서버에만 있고 브라우저로 내려가지 않습니다. 응답은 약 60초 캐시됩니다. 값이 없거나 재무 API가 실패하면 화면은 안내 문구만 보여 줍니다. 각 프로젝트에 `payments: [{ paid_at, amount }]` 가 있으면 입금일(한국 시간)로 월별 입금매출을 만들고, 없으면 그 프로젝트의 월별 입금은 0입니다. 계약매출은 `contract_amount` 를 `contract_date` 의 월에 넣습니다. 화면에서 기준 월(기본값은 이번 달)과 계약매출/입금매출을 고릅니다.
 
 ## 재무 고객명 별칭 (`POST /api/integrations/project-assignee`)
 
-재무 고객명이 CRM 거래처명과 맞지 않을 때, 그 이름을 기존 거래처의 별칭으로 저장한다. 스키마 마이그레이션은 없다. `activities` 에 `activity_type` `finance_alias`, `memo` 는 정규화된 고객명(앞뒤·사이 공백, `(주)`, `주식회사` 제거, 소문자)으로 한 줄을 넣는다. 같은 이름의 가장 최근 별칭을 담당자 매칭에 쓴다. 거래처명으로 담당자가 이미 정해지면 별칭은 쓰지 않는다. 활동 목록에는 이 행을 보여 주지 않고, 저장 직후 `latest_note` 와 `last_contacted_at` 을 원래 값으로 되돌린다.
+재무 고객명이 CRM 거래처명과 맞지 않을 때, 그 이름을 기존 거래처의 별칭으로 저장하거나 담당자를 직접 지정한다. 스키마 마이그레이션은 없다. 거래처 별칭은 `activities` 에 `activity_type` `finance_alias`, `memo` 는 정규화된 고객명(앞뒤·사이 공백, `(주)`, `주식회사` 제거, 소문자)으로 한 줄이다. 같은 이름의 가장 최근 별칭을 쓴다. 거래처명으로 담당자가 이미 정해지면 그 별칭은 쓰지 않는다. 활동 목록에는 이 행을 보여 주지 않고, 저장 직후 `latest_note` 와 `last_contacted_at` 을 원래 값으로 되돌린다. 담당자 직접 지정은 `notification_logs` 에 `notification_type` `finance_assignee_override`, `message` 는 정규화된 고객명, `user_id` 는 그 프로필, `company_id` 는 비우고 `status` 는 `sent` 다. 활동 행은 만들지 않는다. `/projects` 는 이 직접 지정을 거래처명 매칭과 거래처 별칭보다 먼저 쓴다.
 
 ```
 Authorization: Bearer <INTEGRATION_SECRET 또는 CRON_SECRET>
 Content-Type: application/json
 ```
 
-`{ "client_name": "재무 고객명", "company_id": "거래처 uuid" }`
+`{ "client_name": "재무 고객명", "company_id": "거래처 uuid", "assignee": "담당자 표시 이름" }`
 
-`company_id` 를 생략하면 정규화한 이름이 거래처 하나와만 같을 때 그 거래처에 연결한다. 없거나 여러 개면 400이다. 미매칭 고객 목록을 돌려주는 GET 은 없다. 그 이름은 재무 피드에만 있다.
+`assignee` 가 있으면 `company_id` 없이 그 담당자에게 직접 연결한다. 값은 활성 프로필 표시 이름과 앞뒤 공백을 뺀 결과가 같아야 한다. 프로필이 없거나 같은 이름이 둘 이상이면 400이다. 같은 고객명의 가장 최근 지정이 그 프로필이면 다시 쓰지 않는다.
+
+`assignee` 를 생략하고 `company_id` 도 생략하면, 정규화한 이름이 거래처 하나와 같거나 여러 거래처의 담당자가 모두 같을 때 연결한다. 여러 거래처면 `id` 가 가장 앞선 거래처에 별칭 활동을 남긴다. 담당자가 갈리거나 비어 있으면 400이다.
+
+`GET` 은 같은 Bearer 로, 정규화한 이름이 겹치는 거래처 묶음만 읽기 전용으로 돌려준다. `{ "duplicates": [{ "normalized", "assignee_name", "companies": [{ "id", "company_name", "assignee_name" }] }] }`. 묶음의 담당자가 하나면 `assignee_name` 에 그 이름, 아니면 `null` 이다.
 
 ```bash
 node --test scripts/project-assignee.test.mjs
