@@ -3,33 +3,51 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import path from 'node:path'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { fileURLToPath } from 'node:url'
 
+const root = fileURLToPath(new URL('..', import.meta.url))
 const source = fs.readFileSync(new URL('../src/lib/staff-progress.ts', import.meta.url), 'utf8')
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText
 
 const cacheCalls = []
+const loaded = new Map()
 const context = vm.createContext({
   console,
   URL,
   AbortSignal,
   process: { env: {} },
   fetch: async () => { throw new Error('unexpected fetch') },
-  require(name) {
-    if (name === 'next/cache') {
-      return {
-        unstable_cache(fn, keys, options) {
-          cacheCalls.push({ keys, options })
-          return fn
-        },
-      }
-    }
-    throw new Error(`Unexpected import: ${name}`)
-  },
 })
+context.require = function require(name) {
+  if (name === 'next/cache') {
+    return {
+      unstable_cache(fn, keys, options) {
+        cacheCalls.push({ keys, options })
+        return fn
+      },
+    }
+  }
+  if (!name.startsWith('@/')) throw new Error(`Unexpected import: ${name}`)
+  const file = path.join(root, 'src', `${name.slice(2)}.ts`)
+  if (loaded.has(file)) return loaded.get(file)
+  const compiledDep = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText
+  const dep = { exports: {} }
+  const previous = { module: context.module, exports: context.exports }
+  context.module = dep
+  context.exports = dep.exports
+  vm.runInContext(compiledDep, context)
+  context.module = previous.module
+  context.exports = previous.exports
+  loaded.set(file, dep.exports)
+  return dep.exports
+}
 const lib = { exports: {} }
 context.module = lib
 context.exports = lib.exports
@@ -38,7 +56,7 @@ const api = lib.exports
 
 const secret = 'staff-progress-test-secret'
 
-const PROJECT_KEYS = 'client,project,status,contract_date,contract_amount,paid_amount,items,totals'
+const PROJECT_KEYS = 'client,project,status,contract_date,contract_amount,paid_amount,items,totals,payments'
 const ITEM_KEYS = 'category,product_name,contracted'
 
 function project(overrides = {}) {
@@ -319,4 +337,95 @@ test('links a client only when the company name matches exactly or uniquely afte
   assert.equal(api.linkCompanyId('없는 고객', companies), null)
   assert.equal(api.formatContractDate('2026-03-01'), '2026.03.01')
   assert.equal(api.formatContractDate('2026-10-29T16:30:00.000Z'), '2026.10.30')
+})
+
+test('keeps payment rows when present and ignores a missing payments field', async () => {
+  const result = await api.fetchStaffProgress({
+    apiUrl: 'https://finance.example.com',
+    secret,
+    fetchImpl: async () => jsonResponse(feed([{
+      client: '티엔샤',
+      project: '캠페인',
+      status: 'ongoing',
+      contract_date: '2026-03-01',
+      contract_amount: 10,
+      paid_amount: 4,
+      items: [],
+      totals: { contracted: 0 },
+      payments: [
+        { paid_at: '2026-09-30T15:30:00.000Z', amount: '1500', note: 'hide' },
+        { paid_at: null, amount: 5 },
+        null,
+      ],
+    }, {
+      client: '다른',
+      project: '없음',
+      status: 'completed',
+    }])),
+  })
+  assert.equal(result.ok, true)
+  assert.equal(result.projects[0].payments.length, 2)
+  assert.equal(result.projects[0].payments[0].paid_at, '2026-09-30T15:30:00.000Z')
+  assert.equal(result.projects[0].payments[0].amount, 1500)
+  assert.equal(Object.keys(result.projects[0].payments[0]).join(','), 'paid_at,amount')
+  assert.equal(result.projects[1].payments.length, 0)
+  assert.equal(api.monthOf('2026-09-30T15:30:00.000Z'), '2026-10')
+  assert.equal(api.monthOf('2026-03-01'), '2026-03')
+  assert.equal(api.selectedMonthOrCurrent('2026-13', new Date('2026-10-29T16:30:00.000Z')), '2026-10')
+  assert.equal(api.selectedMonthOrCurrent('2026-04', new Date('2026-10-29T16:30:00.000Z')), '2026-04')
+})
+
+test('buckets contract and deposit revenue by assignee and KST month, and aliases only fill unmatched names', () => {
+  const companies = [
+    { id: 'sky', company_name: '하늘', assignee_name: '김영업' },
+    { id: 'sea', company_name: '바다', assignee_name: '박매니저' },
+  ]
+  const aliases = [
+    { company_id: 'sea', normalized: '옛바다', created_at: '2026-01-01T00:00:00.000Z' },
+    { company_id: 'sky', normalized: '옛바다', created_at: '2026-02-01T00:00:00.000Z' },
+  ]
+  const rows = [
+    project({
+      client: '하늘',
+      contract_date: '2026-03-15',
+      contract_amount: 100,
+      payments: [{ paid_at: '2026-03-31T15:30:00.000Z', amount: 40 }],
+    }),
+    project({
+      client: '(주) 옛바다',
+      project: '별칭건',
+      contract_date: '2026-03-01',
+      contract_amount: 50,
+      payments: [{ paid_at: '2026-04-01', amount: 7 }],
+    }),
+    project({
+      client: '없는고객',
+      project: '미매칭건',
+      contract_date: '2026-03-20',
+      contract_amount: 9,
+      payments: [],
+    }),
+  ]
+  assert.equal(api.assigneeNameFor('(주) 옛바다', companies, aliases), '김영업')
+  assert.equal(api.assigneeNameFor('하늘', companies, [{ company_id: 'sea', normalized: '하늘', created_at: '2026-03-01T00:00:00.000Z' }]), '김영업')
+
+  const table = api.buildRevenueTable(rows, companies, 2026, 'contract', aliases)
+  assert.equal(table.months.join(','), '2026-01,2026-02,2026-03,2026-04,2026-05,2026-06,2026-07,2026-08,2026-09,2026-10,2026-11,2026-12')
+  assert.equal(table.rows.map(row => row.assignee).join(','), '김영업,미매칭')
+  assert.equal(table.rows[0].amounts[2], 150)
+  assert.equal(table.totals[2], 159)
+  assert.equal(table.grand, 159)
+
+  const deposits = api.buildRevenueTable(rows, companies, 2026, 'deposit', aliases)
+  assert.equal(deposits.rows[0].amounts[2], 0)
+  assert.equal(deposits.rows[0].amounts[3], 47)
+  const snapshot = api.monthSnapshot(rows, companies, '2026-03', aliases)
+  assert.equal(snapshot.contract, 159)
+  assert.equal(snapshot.deposit, 0)
+  assert.equal(snapshot.topContract.assignee, '김영업')
+  assert.equal(snapshot.topContract.amount, 150)
+  assert.equal(snapshot.topDeposit, null)
+  const april = api.monthSnapshot(rows, companies, '2026-04', aliases)
+  assert.equal(april.deposit, 47)
+  assert.equal(april.topDeposit.assignee, '김영업')
 })

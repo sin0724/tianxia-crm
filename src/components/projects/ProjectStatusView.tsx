@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { MonthlyRevenue } from '@/components/projects/MonthlyRevenue'
 import {
   PROJECT_STATUSES,
   assigneeChoices,
@@ -13,7 +14,9 @@ import {
   summarize,
   summarizeByAssignee,
   type CompanyAssigneeRecord,
+  type FinanceClientAlias,
   type ProjectListFilters,
+  type RevenueMetric,
   type StaffProject,
 } from '@/lib/staff-progress'
 
@@ -73,17 +76,23 @@ export function ProjectStatusView({
   projects,
   companies,
   assigneeDirectory,
+  aliases,
   filters,
+  month,
+  metric,
 }: {
   projects: StaffProject[]
   companies: { id: string; company_name: string }[]
   assigneeDirectory: CompanyAssigneeRecord[]
+  aliases: FinanceClientAlias[]
   filters: ProjectListFilters
+  month: string
+  metric: RevenueMetric
 }) {
-  const filtered = sortProjects(filterProjects(projects, filters, assigneeDirectory))
+  const filtered = sortProjects(filterProjects(projects, filters, assigneeDirectory, aliases))
   const summary = summarize(filtered, filters.category)
-  const byAssignee = summarizeByAssignee(filtered, assigneeDirectory, filters.category)
-  const assignees = assigneeChoices(projects, assigneeDirectory)
+  const byAssignee = summarizeByAssignee(filtered, assigneeDirectory, filters.category, aliases)
+  const assignees = assigneeChoices(projects, assigneeDirectory, aliases)
   const categories = categoryChoices(projects)
   const hasFilter = Boolean(filters.assignee || filters.status || filters.category || filters.q?.trim())
 
@@ -105,8 +114,19 @@ export function ProjectStatusView({
         </p>
       )}
 
+      <MonthlyRevenue
+        projects={filtered}
+        companies={assigneeDirectory}
+        aliases={aliases}
+        filters={filters}
+        month={month}
+        metric={metric}
+      />
+
       <form action="/projects" className="bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4">
         <div className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="month" value={month} />
+          {metric === 'deposit' && <input type="hidden" name="metric" value="deposit" />}
           <select name="assignee" defaultValue={filters.assignee ?? ''} aria-label="담당자" className={fieldCls}>
             <option value="">전체 담당자</option>
             {assignees.map(name => <option key={name} value={name}>{name}</option>)}
@@ -181,7 +201,7 @@ export function ProjectStatusView({
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-800 whitespace-nowrap">{displayText(project.project)}</td>
-                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{assigneeNameFor(project.client ?? '', assigneeDirectory)}</td>
+                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{assigneeNameFor(project.client ?? '', assigneeDirectory, aliases)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[project.status] ?? 'bg-gray-100 text-gray-600'}`}>
                         {statusLabel(project.status)}
