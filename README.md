@@ -44,14 +44,14 @@ Content-Type: application/json
 
 | 필드 | 설명 |
 | --- | --- |
-| `company_name` | 필수. 상호명 |
-| `phone` | 숫자만 저장한다. `010-1234-5678` → `01012345678`. 값에 이메일이 있으면 그 주소는 `email`에 소문자로 저장하고, 이메일을 뺀 나머지 숫자만 전화번호로 본다 |
-| `contact_name` | 고객 담당자 |
-| `source` | `src/lib/constants.ts`의 `COMPANY_SOURCE`. 없거나 목록에 없으면 신규 생성 시 `기타및소개`. 병합 때는 요청에 값이 있고 기존 칸이 비어 있을 때만 채운다 |
+| `company_name` | 필수. 상호명. 비어 있으면 `상호`, `상호명`, `업체명`, `업체상호`, `매장상호` 순으로 본다 |
+| `phone` | 별칭 `연락처`. 숫자만 저장한다. `010-1234-5678` → `01012345678`. 값에 이메일이 있으면 그 주소는 `email`에 소문자로 저장하고, 이메일을 뺀 나머지 숫자만 전화번호로 본다 |
+| `contact_name` | 고객 담당자. 별칭 `업체담당자`, `업체 담당자`, `담당자명` |
+| `source` | 별칭 `퍼널`. `src/lib/constants.ts`의 `COMPANY_SOURCE`. 없거나 목록에 없으면 신규 생성 시 `기타및소개`. 병합 때는 요청에 값이 있고 기존 칸이 비어 있을 때만 채운다 |
 | `category` | `COMPANY_CATEGORY`. 없거나 목록에 없으면 신규 생성 시 `미분류`. 병합 규칙은 source와 같다 |
-| `special_note` | 신규 거래처의 `latest_note`. 병합 때는 비어 있을 때만 채운다 |
+| `special_note` | 별칭 `특이사항`. 신규 거래처의 `latest_note`. 병합 때는 비어 있을 때만 채운다 |
 | `interest_level` | 1–5 정수. 생략하면 null. 범위 밖이면 400 |
-| `poster_name` / `poster_email` | 활성 프로필과 대조해 `assigned_to`를 정한다. 이메일을 먼저 보고, 없으면 이름. 못 찾으면 null. 기존 거래처의 담당자·상태는 바꾸지 않는다 |
+| `poster_name` / `poster_email` | 활성 프로필과 대조해 `assigned_to`를 정한다. 이메일을 먼저 보고, 없으면 이름. 이름의 대소문자와 사이 공백은 무시한다. 못 찾으면 null. 기존 거래처의 담당자·상태는 바꾸지 않는다 |
 | `poster_slack_id` | 배정에는 쓰지 않는다. 프로필을 못 찾은 경우에만 활동 메모의 `슬랙 작성자` 줄에 남긴다 |
 | `slack_permalink` | 활동 메모에 붙인다 |
 | `raw_text` | `special_note`와 다를 때만 활동 메모에 붙인다 |
@@ -59,11 +59,11 @@ Content-Type: application/json
 
 ### 중복
 
-전화번호(숫자만, 8자리 이상) → 소문자 이메일 → 상호명 완전 일치 순서로 기존 거래처를 찾는다. `010-1234-5678`과 `01012345678`은 같은 번호다. 여럿이면 `updated_at`이 최신인 행을 쓴다.
+전화번호(숫자만, 8자리 이상) → 소문자 이메일 → 상호명 완전 일치 → 같은 상호(공백, `(주)`, `주식회사`, `㈜`를 뺀 문자열이 같고 대소문자는 유지) 순서로 기존 거래처를 찾는다. `010-1234-5678`과 `01012345678`은 같은 번호다. `(주)한케이`와 `주식회사 한케이`는 같은 상호다. `Acme`와 `acme`는 다른 상호다. 여럿이면 `updated_at`이 최신인 행을 쓴다.
 
 맞으면 비어 있는 칸만 채운다. `status`와 `assigned_to`는 비어 있어도 덮어쓰지 않는다. 활동 한 줄을 추가하고 `{ id, result: "merged", url }`을 반환한다.
 
-없으면 `status`는 `신규문의`, `inflow_date`는 오늘(Asia/Seoul), `latest_note`는 `special_note`로 만들고 활동 한 줄을 추가한다. `{ id, result: "created", url }`을 반환한다. `url`은 `NEXT_PUBLIC_APP_URL`(끝 슬래시 제거, 없으면 `http://localhost:3000`) + `/companies/<id>`이다.
+없으면 `status`는 `신규문의`, `inflow_date`는 오늘(Asia/Seoul), `latest_note`는 `special_note`, `assigned_to`는 매칭된 작성자로 만들고 활동 한 줄을 추가한다. 거래처관리의 신규등록과 같은 `companies` 행이다. `{ id, result: "created", url }`을 반환한다. `url`은 `NEXT_PUBLIC_APP_URL`(끝 슬래시 제거, 스키마가 없으면 `https://`를 붙임, 변수가 없으면 `http://localhost:3000`) + `/companies/<id>`이다.
 
 활동 메모는 `special_note`, 슬랙 링크, 그리고 멱등 표식 `[[lead-dedupe:<encodeURIComponent(dedupe_key)>]] result:created|merged` 순이다. 스키마 마이그레이션 없이 이 표식으로 재전송을 가른다. 활동의 `user_id`는 매칭된 프로필이다. 프로필이 없으면 활성 관리자(없으면 매니저, 없으면 아무 활성 사용자)에게 남기고, 원래 작성자는 메모에 적는다.
 

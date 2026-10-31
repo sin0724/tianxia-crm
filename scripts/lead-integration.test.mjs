@@ -505,6 +505,108 @@ test('fills only empty fields and does not apply omitted source or category fall
   assert.equal(h.notifications.length, 0)
 })
 
+test('maps the slack 리드 labels onto a new client assigned to the poster', async () => {
+  const h = harness()
+  const result = await h.run({
+    상호: '  새브랜드  ',
+    연락처: '010-9999-8888',
+    업체담당자: ' 홍길동 ',
+    퍼널: '스레드',
+    특이사항: '첫 문의',
+    poster_name: '김 영업',
+    poster_email: '',
+  })
+  assert.equal(result.status, 200)
+  assert.equal(result.body.result, 'created')
+  const row = h.db.companies.find(item => item.id === result.body.id)
+  assert.equal(row.company_name, '새브랜드')
+  assert.equal(row.phone, '01099998888')
+  assert.equal(row.contact_name, '홍길동')
+  assert.equal(row.source, '스레드')
+  assert.equal(row.category, '미분류')
+  assert.equal(row.status, '신규문의')
+  assert.equal(row.inflow_date, '2026-10-30')
+  assert.equal(row.latest_note, '첫 문의')
+  assert.equal(row.assigned_to, 'sales-1')
+  assert.equal(row.last_contacted_at, null)
+  assert.equal(result.body.url, `https://crm.example.com/companies/${row.id}`)
+  assert.equal(h.notifications.length, 1)
+  assert.match(h.notifications[0].blocks[1].text.text, /김영업/)
+})
+
+test('english fields win over the korean labels, and a schemeless app url is https', async () => {
+  const h = harness({ env: { NEXT_PUBLIC_APP_URL: 'crm.example.com/' } })
+  const result = await h.run({
+    company_name: '영문상호',
+    상호: '한글상호',
+    phone: '01011112222',
+    연락처: '01000000000',
+    contact_name: '영문담당',
+    업체담당자: '한글담당',
+    source: '인스타DM',
+    퍼널: '스레드',
+    special_note: '영문메모',
+    특이사항: '한글메모',
+  })
+  assert.equal(result.body.result, 'created')
+  const row = h.db.companies[0]
+  assert.equal(row.company_name, '영문상호')
+  assert.equal(row.phone, '01011112222')
+  assert.equal(row.contact_name, '영문담당')
+  assert.equal(row.source, '인스타DM')
+  assert.equal(row.latest_note, '영문메모')
+  assert.equal(result.body.url, `https://crm.example.com/companies/${row.id}`)
+})
+
+test('the same 상호 with a suffix or inner spaces merges and does not open a second client', async () => {
+  const h = harness({
+    companies: [
+      company({
+        id: 'co-han',
+        company_name: '주식회사 한케이',
+        status: '제안서발송',
+        assigned_to: 'sales-1',
+        updated_at: '2026-04-01T00:00:00.000Z',
+      }),
+      company({
+        id: 'co-spaced',
+        company_name: '한 케이',
+        status: '신규문의',
+        updated_at: '2026-09-01T00:00:00.000Z',
+      }),
+      company({
+        id: 'co-holding',
+        company_name: '한케이홀딩스',
+        updated_at: '2026-10-01T00:00:00.000Z',
+      }),
+    ],
+  })
+  const spaced = await h.run({
+    company_name: '한케이',
+    poster_name: '관리자',
+    special_note: '공백 없는 같은 상호',
+  })
+  assert.equal(spaced.body.result, 'merged')
+  assert.equal(spaced.body.id, 'co-spaced')
+  assert.equal(spaced.body.url, 'https://crm.example.com/companies/co-spaced')
+  assert.equal(h.db.companies.find(item => item.id === 'co-spaced').latest_note, '공백 없는 같은 상호')
+  assert.equal(h.db.companies.find(item => item.id === 'co-spaced').assigned_to, null)
+  assert.equal(h.db.companies.find(item => item.id === 'co-spaced').status, '신규문의')
+
+  const suffixed = await h.run({ company_name: '(주)한케이홀딩스' })
+  assert.equal(suffixed.body.result, 'merged')
+  assert.equal(suffixed.body.id, 'co-holding')
+
+  const legal = await h.run({ 상호: '（주）한 케이' })
+  assert.equal(legal.body.result, 'merged')
+  assert.equal(legal.body.id, 'co-spaced')
+
+  const different = await h.run({ company_name: '다른한케이' })
+  assert.equal(different.body.result, 'created')
+  assert.equal(h.db.companies.length, 4)
+  assert.equal(h.notifications.length, 1)
+})
+
 test('exact company name is case-sensitive and is only used after phone and email miss', async () => {
   const named = harness({
     companies: [company({ id: 'co-exact', company_name: 'Acme', status: '제안서발송' })],

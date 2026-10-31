@@ -10,14 +10,14 @@ import { sendSlackNotification } from '@/lib/slack'
 // POST /api/integrations/lead
 // Authorization: Bearer <INTEGRATION_SECRET 또는 CRON_SECRET>
 // Body(JSON): {
-//   company_name:     string   // 필수
-//   phone?:           string   // 숫자만 저장. 이메일이 들어 있으면 email 컬럼으로
-//   contact_name?:    string
-//   source?:          string   // COMPANY_SOURCE, 아니면 '기타및소개'
-//   special_note?:    string
+//   company_name:     string   // 필수. 별칭: 상호, 상호명, 업체명, 업체상호, 매장상호
+//   phone?:           string   // 별칭: 연락처. 숫자만 저장. 이메일이 들어 있으면 email 컬럼으로
+//   contact_name?:    string   // 별칭: 업체담당자, 담당자명. 고객측 담당자
+//   source?:          string   // 별칭: 퍼널. COMPANY_SOURCE, 아니면 '기타및소개'
+//   special_note?:    string   // 별칭: 특이사항
 //   category?:        string   // COMPANY_CATEGORY, 아니면 '미분류'
 //   interest_level?:  number   // 1–5, 생략 가능
-//   poster_name?:     string   // 프로필 이름과 대조 (assigned_to)
+//   poster_name?:     string   // 프로필 이름과 대조 (assigned_to). 공백은 무시
 //   poster_email?:    string   // 프로필 이메일과 대조 (이름보다 우선)
 //   poster_slack_id?: string   // 배정에는 쓰지 않음. 프로필 미매칭 시 활동 메모에만 남김
 //   slack_permalink?: string
@@ -25,7 +25,9 @@ import { sendSlackNotification } from '@/lib/slack'
 //   dedupe_key?:      string   // Slack ts. 이미 처리됐으면 처음 결과를 그대로 반환
 // }
 //
+// 영문 키가 있으면 그 값을 쓰고, 비어 있을 때만 한글 별칭을 본다.
 // 성공: { id, result: 'created' | 'merged', url }
+// url 은 거래처관리 상세(/companies/<id>). 신규등록과 같은 companies 행이다.
 
 const SOURCE_FALLBACK = '기타및소개'
 const CATEGORY_FALLBACK = '미분류'
@@ -85,7 +87,9 @@ function createAdminClient() {
 }
 
 function appUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+  const raw = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').trim().replace(/\/$/, '')
+  if (/^https?:\/\//i.test(raw)) return raw
+  return `https://${raw}`
 }
 
 function companyUrl(id: string) {
@@ -110,6 +114,15 @@ function asText(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed ? trimmed : null
+}
+
+// 슬랙 /리드 폼은 영문 키로 보내고, 같은 칸을 한글로 직접 넣는 경우도 받는다.
+function firstText(body: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const text = asText(body[key])
+    if (text) return text
+  }
+  return null
 }
 
 function digitsOnly(value: string | null | undefined): string {
@@ -148,6 +161,19 @@ function parseInterest(value: unknown): { ok: true; value: number | null } | { o
 
 function escapeIlike(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
+// 같은 상호 판별. 대소문자는 유지해 'Acme'와 'acme'는 다른 거래처로 둔다.
+// 앞뒤·사이 공백, (주), 주식회사, ㈜ 만 빼고 비교한다.
+function normalizeCompanyName(name: string): string {
+  return name
+    .replace(/주식회사/g, '')
+    .replace(/\(주\)|（주）|㈜/g, '')
+    .replace(/[\s()[\]（）【】·•\-_.,'"]/g, '')
+}
+
+function compactName(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, '')
 }
 
 function dedupeToken(dedupeKey: string): string {
@@ -201,6 +227,9 @@ function matchPoster(profiles: ProfileRow[], input: LeadInput): ProfileRow | nul
   if (name) {
     const byName = profiles.find(profile => profile.name.toLowerCase() === name)
     if (byName) return byName
+    const compact = compactName(input.posterName ?? '')
+    const byCompact = profiles.find(profile => compactName(profile.name) === compact)
+    if (byCompact) return byCompact
   }
   return null
 }
@@ -292,6 +321,20 @@ async function findByName(supabase: SupabaseClient, companyName: string): Promis
   return ((data ?? []) as CompanyRow[])[0] ?? null
 }
 
+async function findByNormalizedName(supabase: SupabaseClient, companyName: string): Promise<CompanyRow | null> {
+  const normalized = normalizeCompanyName(companyName)
+  if (normalized.length < 2) return null
+  const pattern = `%${Array.from(normalized).map(ch => escapeIlike(ch)).join('%')}%`
+  const { data, error } = await supabase
+    .from('companies')
+    .select(COMPANY_COLUMNS)
+    .ilike('company_name', pattern)
+    .order('updated_at', { ascending: false })
+    .limit(50)
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as CompanyRow[]).find(row => normalizeCompanyName(row.company_name) === normalized) ?? null
+}
+
 function mergePatch(row: CompanyRow, input: LeadInput): Record<string, string | number | null> {
   const patch: Record<string, string | number | null> = {}
   if (blank(row.phone) && input.phone) patch.phone = input.phone
@@ -359,7 +402,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = payload as Record<string, unknown>
-  const companyName = asText(body.company_name)
+  const companyName = firstText(body, ['company_name', '상호', '상호명', '업체명', '업체상호', '매장상호'])
   if (!companyName) {
     return NextResponse.json({ success: false, error: 'company_name is required' }, { status: 400 })
   }
@@ -371,16 +414,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const contact = parsePhoneField(asText(body.phone))
+  const contact = parsePhoneField(firstText(body, ['phone', '연락처']))
   const input: LeadInput = {
     companyName,
     phone: contact.phone,
     email: contact.email,
-    contactName: asText(body.contact_name),
-    source: pickAllowed(COMPANY_SOURCE, asText(body.source), SOURCE_FALLBACK),
+    contactName: firstText(body, ['contact_name', '업체담당자', '업체 담당자', '담당자명']),
+    source: pickAllowed(COMPANY_SOURCE, firstText(body, ['source', '퍼널']), SOURCE_FALLBACK),
     category: pickAllowed(COMPANY_CATEGORY, asText(body.category), CATEGORY_FALLBACK),
     interestLevel: interest.value,
-    specialNote: asText(body.special_note),
+    specialNote: firstText(body, ['special_note', '특이사항']),
     posterName: asText(body.poster_name),
     posterEmail: asText(body.poster_email),
     posterSlackId: asText(body.poster_slack_id),
@@ -415,6 +458,7 @@ export async function POST(request: NextRequest) {
     const company = matched
       ?? (input.email ? await findByEmail(supabase, input.email) : null)
       ?? await findByName(supabase, input.companyName)
+      ?? await findByNormalizedName(supabase, input.companyName)
 
     if (company) {
       const patch = mergePatch(company, input)
@@ -432,6 +476,8 @@ export async function POST(request: NextRequest) {
       return ok(company.id, 'merged')
     }
 
+    // 거래처관리 신규등록(createCompany)과 같은 companies 행.
+    // 상태는 신규문의, 유입일은 오늘(KST), 담당자는 슬랙 작성자 프로필이다.
     const { data: created, error: insertError } = await supabase
       .from('companies')
       .insert({
