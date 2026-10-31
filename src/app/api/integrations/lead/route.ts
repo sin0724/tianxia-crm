@@ -5,27 +5,29 @@ import { kstDateString } from '@/lib/datetime'
 import { sendSlackNotification } from '@/lib/slack'
 
 // ── 슬랙 리드 등록 웹훅 ────────────────────────────────────────
-// Slack 워크플로우에서 올린 신규 문의를 CRM 거래처로 넣는다.
+// Slack /리드 가 올린 신규 문의를 거래처관리의 신규등록과 같은 companies 행으로 넣는다.
+// 별도 리드 테이블은 없다. 담당자는 작성자 프로필(assigned_to)이다.
 //
 // POST /api/integrations/lead
 // Authorization: Bearer <INTEGRATION_SECRET 또는 CRON_SECRET>
 // Body(JSON): {
-//   company_name:     string   // 필수
-//   phone?:           string   // 숫자만 저장. 이메일이 들어 있으면 email 컬럼으로
-//   contact_name?:    string
-//   source?:          string   // COMPANY_SOURCE, 아니면 '기타및소개'
-//   special_note?:    string
-//   category?:        string   // COMPANY_CATEGORY, 아니면 '미분류'
+//   company_name:     string   // 필수. 별칭: 상호, 상호명
+//   phone?:           string   // 별칭: 연락처. 숫자만 저장. 이메일이 들어 있으면 email 컬럼으로
+//   contact_name?:    string   // 별칭: 업체담당자, 담당자명 (고객사 담당. 내부 담당자와 다름)
+//   source?:          string   // 별칭: 퍼널. COMPANY_SOURCE, 아니면 '기타및소개'
+//   special_note?:    string   // 별칭: 특이사항. 신규 거래처의 latest_note
+//   category?:        string   // 별칭: 구분. COMPANY_CATEGORY, 아니면 '미분류'
 //   interest_level?:  number   // 1–5, 생략 가능
-//   poster_name?:     string   // 프로필 이름과 대조 (assigned_to)
-//   poster_email?:    string   // 프로필 이메일과 대조 (이름보다 우선)
-//   poster_slack_id?: string   // 배정에는 쓰지 않음. 프로필 미매칭 시 활동 메모에만 남김
+//   poster_name?:     string   // 프로필 이름과 대조 (assigned_to). 공백은 무시
+//   poster_email?:    string   // 프로필 이메일과 대조 (이름·슬랙 ID보다 우선)
+//   poster_slack_id?: string   // 이메일·이름이 없으면 profiles.slack_user_id 와 대조
 //   slack_permalink?: string
 //   raw_text?:        string
 //   dedupe_key?:      string   // Slack ts. 이미 처리됐으면 처음 결과를 그대로 반환
 // }
 //
 // 성공: { id, result: 'created' | 'merged', url }
+// url 은 항상 http(s) 절대 경로. 슬랙 알림이 <url|열기> 로 쓰려면 스킴이 필요하다.
 
 const SOURCE_FALLBACK = '기타및소개'
 const CATEGORY_FALLBACK = '미분류'
@@ -56,6 +58,7 @@ type ProfileRow = {
   name: string
   email: string
   role: string
+  slack_user_id: string | null
 }
 
 type LeadInput = {
@@ -85,7 +88,9 @@ function createAdminClient() {
 }
 
 function appUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+  const raw = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').trim()
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+  return withScheme.replace(/\/$/, '')
 }
 
 function companyUrl(id: string) {
@@ -110,6 +115,19 @@ function asText(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed ? trimmed : null
+}
+
+// 영문 키를 먼저 본다. /리드 모달 라벨(상호·연락처·업체담당자·퍼널·특이사항)도 받는다.
+function firstText(body: Record<string, unknown>, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const text = asText(body[key])
+    if (text) return text
+  }
+  return null
+}
+
+function compactName(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, '')
 }
 
 function digitsOnly(value: string | null | undefined): string {
@@ -197,10 +215,15 @@ function matchPoster(profiles: ProfileRow[], input: LeadInput): ProfileRow | nul
     const byEmail = profiles.find(profile => profile.email.toLowerCase() === email)
     if (byEmail) return byEmail
   }
-  const name = input.posterName?.toLowerCase()
+  const name = input.posterName ? compactName(input.posterName) : ''
   if (name) {
-    const byName = profiles.find(profile => profile.name.toLowerCase() === name)
+    const byName = profiles.find(profile => compactName(profile.name) === name)
     if (byName) return byName
+  }
+  const slackId = input.posterSlackId
+  if (slackId) {
+    const bySlack = profiles.find(profile => profile.slack_user_id === slackId)
+    if (bySlack) return bySlack
   }
   return null
 }
@@ -359,7 +382,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = payload as Record<string, unknown>
-  const companyName = asText(body.company_name)
+  const companyName = firstText(body, 'company_name', '상호', '상호명')
   if (!companyName) {
     return NextResponse.json({ success: false, error: 'company_name is required' }, { status: 400 })
   }
@@ -371,16 +394,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const contact = parsePhoneField(asText(body.phone))
+  const contact = parsePhoneField(firstText(body, 'phone', '연락처'))
   const input: LeadInput = {
     companyName,
     phone: contact.phone,
     email: contact.email,
-    contactName: asText(body.contact_name),
-    source: pickAllowed(COMPANY_SOURCE, asText(body.source), SOURCE_FALLBACK),
-    category: pickAllowed(COMPANY_CATEGORY, asText(body.category), CATEGORY_FALLBACK),
+    contactName: firstText(body, 'contact_name', '업체담당자', '담당자명'),
+    source: pickAllowed(COMPANY_SOURCE, firstText(body, 'source', '퍼널'), SOURCE_FALLBACK),
+    category: pickAllowed(COMPANY_CATEGORY, firstText(body, 'category', '구분'), CATEGORY_FALLBACK),
     interestLevel: interest.value,
-    specialNote: asText(body.special_note),
+    specialNote: firstText(body, 'special_note', '특이사항'),
     posterName: asText(body.poster_name),
     posterEmail: asText(body.poster_email),
     posterSlackId: asText(body.poster_slack_id),
@@ -399,7 +422,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profileRows, error: profileError } = await supabase
       .from('profiles')
-      .select('id, name, email, role')
+      .select('id, name, email, role, slack_user_id')
       .eq('is_active', true)
     if (profileError) throw new Error(profileError.message)
     const profiles = (profileRows ?? []) as ProfileRow[]
