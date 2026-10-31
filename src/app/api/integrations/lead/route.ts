@@ -168,6 +168,14 @@ function escapeIlike(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
 }
 
+// 같은 상호. 대소문자는 유지하고, 공백·(주)·주식회사·㈜ 만 뺀다.
+function normalizeCompanyName(name: string): string {
+  return name
+    .replace(/주식회사/g, '')
+    .replace(/\(주\)|（주）|㈜/g, '')
+    .replace(/[\s()[\]（）【】·•\-_.,'"]/g, '')
+}
+
 function dedupeToken(dedupeKey: string): string {
   return `[[lead-dedupe:${encodeURIComponent(dedupeKey)}]]`
 }
@@ -315,6 +323,20 @@ async function findByName(supabase: SupabaseClient, companyName: string): Promis
   return ((data ?? []) as CompanyRow[])[0] ?? null
 }
 
+async function findByNormalizedName(supabase: SupabaseClient, companyName: string): Promise<CompanyRow | null> {
+  const normalized = normalizeCompanyName(companyName)
+  if (normalized.length < 2) return null
+  const pattern = `%${Array.from(normalized).map(ch => escapeIlike(ch)).join('%')}%`
+  const { data, error } = await supabase
+    .from('companies')
+    .select(COMPANY_COLUMNS)
+    .ilike('company_name', pattern)
+    .order('updated_at', { ascending: false })
+    .limit(50)
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as CompanyRow[]).find(row => normalizeCompanyName(row.company_name) === normalized) ?? null
+}
+
 function mergePatch(row: CompanyRow, input: LeadInput): Record<string, string | number | null> {
   const patch: Record<string, string | number | null> = {}
   if (blank(row.phone) && input.phone) patch.phone = input.phone
@@ -438,6 +460,7 @@ export async function POST(request: NextRequest) {
     const company = matched
       ?? (input.email ? await findByEmail(supabase, input.email) : null)
       ?? await findByName(supabase, input.companyName)
+      ?? await findByNormalizedName(supabase, input.companyName)
 
     if (company) {
       const patch = mergePatch(company, input)

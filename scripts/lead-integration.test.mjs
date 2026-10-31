@@ -505,6 +505,55 @@ test('fills only empty fields and does not apply omitted source or category fall
   assert.equal(h.notifications.length, 0)
 })
 
+test('the same 상호 with a suffix or inner spaces merges and does not open a second client', async () => {
+  const h = harness({
+    companies: [
+      company({
+        id: 'co-han',
+        company_name: '주식회사 한케이',
+        status: '제안서발송',
+        assigned_to: 'sales-1',
+        updated_at: '2026-04-01T00:00:00.000Z',
+      }),
+      company({
+        id: 'co-spaced',
+        company_name: '한 케이',
+        status: '신규문의',
+        updated_at: '2026-09-01T00:00:00.000Z',
+      }),
+      company({
+        id: 'co-holding',
+        company_name: '한케이홀딩스',
+        updated_at: '2026-10-01T00:00:00.000Z',
+      }),
+    ],
+  })
+  const spaced = await h.run({
+    company_name: '한케이',
+    poster_name: '관리자',
+    special_note: '공백 없는 같은 상호',
+  })
+  assert.equal(spaced.body.result, 'merged')
+  assert.equal(spaced.body.id, 'co-spaced')
+  assert.equal(spaced.body.url, 'https://crm.example.com/companies/co-spaced')
+  assert.equal(h.db.companies.find(item => item.id === 'co-spaced').latest_note, '공백 없는 같은 상호')
+  assert.equal(h.db.companies.find(item => item.id === 'co-spaced').assigned_to, null)
+  assert.equal(h.db.companies.find(item => item.id === 'co-spaced').status, '신규문의')
+
+  const suffixed = await h.run({ company_name: '(주)한케이홀딩스' })
+  assert.equal(suffixed.body.result, 'merged')
+  assert.equal(suffixed.body.id, 'co-holding')
+
+  const legal = await h.run({ 상호: '（주）한 케이' })
+  assert.equal(legal.body.result, 'merged')
+  assert.equal(legal.body.id, 'co-spaced')
+
+  const different = await h.run({ company_name: '다른한케이' })
+  assert.equal(different.body.result, 'created')
+  assert.equal(h.db.companies.length, 4)
+  assert.equal(h.notifications.length, 1)
+})
+
 test('exact company name is case-sensitive and is only used after phone and email miss', async () => {
   const named = harness({
     companies: [company({ id: 'co-exact', company_name: 'Acme', status: '제안서발송' })],
