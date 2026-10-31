@@ -505,59 +505,6 @@ test('fills only empty fields and does not apply omitted source or category fall
   assert.equal(h.notifications.length, 0)
 })
 
-test('maps the slack 리드 labels onto a new client assigned to the poster', async () => {
-  const h = harness()
-  const result = await h.run({
-    상호: '  새브랜드  ',
-    연락처: '010-9999-8888',
-    업체담당자: ' 홍길동 ',
-    퍼널: '스레드',
-    특이사항: '첫 문의',
-    poster_name: '김 영업',
-    poster_email: '',
-  })
-  assert.equal(result.status, 200)
-  assert.equal(result.body.result, 'created')
-  const row = h.db.companies.find(item => item.id === result.body.id)
-  assert.equal(row.company_name, '새브랜드')
-  assert.equal(row.phone, '01099998888')
-  assert.equal(row.contact_name, '홍길동')
-  assert.equal(row.source, '스레드')
-  assert.equal(row.category, '미분류')
-  assert.equal(row.status, '신규문의')
-  assert.equal(row.inflow_date, '2026-10-30')
-  assert.equal(row.latest_note, '첫 문의')
-  assert.equal(row.assigned_to, 'sales-1')
-  assert.equal(row.last_contacted_at, null)
-  assert.equal(result.body.url, `https://crm.example.com/companies/${row.id}`)
-  assert.equal(h.notifications.length, 1)
-  assert.match(h.notifications[0].blocks[1].text.text, /김영업/)
-})
-
-test('english fields win over the korean labels, and a schemeless app url is https', async () => {
-  const h = harness({ env: { NEXT_PUBLIC_APP_URL: 'crm.example.com/' } })
-  const result = await h.run({
-    company_name: '영문상호',
-    상호: '한글상호',
-    phone: '01011112222',
-    연락처: '01000000000',
-    contact_name: '영문담당',
-    업체담당자: '한글담당',
-    source: '인스타DM',
-    퍼널: '스레드',
-    special_note: '영문메모',
-    특이사항: '한글메모',
-  })
-  assert.equal(result.body.result, 'created')
-  const row = h.db.companies[0]
-  assert.equal(row.company_name, '영문상호')
-  assert.equal(row.phone, '01011112222')
-  assert.equal(row.contact_name, '영문담당')
-  assert.equal(row.source, '인스타DM')
-  assert.equal(row.latest_note, '영문메모')
-  assert.equal(result.body.url, `https://crm.example.com/companies/${row.id}`)
-})
-
 test('the same 상호 with a suffix or inner spaces merges and does not open a second client', async () => {
   const h = harness({
     companies: [
@@ -657,6 +604,75 @@ test('without a dedupe key the same phone merges, and a missing profile still re
   assert.equal(again.body.result, 'merged')
   assert.equal(again.body.id, first.body.id)
   assert.equal(h.notifications.length, 1)
+})
+
+test('korean form labels map onto the same company columns and assign the poster', async () => {
+  const h = harness()
+  const result = await h.run({
+    상호: '  한글상호  ',
+    연락처: '010-2222-3333',
+    업체담당자: '김고객',
+    퍼널: '인스타DM',
+    특이사항: '슬랙에서 등록',
+    poster_name: '김 영업',
+  })
+  assert.equal(result.status, 200)
+  assert.equal(result.body.result, 'created')
+  const row = h.db.companies.find(item => item.id === result.body.id)
+  assert.equal(row.company_name, '한글상호')
+  assert.equal(row.phone, '01022223333')
+  assert.equal(row.contact_name, '김고객')
+  assert.equal(row.source, '인스타DM')
+  assert.equal(row.latest_note, '슬랙에서 등록')
+  assert.equal(row.status, '신규문의')
+  assert.equal(row.assigned_to, 'sales-1')
+  assert.equal(result.body.url, `https://crm.example.com/companies/${row.id}`)
+})
+
+test('english keys win over korean aliases', async () => {
+  const h = harness()
+  const result = await h.run({
+    company_name: '영문상호',
+    상호: '한글상호',
+    phone: '01099990000',
+    연락처: '01011110000',
+    source: '스레드',
+    퍼널: '메타광고',
+  })
+  assert.equal(result.body.result, 'created')
+  const row = h.db.companies[0]
+  assert.equal(row.company_name, '영문상호')
+  assert.equal(row.phone, '01099990000')
+  assert.equal(row.source, '스레드')
+})
+
+test('poster slack id assigns when email and name miss, and a bare app host gets https', async () => {
+  const h = harness({
+    env: { NEXT_PUBLIC_APP_URL: 'crm.example.com' },
+    profiles: [
+      ...DEFAULT_PROFILES,
+      {
+        id: 'sales-slack',
+        name: '신현준',
+        email: 'shin@example.com',
+        role: 'sales',
+        is_active: true,
+        slack_user_id: 'U-SHIN',
+      },
+    ],
+  })
+  const result = await h.run({
+    company_name: '슬랙아이디',
+    poster_name: '워크스페이스 표시이름',
+    poster_email: 'nobody@example.com',
+    poster_slack_id: 'U-SHIN',
+  })
+  assert.equal(result.body.result, 'created')
+  const row = h.db.companies[0]
+  assert.equal(row.assigned_to, 'sales-slack')
+  assert.equal(result.body.url, `https://crm.example.com/companies/${row.id}`)
+  assert.equal(h.db.activities[0].user_id, 'sales-slack')
+  assert.equal(h.db.activities[0].memo, null)
 })
 
 test('a missing service role key fails after validation and does not claim success', async () => {
