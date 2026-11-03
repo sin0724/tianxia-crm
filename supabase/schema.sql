@@ -1305,3 +1305,10 @@ COMMENT ON COLUMN companies.previous_assigned_to IS '직전 담당자 (재배분
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS team TEXT;
 COMMENT ON COLUMN companies.team IS '소속 팀(DB 출처) — 0팀(회사DB)/1팀/2팀. 배분해도 유지, 매출 귀속 기준';
 CREATE INDEX IF NOT EXISTS idx_companies_team ON companies(team);
+
+
+-- ── 99. API 스키마 캐시 갱신 (항상 파일 맨 끝에 둘 것) ───────
+-- 새 컬럼·테이블을 추가해도 Supabase API(PostgREST)가 캐시를 다시 읽기 전까지는
+-- "column ... does not exist"로 조회가 실패한다. 전체 실행 마지막에 갱신을 요청한다.
+-- 새 섹션은 이 블록 "위"에 추가한다.
+NOTIFY pgrst, 'reload schema';
