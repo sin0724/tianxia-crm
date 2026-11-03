@@ -6,7 +6,7 @@ import { fmtFullDateKST } from '@/lib/datetime'
 import { redirect } from 'next/navigation'
 
 const CSV_HEADERS = [
-  '상호명', '구분', '지역', 'DB 경로', '유입일', '담당자', '배분일',
+  '상호명', '구분', '지역', 'DB 경로', '소속 팀', '유입일', '담당자', '배분일',
   '상태', '연락처', '이메일', '카카오ID',
   '인스타그램 URL', '네이버 플레이스 URL', '홈페이지 URL',
   '예상 금액', '계약 금액', '미팅 예정일', '다음 액션일',
@@ -18,6 +18,7 @@ type ExportRow = {
   category: string | null
   region: string | null
   source: string | null
+  team: string | null
   inflow_date: string | null
   profiles: { name: string } | null
   assigned_at: string | null
@@ -48,6 +49,7 @@ function toRow(c: ExportRow): (string | null)[] {
     c.category,
     c.region,
     c.source,
+    c.team,
     c.inflow_date,
     c.profiles?.name ?? null,
     fmtDate(c.assigned_at) || null,
@@ -77,10 +79,11 @@ export async function GET(request: NextRequest) {
   const assigneeFilter  = sp.get('assigned_to') || null
   const categoryFilter  = sp.get('category')  || null
   const sourceFilter    = sp.get('source')    || null
+  const teamFilter      = sp.get('team')      || null
 
   const supabase = await createClient()
   const SELECT = [
-    'company_name', 'category', 'region', 'source', 'inflow_date',
+    'company_name', 'category', 'region', 'source', 'team', 'inflow_date',
     'status', 'phone', 'email', 'kakao_id',
     'instagram_url', 'naver_place_url', 'website_url',
     'expected_amount', 'contract_amount',
@@ -97,6 +100,8 @@ export async function GET(request: NextRequest) {
   if (statusFilter)   q = q.eq('status', statusFilter)
   if (categoryFilter) q = q.eq('category', categoryFilter)
   if (sourceFilter)   q = q.eq('source', sourceFilter)
+  if (teamFilter === 'none') q = q.is('team', null)
+  else if (teamFilter)       q = q.eq('team', teamFilter)
   if (assigneeFilter && profile.role !== 'sales') q = q.eq('assigned_to', assigneeFilter)
 
   const { data, error } = await q

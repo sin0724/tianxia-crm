@@ -72,7 +72,7 @@ function toContractCountItems(rows: ChartRow[]) {
 
 export default async function DashboardPage() {
   const profile = await requireAuth()
-  const [{ stats, byAssignee, bySource, byCategory, byStatus, cohorts }, notifications] =
+  const [{ stats, byAssignee, byTeam, bySource, byCategory, byStatus, cohorts }, notifications] =
     await Promise.all([
       getDashboardData(profile),
       getUnreadNotifications(profile.id),
@@ -184,6 +184,27 @@ export default async function DashboardPage() {
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* ── 팀별 (DB 소속 팀 기준) ──────────────────────── */}
+        {/* 담당자 팀이 아니라 거래처의 소속 팀 기준 — 0팀(회사 DB)을 1·2팀 담당자가 계약해도 0팀 매출 */}
+        <SectionTitle>팀별 매출 — DB 소속 팀 기준</SectionTitle>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <BarChart
+            title="팀별 계약 완료 금액"
+            items={byTeam
+              .filter(r => r.contractAmount > 0)
+              .map(r => ({ label: r.label, value: r.contractAmount, display: fmtAmount(r.contractAmount) }))}
+            emptyMessage="계약 완료 내역 없음"
+          />
+          <BarChart
+            title="팀별 고객 수 / 계약 수"
+            items={byTeam.map(r => ({
+              label: r.label,
+              value: r.count,
+              display: `${r.count.toLocaleString('ko-KR')} / ${r.contractCount}건`,
+            }))}
+          />
         </div>
 
         {/* ── 담당자별 ─────────────────────────────────── */}

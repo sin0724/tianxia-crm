@@ -14,6 +14,7 @@ type DashCompany = {
   category: string | null
   source: string | null
   assigned_to: string | null
+  team: string | null
   created_at: string
   inflow_date: string | null
   meeting_at: string | null
@@ -60,6 +61,8 @@ export interface CohortRow {
 export interface DashboardData {
   stats: DashboardStats
   byAssignee: ChartRow[]
+  /** 소속 팀(DB 출처) 기준 — 매출 귀속용. 담당자 팀과 무관 */
+  byTeam: ChartRow[]
   bySource: ChartRow[]
   byCategory: ChartRow[]
   byStatus: ChartRow[]
@@ -69,7 +72,7 @@ export interface DashboardData {
 // ── 역할별 회사 조회 ───────────────────────────────────────────
 
 const SELECT = [
-  'id', 'status', 'category', 'source', 'assigned_to',
+  'id', 'status', 'category', 'source', 'assigned_to', 'team',
   'created_at', 'inflow_date', 'meeting_at', 'next_action_at', 'last_contacted_at',
   'contract_amount', 'profiles(id, name)',
 ].join(', ')
@@ -194,6 +197,9 @@ function groupBy(
 function computeCharts(companies: DashCompany[]) {
   return {
     byAssignee: groupBy(companies, c => c.profiles?.name ?? '미배정'),
+    // 0팀 DB를 1팀 담당자가 계약해도 0팀 매출로 잡히도록 거래처의 team으로 묶는다
+    byTeam:     groupBy(companies, c => c.team ?? '팀 미지정')
+      .sort((a, b) => a.label.localeCompare(b.label, 'ko')),
     bySource:   groupBy(companies, c => c.source ?? '미입력'),
     byCategory: groupBy(companies, c => c.category ?? '미입력'),
     byStatus:   groupBy(companies, c => c.status),

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { StatusBadge } from './StatusBadge'
 import { CompanyForm } from './CompanyForm'
+import { TeamBadge } from './TeamBadge'
 import { ActivityForm } from '@/components/activities/ActivityForm'
 import { ActivityList } from '@/components/activities/ActivityList'
 import { deleteCompany } from '@/app/(dashboard)/companies/actions'
@@ -43,11 +44,13 @@ interface CompanyDetailClientProps {
   sourceOptions?: string[]
   /** 미팅 KPI 항목 (대만마케팅·공구·설명회 등) — 상태 변경/활동 기록 시 종류 선택용 */
   meetingMetrics?: KpiMetric[]
+  /** 소속 팀 변경 가능 여부 (관리자/매니저) */
+  canEditTeam?: boolean
 }
 
 export function CompanyDetailClient({
   company, profiles, activities,
-  canDelete = false, categoryOptions, sourceOptions, meetingMetrics = [],
+  canDelete = false, categoryOptions, sourceOptions, meetingMetrics = [], canEditTeam = false,
 }: CompanyDetailClientProps) {
   const meetingLabels = Object.fromEntries(meetingMetrics.map(m => [m.key, m.label]))
   const [editing, setEditing] = useState(false)
@@ -78,6 +81,7 @@ export function CompanyDetailClient({
           categoryOptions={categoryOptions}
           sourceOptions={sourceOptions}
           meetingMetrics={meetingMetrics}
+          canEditTeam={canEditTeam}
         />
       </div>
     )
@@ -141,6 +145,7 @@ export function CompanyDetailClient({
           <Row label="구분"    value={company.category} />
           <Row label="지역"    value={company.region} />
           <Row label="DB 경로" value={company.source} />
+          <Row label="소속 팀" value={company.team ? <TeamBadge team={company.team} /> : null} />
           <Row label="담당자"  value={company.profiles?.name} />
           <Row label="배분일"  value={fmtFullDateTimeKST(company.assigned_at)} />
           {company.previous_assignee_name && (

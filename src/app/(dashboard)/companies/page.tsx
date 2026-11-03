@@ -21,6 +21,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
     assigned_to: sp.assigned_to,
     category:    sp.category,
     source:      sp.source,
+    team:        sp.team,
     next_action:  sp.next_action,
     inflow_month: sp.inflow_month,
     assigned_from:  sp.assigned_from,

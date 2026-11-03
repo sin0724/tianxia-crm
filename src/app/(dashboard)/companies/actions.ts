@@ -7,7 +7,7 @@ import { redirect } from 'next/navigation'
 import { requireAuth, isAdminOrManager } from '@/lib/auth'
 import { kstDateString } from '@/lib/datetime'
 import { isReassigned } from '@/lib/assignment'
-import { COMPANY_STATUS } from '@/lib/constants'
+import { COMPANY_STATUS, COMPANY_TEAMS, toCompanyTeam, defaultTeamFor } from '@/lib/constants'
 import { getDefaultMeetingMetricKey } from '@/lib/kpi'
 import { logMeetingKpiEntries } from '@/lib/kpi-log'
 import {
@@ -162,12 +162,16 @@ export async function createCompany(formData: FormData): Promise<ActionResult | 
       ? null
       : data.assigned_to ?? (profile.role === 'sales' ? profile.id : null)
 
+  // 소속 팀(DB 출처): 폼에서 고른 값, 없으면 등록자 팀(관리자 등 팀 없음 → 0팀=회사DB).
+  // 담당자가 다른 팀이어도 이 값은 그대로 유지된다.
+  const team = toCompanyTeam(formData.get('team') as string | null) ?? defaultTeamFor(profile.team)
+
   // INSERT 후 SELECT RLS 충돌 방지: UUID를 미리 생성해 select() 없이 삽입
   const id = randomUUID()
   const supabase = await createClient()
   const { error } = await supabase
     .from('companies')
-    .insert({ id, ...data, assigned_to, inflow_date: data.inflow_date ?? kstDateString() })
+    .insert({ id, ...data, assigned_to, team, inflow_date: data.inflow_date ?? kstDateString() })
 
   if (error) return { error: error.message }
 
@@ -220,13 +224,23 @@ export async function updateCompany(id: string, formData: FormData): Promise<Act
   // 담당자가 다른 사람으로 바뀌면 배정 시각을 갱신해 "신규 배정 DB"로 잡히게 하고,
   // 기존 담당자가 있었다면 이전 담당자로 남긴다 (재배분 표시용)
   const reassigned = !!data.assigned_to && prev?.assigned_to !== data.assigned_to
+
+  // 소속 팀은 매출 귀속 기준이라 관리자/매니저만 바꿀 수 있다 (폼에 필드가 있을 때만).
+  // 'none' = 팀 미지정으로 되돌림.
+  const teamField = formData.get('team') as string | null
+  const teamChange =
+    isAdminOrManager(profile.role) && teamField !== null
+      ? { team: teamField === 'none' ? null : toCompanyTeam(teamField) }
+      : {}
+
   const updatePayload = reassigned
     ? {
         ...data,
+        ...teamChange,
         assigned_at: new Date().toISOString(),
         ...(prev?.assigned_to ? { previous_assigned_to: prev.assigned_to } : {}),
       }
-    : data
+    : { ...data, ...teamChange }
 
   const { error } = await supabase.from('companies').update(updatePayload).eq('id', id)
   if (error) return { error: error.message }
@@ -457,12 +471,16 @@ export async function assignCompanies(
  */
 export async function bulkUpdateCompanies(
   ids: string[],
-  changes: { status?: string; category?: string; source?: string; inflow_month?: string; meeting_type?: string },
+  changes: {
+    status?: string; category?: string; source?: string; inflow_month?: string; meeting_type?: string
+    /** 소속 팀 — 관리자/매니저만. 'none' = 팀 미지정 */
+    team?: string
+  },
 ): Promise<ActionResult | undefined> {
   const profile = await requireAuth()
   if (ids.length === 0) return
 
-  const update: Record<string, string> = {}
+  const update: Record<string, string | null> = {}
   if (changes.status) {
     if (!(COMPANY_STATUS as readonly string[]).includes(changes.status)) {
       return { error: '유효하지 않은 상태입니다.' }
@@ -476,6 +494,14 @@ export async function bulkUpdateCompanies(
       return { error: '유입월 형식이 올바르지 않습니다. (예: 2026-06)' }
     }
     update.inflow_date = `${changes.inflow_month}-01`
+  }
+  if (changes.team) {
+    if (!isAdminOrManager(profile.role)) {
+      return { error: '소속 팀 변경은 관리자/매니저만 가능합니다.' }
+    }
+    if (changes.team === 'none') update.team = null
+    else if ((COMPANY_TEAMS as readonly string[]).includes(changes.team)) update.team = changes.team
+    else return { error: '유효하지 않은 팀입니다.' }
   }
   if (Object.keys(update).length === 0) return { error: '변경할 항목을 선택해주세요.' }
 

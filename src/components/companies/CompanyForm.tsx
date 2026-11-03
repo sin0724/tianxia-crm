@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { COMPANY_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE } from '@/lib/constants'
+import { COMPANY_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE, COMPANY_TEAMS } from '@/lib/constants'
 import { createCompany, updateCompany } from '@/app/(dashboard)/companies/actions'
 import { findDuplicateCandidates } from '@/app/(dashboard)/companies/duplicate-actions'
 import { DuplicateModal } from './DuplicateModal'
@@ -20,6 +20,10 @@ interface CompanyFormProps {
   sourceOptions?: string[]
   /** 미팅 KPI 항목 — 상태를 '미팅진행'으로 바꿀 때 어떤 미팅인지 함께 받는다 */
   meetingMetrics?: KpiMetric[]
+  /** 신규 등록 시 소속 팀 기본값 (등록자 팀, 없으면 0팀) */
+  defaultTeam?: string
+  /** 수정 모드에서 소속 팀 변경 가능 여부 (관리자/매니저) — 신규 등록은 항상 선택 가능 */
+  canEditTeam?: boolean
 }
 
 function toDate(v: string | null | undefined) {
@@ -41,7 +45,10 @@ const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-
 export function CompanyForm({
   profiles, defaultValues: d = {}, companyId, onCancel,
   categoryOptions, sourceOptions, meetingMetrics = [],
+  defaultTeam, canEditTeam = false,
 }: CompanyFormProps) {
+  // 신규 등록은 누구나 팀을 고르고, 등록 후에는 매출 귀속 기준이라 관리자/매니저만 바꾼다
+  const teamEditable = !companyId || canEditTeam
   const categories = categoryOptions ?? [...COMPANY_CATEGORY]
   const sources = sourceOptions ?? [...COMPANY_SOURCE]
   const [status, setStatus] = useState(d.status ?? '신규문의')
@@ -151,6 +158,26 @@ export function CompanyForm({
               <option value="none">미배정 (배분 대기)</option>
               {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
+          </Field>
+          <Field label="소속 팀 (DB 출처)">
+            {teamEditable ? (
+              <select
+                name="team"
+                defaultValue={companyId ? (d.team ?? 'none') : (defaultTeam ?? '0팀')}
+                className={inputCls}
+              >
+                {COMPANY_TEAMS.map(t => (
+                  <option key={t} value={t}>{t === '0팀' ? '0팀 (회사 DB)' : t}</option>
+                ))}
+                {companyId && <option value="none">미지정</option>}
+              </select>
+            ) : (
+              <p className="px-3 py-2 text-sm text-gray-700 bg-gray-50 rounded-xl">
+                {d.team ?? '미지정'}
+                <span className="ml-1.5 text-xs text-gray-400">· 관리자/매니저만 변경</span>
+              </p>
+            )}
+            <p className="mt-1 text-[11px] text-gray-400">담당자가 다른 팀이어도 유지되며, 계약 매출은 이 팀으로 집계됩니다.</p>
           </Field>
           <Field label="유입일 (DB 유입 시점)">
             <input name="inflow_date" type="date"

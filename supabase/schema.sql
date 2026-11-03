@@ -1295,3 +1295,13 @@ CREATE POLICY "kpi_entries_update"
 -- 모호해지므로 FK 없이 UUID만 저장하고, 이름은 앱에서 profiles를 조회해 붙인다.
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS previous_assigned_to UUID;
 COMMENT ON COLUMN companies.previous_assigned_to IS '직전 담당자 (재배분 시 기록, FK 없음)';
+
+
+-- ── 18. 거래처 소속 팀 (2026-11) ─────────────────────────────
+-- 담당자(assigned_to)와 별개로 "이 DB가 어느 팀 DB인가"를 거래처에 저장한다.
+-- 0팀 = 회사(티엔샤) DB. 1팀·2팀 담당자에게 배분/재배분해도 team은 바뀌지 않으며,
+-- 계약 매출도 이 값 기준으로 팀에 귀속된다.
+-- 기존 데이터는 건드리지 않는다(NULL = 팀 미지정). 이후 등록분부터 채워진다.
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS team TEXT;
+COMMENT ON COLUMN companies.team IS '소속 팀(DB 출처) — 0팀(회사DB)/1팀/2팀. 배분해도 유지, 매출 귀속 기준';
+CREATE INDEX IF NOT EXISTS idx_companies_team ON companies(team);

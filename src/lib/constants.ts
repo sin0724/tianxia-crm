@@ -32,6 +32,34 @@ export const COMPANY_SORTS = [
 
 export type CompanySort = typeof COMPANY_SORTS[number]['value']
 
+// 거래처 소속 팀(DB 출처) — 담당자와 별개로 "어느 팀 DB인가". 0팀 = 회사(티엔샤) DB.
+// 다른 팀 담당자에게 배분돼도 바뀌지 않고, 계약 매출도 이 팀으로 귀속된다.
+export const COMPANY_TEAMS = ['0팀', '1팀', '2팀'] as const
+
+export type CompanyTeam = typeof COMPANY_TEAMS[number]
+
+/** 회사 DB 팀 — 자동 유입·관리자 등록 건의 기본값 */
+export const COMPANY_DB_TEAM: CompanyTeam = '0팀'
+
+export const TEAM_BADGE_COLOR: Record<CompanyTeam, string> = {
+  '0팀': 'bg-gray-900 text-white',
+  '1팀': 'bg-sky-100 text-sky-700',
+  '2팀': 'bg-violet-100 text-violet-700',
+}
+
+/** 임의 문자열(예: 프로필 팀 "나병훈1팀")에서 거래처 팀 값을 찾는다 */
+export function toCompanyTeam(v: string | null | undefined): CompanyTeam | null {
+  if (!v) return null
+  const t = v.trim()
+  if ((COMPANY_TEAMS as readonly string[]).includes(t)) return t as CompanyTeam
+  return COMPANY_TEAMS.find(team => t.includes(team)) ?? null
+}
+
+/** 새 거래처의 기본 팀 — 등록자 프로필 팀, 없으면(관리자 등) 회사 DB(0팀) */
+export function defaultTeamFor(profileTeam: string | null | undefined): CompanyTeam {
+  return toCompanyTeam(profileTeam) ?? COMPANY_DB_TEAM
+}
+
 // 계약완료/이탈·보류 = 종료된 건 — 할 일·리마인드·미연락 집계에서 제외
 export const CLOSED_STATUSES = ['계약완료', '이탈/보류'] as const
 

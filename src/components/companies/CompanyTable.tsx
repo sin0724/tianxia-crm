@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { StatusBadge } from './StatusBadge'
-import { COMPANY_STATUS } from '@/lib/constants'
+import { TeamBadge } from './TeamBadge'
+import { COMPANY_STATUS, COMPANY_TEAMS } from '@/lib/constants'
 import { fmtFullDateKST } from '@/lib/datetime'
 import { isReassigned, REASSIGN_AGE_DAYS } from '@/lib/assignment'
 import type { Company, ProfileOption } from '@/lib/companies'
@@ -119,6 +120,7 @@ export function CompanyTable({
   const [bulkSource, setBulkSource]     = useState('')
   const [bulkInflow, setBulkInflow]     = useState('')
   const [bulkMeeting, setBulkMeeting]   = useState('')
+  const [bulkTeam, setBulkTeam]         = useState('')
   const [isDeleting, startTransition]   = useTransition()
 
   const allSelected  = companies.length > 0 && selectedIds.size === companies.length
@@ -192,6 +194,7 @@ export function CompanyTable({
         source:       bulkSource || undefined,
         inflow_month: bulkInflow || undefined,
         meeting_type: bulkStatus === '미팅진행' ? bulkMeeting || undefined : undefined,
+        team:         bulkTeam || undefined,
       })
       if (result?.error) {
         setDeleteError(result.error)
@@ -199,7 +202,7 @@ export function CompanyTable({
       }
       setSelectedIds(new Set())
       setShowBulkEdit(false)
-      setBulkStatus(''); setBulkCategory(''); setBulkSource(''); setBulkInflow(''); setBulkMeeting('')
+      setBulkStatus(''); setBulkCategory(''); setBulkSource(''); setBulkInflow(''); setBulkMeeting(''); setBulkTeam('')
       setAssignedMsg(`${ids.length}건 일괄 수정 완료`)
     })
   }
@@ -364,6 +367,21 @@ export function CompanyTable({
               {sources.map(v => <option key={v} value={v} />)}
             </datalist>
           </div>
+          {/* 소속 팀은 매출 귀속 기준이라 관리자/매니저만 바꾼다 */}
+          {canAssign && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">소속 팀</label>
+              <select
+                value={bulkTeam}
+                onChange={e => setBulkTeam(e.target.value)}
+                className="px-2 py-1.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30"
+              >
+                <option value="">변경 안 함</option>
+                {COMPANY_TEAMS.map(t => <option key={t} value={t}>{t === '0팀' ? '0팀 (회사 DB)' : t}</option>)}
+                <option value="none">미지정</option>
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">유입월 (DB 월)</label>
             <input
@@ -375,7 +393,7 @@ export function CompanyTable({
           </div>
           <button
             onClick={handleBulkEdit}
-            disabled={isDeleting || (!bulkStatus && !bulkCategory.trim() && !bulkSource.trim() && !bulkInflow)}
+            disabled={isDeleting || (!bulkStatus && !bulkCategory.trim() && !bulkSource.trim() && !bulkInflow && !bulkTeam)}
             className="px-4 py-1.5 bg-[#3182f6] text-white text-sm font-medium rounded-xl hover:bg-[#1b64da] disabled:opacity-50 transition-colors"
           >
             {isDeleting ? '수정 중...' : `선택한 ${selectedIds.size}건 수정`}
@@ -416,6 +434,7 @@ export function CompanyTable({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 min-w-0">
+                    <TeamBadge team={c.team} />
                     {isNewAssigned(c) && <NewBadge />}
                     {isReassigned(c) && <ReassignBadge previousName={c.previous_assignee_name} />}
                     {isAssigned(c) && <AssignBadge assignedTo={c.assigned_to} name={c.profiles?.name} />}
@@ -526,6 +545,7 @@ export function CompanyTable({
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
+                      <TeamBadge team={c.team} />
                       {isNewAssigned(c) && <NewBadge />}
                       {isReassigned(c) && <ReassignBadge previousName={c.previous_assignee_name} />}
                       <Link href={`/companies/${c.id}`} className="hover:text-[#3182f6] hover:underline">

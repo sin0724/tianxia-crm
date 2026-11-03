@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendSlackNotification } from '@/lib/slack'
+import { COMPANY_DB_TEAM } from '@/lib/constants'
 
 // ── 메타 리드 동기화 크론 ──────────────────────────────────────
 // 메타 인스턴트 폼(리드 광고)의 신규 리드를 주기적으로 가져와
@@ -301,7 +302,8 @@ export async function POST(request: NextRequest) {
       const mapped = mapLead(lead)
       const { data: created, error } = await supabase
         .from('companies')
-        .insert({ ...mapped, assigned_to: assignedTo })
+        // 메타 광고 리드는 회사 DB(0팀) — 누구에게 배분되든 0팀 건으로 남는다
+        .insert({ ...mapped, assigned_to: assignedTo, team: COMPANY_DB_TEAM })
         .select('id')
         .single()
       if (error) {

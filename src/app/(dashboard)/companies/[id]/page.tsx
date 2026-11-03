@@ -44,6 +44,7 @@ export default async function CompanyDetailPage({ params }: PageProps) {
           categoryOptions={options.categories}
           sourceOptions={options.sources}
           meetingMetrics={meetingMetrics}
+          canEditTeam={profile.role === 'admin' || profile.role === 'manager'}
         />
       </main>
     </>

@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
-import { COMPANY_SORTS, COMPANY_STATUS, STAGES, STAGE_STATUS, type Stage } from '@/lib/constants'
+import { COMPANY_SORTS, COMPANY_STATUS, COMPANY_TEAMS, STAGES, STAGE_STATUS, type Stage } from '@/lib/constants'
 import type { ProfileOption } from '@/lib/companies'
 
 interface CompanyFiltersProps {
@@ -23,6 +23,7 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
   const [assignedTo,  setAssignedTo]  = useState(sp.get('assigned_to') ?? '')
   const [category,    setCategory]    = useState(sp.get('category') ?? '')
   const [source,      setSource]      = useState(sp.get('source') ?? '')
+  const [team,        setTeam]        = useState(sp.get('team') ?? '')
   const [nextAction,  setNextAction]  = useState(sp.get('next_action') ?? '')
   const [inflowMonth, setInflowMonth] = useState(sp.get('inflow_month') ?? '')
   const [assignedFrom,  setAssignedFrom]  = useState(sp.get('assigned_from') ?? '')
@@ -35,7 +36,7 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
 
   function push(overrides: Record<string, string> = {}) {
     const cur = {
-      stage, status, assigned_to: assignedTo, category, source,
+      stage, status, assigned_to: assignedTo, category, source, team,
       next_action: nextAction, inflow_month: inflowMonth,
       assigned_from: assignedFrom, assigned_until: assignedUntil, new: isNew, q, sort,
     }
@@ -51,6 +52,7 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
       assigned_to:  setAssignedTo,
       category:     setCategory,
       source:       setSource,
+      team:         setTeam,
       next_action:  setNextAction,
       inflow_month: setInflowMonth,
       assigned_from:  setAssignedFrom,
@@ -87,12 +89,12 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
 
   function onClear() {
     setStatus(''); setAssignedTo(''); setCategory('')
-    setSource(''); setNextAction(''); setInflowMonth('')
+    setSource(''); setTeam(''); setNextAction(''); setInflowMonth('')
     setAssignedFrom(''); setAssignedUntil(''); setQ(''); setSort('')
     router.push('/companies')
   }
 
-  const hasFilter = [stage, status, assignedTo, category, source, nextAction, inflowMonth, assignedFrom, assignedUntil, isNew, q, sort].some(Boolean)
+  const hasFilter = [stage, status, assignedTo, category, source, team, nextAction, inflowMonth, assignedFrom, assignedUntil, isNew, q, sort].some(Boolean)
 
   // 단계 탭 안에서는 해당 단계의 상태만 노출
   const statusOptions = stage && stage in STAGE_STATUS
@@ -137,6 +139,12 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
             <option value="">전체 담당자</option>
             <option value="none">📥 미배정 (배분 대기)</option>
             {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </Sel>
+
+          <Sel label="소속 팀" value={team} onChange={v => onSelect('team', v)}>
+            <option value="">전체 팀</option>
+            {COMPANY_TEAMS.map(t => <option key={t} value={t}>{t === '0팀' ? '0팀 (회사 DB)' : t}</option>)}
+            <option value="none">팀 미지정</option>
           </Sel>
 
           <Sel label="구분" value={category} onChange={v => onSelect('category', v)}>

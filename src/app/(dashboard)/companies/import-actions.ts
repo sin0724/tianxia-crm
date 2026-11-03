@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { parseDate } from '@/lib/csv'
 import { kstDateString } from '@/lib/datetime'
+import { defaultTeamFor } from '@/lib/constants'
 
 // ── 타입 ──────────────────────────────────────────────────────
 
@@ -126,8 +127,11 @@ export async function checkDuplicates(
 // ── 가져오기 ──────────────────────────────────────────────────
 
 export async function importCompanies(rows: ImportRow[]): Promise<ImportResult> {
-  await requireAuth()
+  const me = await requireAuth()
   const supabase = await createClient()
+  // 가져온 DB의 소속 팀 — 가져온 사람의 팀(관리자 등 팀 없음 → 0팀=회사DB).
+  // 다르면 목록에서 일괄 수정으로 바꾼다.
+  const team = defaultTeamFor(me.team)
 
   const { data: profilesData } = await supabase
     .from('profiles')
@@ -165,6 +169,7 @@ export async function importCompanies(rows: ImportRow[]): Promise<ImportResult> 
       meeting_at:        parseDate(row.meeting_at),
       last_contacted_at: parseDate(row.last_contacted_at),
       assigned_to,
+      team,
     })
 
     if (error) result.errors.push({ idx: i + 1, company_name: row.company_name, reason: error.message })

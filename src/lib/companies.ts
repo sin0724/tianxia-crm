@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { kstStartOfDay, kstMonthString, kstDayStartISO, kstDayEndISO } from '@/lib/datetime'
 import { isReassigned } from '@/lib/assignment'
-import { STAGE_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE, type Stage } from '@/lib/constants'
+import { STAGE_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE, COMPANY_TEAMS, type Stage } from '@/lib/constants'
 
 export interface Company {
   id: string
@@ -21,6 +21,8 @@ export interface Company {
   previous_assigned_to: string | null
   /** 직전 담당자 이름 — previous_assigned_to를 profiles에서 찾아 붙인 값 */
   previous_assignee_name?: string | null
+  /** 소속 팀(DB 출처) — 0팀(회사DB)/1팀/2팀. NULL = 팀 미지정(도입 전 데이터) */
+  team: string | null
   status: string
   inflow_date: string | null
   interest_level: number | null
@@ -48,6 +50,7 @@ export interface CompanyListFilters {
   assigned_to?: string
   category?: string
   source?: string
+  team?: string         // COMPANY_TEAMS 값 또는 'none'(팀 미지정)
   next_action?: string
   inflow_month?: string // "YYYY-MM"
   assigned_from?: string  // 배분일 시작 "YYYY-MM-DD" (KST, 포함)
@@ -85,7 +88,7 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
 
   let query = supabase
     .from('companies')
-    .select('id, company_name, category, region, source, status, phone, inflow_date, created_at, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, assigned_at, previous_assigned_to, profiles(name)', { count: 'exact' })
+    .select('id, company_name, category, region, source, status, phone, inflow_date, created_at, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, assigned_at, previous_assigned_to, team, profiles(name)', { count: 'exact' })
 
   // 정렬 — 최신순 계열은 값이 비어 있는 건(미배분·유입일 없음)을 뒤로 보내고,
   // 같은 값끼리는 등록 최신순으로 묶어 페이지 간 순서가 흔들리지 않게 한다.
@@ -123,6 +126,11 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
   }
   if (filters.category)    query = query.eq('category', filters.category)
   if (filters.source)      query = query.eq('source', filters.source)
+  if (filters.team === 'none') {
+    query = query.is('team', null)
+  } else if (filters.team && (COMPANY_TEAMS as readonly string[]).includes(filters.team)) {
+    query = query.eq('team', filters.team)
+  }
 
   if (filters.stage && filters.stage in STAGE_STATUS) {
     query = query.in('status', STAGE_STATUS[filters.stage as Stage])
