@@ -20,7 +20,7 @@ type TaskCompany = Pick<
 
 const EXCLUDED_STATUSES = CLOSED_STATUSES
 
-const SELECT = 'id, company_name, category, status, phone, assigned_to, inflow_date, next_action_at, last_contacted_at, meeting_at, profiles(name)'
+const SELECT = 'id, company_name, category, status, phone, assigned_to, inflow_date, next_action_at, last_contacted_at, meeting_at, profiles(name, team)'
 
 export interface TaskFilters {
   assigned_to?: string

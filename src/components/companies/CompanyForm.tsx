@@ -2,8 +2,8 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { COMPANY_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE, COMPANY_TEAMS } from '@/lib/constants'
-import { createCompany, updateCompany } from '@/app/(dashboard)/companies/actions'
+import { COMPANY_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE, COMPANY_TEAMS, memberLabel } from '@/lib/constants'
+import { claimCompanyForMyTeam, createCompany, updateCompany } from '@/app/(dashboard)/companies/actions'
 import { findDuplicateCandidates } from '@/app/(dashboard)/companies/duplicate-actions'
 import { DuplicateModal } from './DuplicateModal'
 import type { Company, ProfileOption } from '@/lib/companies'
@@ -56,6 +56,7 @@ export function CompanyForm({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [duplicates, setDuplicates] = useState<DuplicateCandidate[]>([])
+  const [pendingTeam, setPendingTeam] = useState<string | null>(null)
   const pendingFd = useRef<FormData | null>(null)
 
   function handleCancel() {
@@ -93,6 +94,7 @@ export function CompanyForm({
       })
 
       if (candidates.length > 0) {
+        setPendingTeam(fd.get('team') as string | null)
         setDuplicates(candidates)
       } else {
         await submitCreate(fd)
@@ -107,6 +109,16 @@ export function CompanyForm({
     startTransition(() => submitCreate(fd))
   }
 
+  // 기존 0팀 건을 내 팀으로 가져오고, 폼에 적은 내용은 비어 있는 칸에만 채운다
+  function handleClaim(id: string) {
+    const fd = pendingFd.current ?? undefined
+    setDuplicates([])
+    startTransition(async () => {
+      const result = await claimCompanyForMyTeam(id, fd)
+      if (result?.error) setError(result.error)
+    })
+  }
+
   function handleCancelModal() {
     setDuplicates([])
     pendingFd.current = null
@@ -117,7 +129,9 @@ export function CompanyForm({
       {duplicates.length > 0 && (
         <DuplicateModal
           candidates={duplicates}
+          newTeam={pendingTeam}
           onConfirm={handleConfirmAnyway}
+          onClaim={handleClaim}
           onCancel={handleCancelModal}
           isPending={isPending}
         />
@@ -156,7 +170,7 @@ export function CompanyForm({
             <select name="assigned_to" defaultValue={d.assigned_to ?? ''} className={inputCls}>
               <option value="">선택</option>
               <option value="none">미배정 (배분 대기)</option>
-              {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {profiles.map(p => <option key={p.id} value={p.id}>{memberLabel(p.name, p.team)}</option>)}
             </select>
           </Field>
           <Field label="소속 팀 (DB 출처)">

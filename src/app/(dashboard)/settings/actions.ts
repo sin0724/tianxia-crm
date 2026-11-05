@@ -63,8 +63,8 @@ export async function updateMemberAccess(
     // KOL 페이지의 등록/수정 버튼 노출 조건이 바뀜
     revalidatePath('/kol')
   }
-  if (changes.name !== undefined) {
-    // 이름은 거래처 담당자 표기·할 일·대시보드 곳곳에 쓰임
+  if (changes.name !== undefined || changes.team !== undefined) {
+    // 이름·팀은 거래처 담당자 표기·할 일·대시보드 곳곳에 쓰임
     revalidatePath('/companies')
     revalidatePath('/dashboard')
     revalidatePath('/tasks')

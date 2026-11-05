@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { kstStartOfDay, kstMonthString, kstDayStartISO, kstDayEndISO } from '@/lib/datetime'
 import { isReassigned } from '@/lib/assignment'
-import { STAGE_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE, COMPANY_TEAMS, type Stage } from '@/lib/constants'
+import { STAGE_STATUS, COMPANY_CATEGORY, COMPANY_SOURCE, COMPANY_TEAMS, memberLabel, type Stage } from '@/lib/constants'
 
 export interface Company {
   id: string
@@ -35,13 +35,14 @@ export interface Company {
   lost_reason: string | null
   created_at: string
   updated_at: string
-  profiles: { name: string } | null
+  profiles: { name: string; team?: string | null } | null
 }
 
 export interface ProfileOption {
   id: string
   name: string
   role: string
+  team?: string | null
 }
 
 export interface CompanyListFilters {
@@ -88,7 +89,7 @@ export async function getCompanies(filters: CompanyListFilters = {}): Promise<Co
 
   let query = supabase
     .from('companies')
-    .select('id, company_name, category, region, source, status, phone, inflow_date, created_at, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, assigned_at, previous_assigned_to, team, profiles(name)', { count: 'exact' })
+    .select('id, company_name, category, region, source, status, phone, inflow_date, created_at, meeting_at, last_contacted_at, next_action_at, latest_note, assigned_to, assigned_at, previous_assigned_to, team, profiles(name, team)', { count: 'exact' })
 
   // 정렬 — 최신순 계열은 값이 비어 있는 건(미배분·유입일 없음)을 뒤로 보내고,
   // 같은 값끼리는 등록 최신순으로 묶어 페이지 간 순서가 흔들리지 않게 한다.
@@ -268,7 +269,7 @@ export async function getCompany(id: string): Promise<Company | null> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('companies')
-    .select('*, profiles(name)')
+    .select('*, profiles(name, team)')
     .eq('id', id)
     .single()
   if (!data) return null
@@ -282,8 +283,8 @@ async function withPreviousAssigneeNames(companies: Company[]): Promise<Company[
   const ids = [...new Set(companies.map(c => c.previous_assigned_to).filter((v): v is string => !!v))]
   if (ids.length === 0) return companies
   const supabase = await createClient()
-  const { data } = await supabase.from('profiles').select('id, name').in('id', ids)
-  const nameById = new Map((data ?? []).map(p => [p.id as string, p.name as string]))
+  const { data } = await supabase.from('profiles').select('id, name, team').in('id', ids)
+  const nameById = new Map((data ?? []).map(p => [p.id as string, memberLabel(p.name as string, p.team as string | null)]))
   return companies.map(c => ({
     ...c,
     previous_assignee_name: c.previous_assigned_to ? nameById.get(c.previous_assigned_to) ?? null : null,
@@ -330,10 +331,10 @@ export async function getAssignmentOverview(): Promise<AssignmentOverview> {
   const supabase = await createClient()
   const [{ data: rows }, { data: profiles }] = await Promise.all([
     supabase.from('companies').select('assigned_to, assigned_at, last_contacted_at').limit(10000),
-    supabase.from('profiles').select('id, name, role, is_active').order('name'),
+    supabase.from('profiles').select('id, name, role, is_active, team').order('name'),
   ])
 
-  const nameById = new Map((profiles ?? []).map(p => [p.id, p.name]))
+  const nameById = new Map((profiles ?? []).map(p => [p.id, memberLabel(p.name, p.team)]))
 
   let unassigned = 0
   const totals = new Map<string, { total: number; uncontacted: number }>()
@@ -414,7 +415,7 @@ export async function getProfiles(): Promise<ProfileOption[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('profiles')
-    .select('id, name, role')
+    .select('id, name, role, team')
     .eq('is_active', true)
     .order('name')
   return (data ?? []) as ProfileOption[]

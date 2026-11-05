@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { quickLogActivity } from '@/app/(dashboard)/companies/activity-actions'
-import { ACTIVITY_TYPE, ACTIVITY_RESULT } from '@/lib/constants'
+import { ACTIVITY_TYPE, ACTIVITY_RESULT, memberLabel } from '@/lib/constants'
 import type { TaskCompany } from '@/lib/tasks'
 
 function fmtDate(s: string | null) {
@@ -100,7 +100,7 @@ export function TaskSection({ title, companies, dateLabel, dateKey, emptyMessage
                   <p className="text-xs text-gray-400 mt-0.5">
                     {[
                       c.category ?? '—',
-                      c.profiles?.name ?? '—',
+                      c.profiles ? memberLabel(c.profiles.name, c.profiles.team) : '—',
                       c.status,
                       c.inflow_date ? `${c.inflow_date.slice(0, 7).replace('-', '.')} 유입` : null,
                     ].filter(Boolean).join(' · ')}

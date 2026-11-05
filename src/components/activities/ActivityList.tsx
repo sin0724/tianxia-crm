@@ -4,6 +4,7 @@ import {
   type ActivityType,
   type ActivityResult,
 } from '@/lib/constants'
+import { memberLabel } from '@/lib/constants'
 import type { Activity } from '@/lib/activities'
 
 function fmtDateTime(s: string) {
@@ -66,7 +67,7 @@ export function ActivityList({ activities, meetingLabels = {} }: ActivityListPro
                 </span>
               )}
               {a.activity_result && <ResultBadge result={a.activity_result} />}
-              <span className="text-xs text-gray-400 font-medium">{a.profiles?.name ?? '—'}</span>
+              <span className="text-xs text-gray-400 font-medium">{a.profiles ? memberLabel(a.profiles.name, a.profiles.team) : '—'}</span>
             </div>
             <time className="text-xs text-gray-400 whitespace-nowrap shrink-0">
               {fmtDateTime(a.created_at)}

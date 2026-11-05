@@ -10,7 +10,7 @@ export default async function BoardPage() {
 
   const { data } = await supabase
     .from('companies')
-    .select('id, company_name, category, status, next_action_at, profiles(name)')
+    .select('id, company_name, category, status, next_action_at, profiles(name, team)')
     .order('next_action_at', { ascending: true, nullsFirst: false })
     .limit(1000)
 

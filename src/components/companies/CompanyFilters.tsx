@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
-import { COMPANY_SORTS, COMPANY_STATUS, COMPANY_TEAMS, STAGES, STAGE_STATUS, type Stage } from '@/lib/constants'
+import { COMPANY_SORTS, COMPANY_STATUS, COMPANY_TEAMS, STAGES, STAGE_STATUS, memberLabel, type Stage } from '@/lib/constants'
 import type { ProfileOption } from '@/lib/companies'
 
 interface CompanyFiltersProps {
@@ -138,7 +138,7 @@ export function CompanyFilters({ profiles, total, categories, sources, inflowMon
           <Sel label="담당자" value={assignedTo} onChange={v => onSelect('assigned_to', v)}>
             <option value="">전체 담당자</option>
             <option value="none">📥 미배정 (배분 대기)</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {profiles.map(p => <option key={p.id} value={p.id}>{memberLabel(p.name, p.team)}</option>)}
           </Sel>
 
           <Sel label="소속 팀" value={team} onChange={v => onSelect('team', v)}>

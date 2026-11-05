@@ -64,6 +64,7 @@ function harness(options = {}) {
     require(name) {
       if (name === 'next/server') return { NextResponse: { json: (body, init) => ({ body, status: init?.status ?? 200 }) } }
       if (name === '@supabase/supabase-js') return { createClient: () => supabase }
+      if (name === '@/lib/constants') return { COMPANY_DB_TEAM: '0팀' }
       if (name === '@/lib/slack') return { sendSlackNotification: async value => { state.notifications.push(value); return { ok: true } } }
       throw new Error(`Unexpected import: ${name}`)
     },

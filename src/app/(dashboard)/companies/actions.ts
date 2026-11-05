@@ -2,12 +2,13 @@
 
 import { randomUUID } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireAuth, isAdminOrManager } from '@/lib/auth'
 import { kstDateString } from '@/lib/datetime'
 import { isReassigned } from '@/lib/assignment'
-import { COMPANY_STATUS, COMPANY_TEAMS, toCompanyTeam, defaultTeamFor } from '@/lib/constants'
+import { COMPANY_DB_TEAM, COMPANY_STATUS, COMPANY_TEAMS, claimTeamFor, toCompanyTeam, defaultTeamFor } from '@/lib/constants'
 import { getDefaultMeetingMetricKey } from '@/lib/kpi'
 import { logMeetingKpiEntries } from '@/lib/kpi-log'
 import {
@@ -17,6 +18,7 @@ import {
   notifyAssignment,
   createAssignmentNotification,
 } from '@/lib/notifications'
+import { sendSlackNotification } from '@/lib/slack'
 
 interface ActionResult {
   error: string
@@ -195,6 +197,71 @@ export async function createCompany(formData: FormData): Promise<ActionResult | 
 
   revalidatePath('/companies')
   redirect('/companies')
+}
+
+// 가져오기 때 등록 폼에 적은 내용 중 기존 건에서 비어 있는 칸만 채운다
+const CLAIM_FILL_FIELDS = [
+  'category', 'region', 'source', 'contact_name', 'phone', 'email', 'kakao_id',
+  'instagram_url', 'naver_place_url', 'website_url', 'interest_level', 'expected_amount', 'latest_note',
+] as const
+
+/**
+ * 0팀(회사 DB) 건을 담당자 본인 팀으로 가져온다 (중복 확인 후 본인 퍼널 건으로 확정).
+ * 영업은 RLS로 미배정 건을 수정할 수 없어 서비스 롤로 처리하므로, 대상 건은 claimTeamFor로
+ * 직접 검증한다. 매출 귀속이 바뀌는 작업이라 슬랙 채널에 남긴다.
+ */
+export async function claimCompanyForMyTeam(
+  id: string,
+  formData?: FormData,
+): Promise<ActionResult | undefined> {
+  const profile = await requireAuth()
+  const admin = createAdminClient()
+
+  const { data: found, error: findError } = await admin
+    .from('companies')
+    .select(`id, company_name, team, assigned_to, ${CLAIM_FILL_FIELDS.join(', ')}`)
+    .eq('id', id)
+    .maybeSingle()
+  if (findError) return { error: findError.message }
+  const row = found as unknown as (Record<string, unknown> & {
+    company_name: string; team: string | null; assigned_to: string | null
+  }) | null
+  if (!row) return { error: '거래처를 찾을 수 없습니다.' }
+
+  const team = claimTeamFor(row, profile)
+  if (!team) return { error: '내 팀으로 가져올 수 없는 건입니다. 관리자에게 팀 변경을 요청해주세요.' }
+
+  const update: Record<string, unknown> = { team }
+  if (!row.assigned_to) {
+    update.assigned_to = profile.id
+    update.assigned_at = new Date().toISOString()
+  }
+  if (formData) {
+    const entered = extractData(formData)
+    for (const field of CLAIM_FILL_FIELDS) {
+      const current = row[field]
+      if ((current == null || current === '') && entered[field] != null) update[field] = entered[field]
+    }
+  }
+
+  // 조회와 수정 사이에 다른 사람이 가져가거나 배분된 건은 건드리지 않는다
+  const query = admin.from('companies').update(update).eq('id', id).eq('team', COMPANY_DB_TEAM)
+  const { data: updated, error } = await (row.assigned_to
+    ? query.eq('assigned_to', row.assigned_to)
+    : query.is('assigned_to', null)
+  ).select('id')
+  if (error) return { error: error.message }
+  if (!updated || updated.length === 0) return { error: '이미 다른 팀이나 담당자에게 넘어간 건입니다.' }
+
+  await sendSlackNotification({
+    text: `[팀 이관] ${row.company_name}: 0팀 → ${team} (${profile.name})`,
+  }).catch(() => {})
+
+  revalidatePath('/companies')
+  revalidatePath(`/companies/${id}`)
+  revalidatePath('/dashboard')
+  revalidatePath('/tasks')
+  redirect(`/companies/${id}`)
 }
 
 export async function updateCompany(id: string, formData: FormData): Promise<ActionResult | undefined> {

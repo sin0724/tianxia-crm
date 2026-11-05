@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth'
-import { stageOf, STAGES, CLOSED_STATUSES, type Stage } from '@/lib/constants'
+import { memberLabel, stageOf, STAGES, CLOSED_STATUSES, type Stage } from '@/lib/constants'
 import {
   kstStartOfDay, kstEndOfDay, kstStartOfMonth,
   kstStartOfWeek, kstEndOfWeek, kstDaysAgoEnd,
@@ -21,7 +21,7 @@ type DashCompany = {
   next_action_at: string | null
   last_contacted_at: string | null
   contract_amount: number | null
-  profiles: { id: string; name: string } | null
+  profiles: { id: string; name: string; team?: string | null } | null
 }
 
 // ── 공개 타입 ──────────────────────────────────────────────────
@@ -74,7 +74,7 @@ export interface DashboardData {
 const SELECT = [
   'id', 'status', 'category', 'source', 'assigned_to', 'team',
   'created_at', 'inflow_date', 'meeting_at', 'next_action_at', 'last_contacted_at',
-  'contract_amount', 'profiles(id, name)',
+  'contract_amount', 'profiles(id, name, team)',
 ].join(', ')
 
 async function fetchCompanies(profile: Profile): Promise<DashCompany[]> {
@@ -196,7 +196,7 @@ function groupBy(
 
 function computeCharts(companies: DashCompany[]) {
   return {
-    byAssignee: groupBy(companies, c => c.profiles?.name ?? '미배정'),
+    byAssignee: groupBy(companies, c => (c.profiles ? memberLabel(c.profiles.name, c.profiles.team) : '미배정')),
     // 0팀 DB를 1팀 담당자가 계약해도 0팀 매출로 잡히도록 거래처의 team으로 묶는다
     byTeam:     groupBy(companies, c => c.team ?? '팀 미지정')
       .sort((a, b) => a.label.localeCompare(b.label, 'ko')),

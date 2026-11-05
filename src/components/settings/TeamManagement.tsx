@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateMemberAccess } from '@/app/(dashboard)/settings/actions'
+import { COMPANY_TEAMS, toCompanyTeam } from '@/lib/constants'
 
 export interface Member {
   id: string
@@ -166,6 +167,17 @@ export function TeamManagement({ members, myId }: { members: Member[]; myId: str
                 {(Object.keys(ROLE_LABEL) as Member['role'][]).map(r => (
                   <option key={r} value={r}>{ROLE_LABEL[r]}</option>
                 ))}
+              </select>
+              {/* 등록한 거래처의 기본 소속 팀이 된다 */}
+              <select
+                value={toCompanyTeam(m.team) ?? ''}
+                onChange={e => apply(m.id, { team: e.target.value || null })}
+                disabled={isPending}
+                aria-label={`${m.name} 소속 팀`}
+                className="px-2 py-1 border border-gray-300 rounded-md text-xs bg-white disabled:opacity-50"
+              >
+                <option value="">팀 없음</option>
+                {COMPANY_TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
               {/* 관리자는 항상 KOL 관리 권한을 가지므로 켜진 채로 고정 */}
               <label

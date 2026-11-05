@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { StatusBadge } from './StatusBadge'
 import { CompanyForm } from './CompanyForm'
@@ -11,6 +12,7 @@ import type { Company, ProfileOption } from '@/lib/companies'
 import type { Activity } from '@/lib/activities'
 import type { KpiMetric } from '@/lib/kpi'
 import { fmtFullDateTimeKST } from '@/lib/datetime'
+import { memberLabel } from '@/lib/constants'
 
 function fmtDate(s: string | null) {
   if (!s) return '—'
@@ -46,11 +48,13 @@ interface CompanyDetailClientProps {
   meetingMetrics?: KpiMetric[]
   /** 소속 팀 변경 가능 여부 (관리자/매니저) */
   canEditTeam?: boolean
+  /** 0팀 건을 가져갈 수 있는 내 팀 (없으면 null) */
+  claimTeam?: string | null
 }
 
 export function CompanyDetailClient({
   company, profiles, activities,
-  canDelete = false, categoryOptions, sourceOptions, meetingMetrics = [], canEditTeam = false,
+  canDelete = false, categoryOptions, sourceOptions, meetingMetrics = [], canEditTeam = false, claimTeam = null,
 }: CompanyDetailClientProps) {
   const meetingLabels = Object.fromEntries(meetingMetrics.map(m => [m.key, m.label]))
   const [editing, setEditing] = useState(false)
@@ -139,6 +143,18 @@ export function CompanyDetailClient({
         <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-xl">{deleteError}</p>
       )}
 
+      {claimTeam && (
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-50 border border-amber-100 rounded-2xl px-5 py-3">
+          <p className="text-sm text-amber-800">0팀(회사 DB) 건입니다. 본인 퍼널에서 받은 건이면 {claimTeam}으로 가져가세요.</p>
+          <Link
+            href={`/companies/${company.id}/claim`}
+            className="shrink-0 px-3 py-1.5 text-xs font-medium bg-white border border-amber-200 text-amber-800 rounded-xl hover:bg-amber-100 transition-colors"
+          >
+            내 팀으로 가져오기
+          </Link>
+        </div>
+      )}
+
       {/* 기본 정보 */}
       <Card title="기본 정보">
         <Grid>
@@ -146,7 +162,7 @@ export function CompanyDetailClient({
           <Row label="지역"    value={company.region} />
           <Row label="DB 경로" value={company.source} />
           <Row label="소속 팀" value={company.team ? <TeamBadge team={company.team} /> : null} />
-          <Row label="담당자"  value={company.profiles?.name} />
+          <Row label="담당자"  value={company.profiles && memberLabel(company.profiles.name, company.profiles.team)} />
           <Row label="배분일"  value={fmtFullDateTimeKST(company.assigned_at)} />
           {company.previous_assignee_name && (
             <Row label="이전 담당자" value={company.previous_assignee_name} />

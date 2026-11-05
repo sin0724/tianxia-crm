@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { Profile, UserRole } from '@/lib/auth'
+import { memberTeam } from '@/lib/constants'
 
 interface NavItem {
   label: string
@@ -67,7 +68,7 @@ export function Sidebar({ profile }: SidebarProps) {
 
         <div className="mx-3 mb-4 rounded-2xl bg-gray-50 px-4 py-3">
           <p className="text-sm font-semibold text-gray-900 truncate">{profile.name}</p>
-          <p className="mt-0.5 text-xs text-gray-400">{ROLE_LABEL[profile.role]}</p>
+          <p className="mt-0.5 text-xs text-gray-400">{[ROLE_LABEL[profile.role], memberTeam(profile.team)].filter(Boolean).join(' · ')}</p>
         </div>
       </aside>
 

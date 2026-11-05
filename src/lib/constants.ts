@@ -60,6 +60,31 @@ export function defaultTeamFor(profileTeam: string | null | undefined): CompanyT
   return toCompanyTeam(profileTeam) ?? COMPANY_DB_TEAM
 }
 
+/** 담당자의 소속 팀 — 1팀·2팀만. 팀 없는 사람(관리자 등)과 0팀은 null */
+export function memberTeam(profileTeam: string | null | undefined): CompanyTeam | null {
+  const team = toCompanyTeam(profileTeam)
+  return team && team !== COMPANY_DB_TEAM ? team : null
+}
+
+/** 담당자 표기 — 팀이 있으면 "나병훈 (1팀)", 없으면 이름만 */
+export function memberLabel(name: string, profileTeam: string | null | undefined): string {
+  const team = memberTeam(profileTeam)
+  return team ? `${name} (${team})` : name
+}
+
+/**
+ * 0팀(회사 DB) 건을 내 팀으로 가져올 수 있으면 그 팀을 돌려준다.
+ * 미배정이거나 내 담당인 건만 가능 — 다른 담당자가 진행 중인 건은 가져오지 않는다.
+ */
+export function claimTeamFor(
+  company: { team: string | null; assigned_to: string | null },
+  me: { id: string; team: string | null | undefined },
+): CompanyTeam | null {
+  if (company.team !== COMPANY_DB_TEAM) return null
+  if (company.assigned_to && company.assigned_to !== me.id) return null
+  return memberTeam(me.team)
+}
+
 // 계약완료/이탈·보류 = 종료된 건 — 할 일·리마인드·미연락 집계에서 제외
 export const CLOSED_STATUSES = ['계약완료', '이탈/보류'] as const
 

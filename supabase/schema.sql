@@ -1307,6 +1307,34 @@ COMMENT ON COLUMN companies.team IS '소속 팀(DB 출처) — 0팀(회사DB)/1�
 CREATE INDEX IF NOT EXISTS idx_companies_team ON companies(team);
 
 
+-- ── 19. 담당자 소속 팀 (2026-11) ─────────────────────────────
+-- 거래처 등록 시 소속 팀 기본값은 등록자 프로필 팀이다. 프로필 팀이 비어 있으면 0팀으로
+-- 들어가므로 담당자 팀을 채운다. 이미 값이 있으면(설정 화면에서 바꾼 경우) 덮어쓰지 않는다.
+-- 슬랙 ID는 /리드 작성자 확인과 DM에 쓰인다. 이한빛 = 이현우 (같은 사람).
+UPDATE profiles SET team = '1팀' WHERE regexp_replace(name, '\s', '', 'g') = '나병훈' AND team IS NULL;
+UPDATE profiles SET team = '2팀' WHERE regexp_replace(name, '\s', '', 'g') IN ('이한빛', '이현우') AND team IS NULL;
+UPDATE profiles SET slack_user_id = 'U0AH9B51EJ3' WHERE regexp_replace(name, '\s', '', 'g') = '나병훈';
+UPDATE profiles SET slack_user_id = 'U0AJ668UDCH' WHERE regexp_replace(name, '\s', '', 'g') IN ('이한빛', '이현우');
+
+-- 팀이 비어 있던 기존 거래처 채우기 (섹션 18 도입 전 등록분). 등록 규칙과 같이 담당자 팀,
+-- 팀 없는 담당자(관리자 등)나 미배정 건은 0팀. 이미 팀이 있는 건(0팀 포함)은 건드리지 않는다.
+-- 이 파일은 매번 통째로 실행되므로 등록일로 범위를 고정해, 이후 일부러 미지정으로 둔 건은 다시 채우지 않는다.
+-- 봇이 중복 건을 updated_at 최신순으로 고르므로 이 작업으로 값이 바뀌지 않게 트리거를 잠시 끈다.
+ALTER TABLE companies DISABLE TRIGGER trg_companies_updated_at;
+UPDATE companies c
+SET team = p.team
+FROM profiles p
+WHERE c.assigned_to = p.id
+  AND p.team IN ('1팀', '2팀')
+  AND c.team IS NULL
+  AND c.created_at < '2026-11-06 00:00:00+09';
+UPDATE companies
+SET team = '0팀'
+WHERE team IS NULL
+  AND created_at < '2026-11-06 00:00:00+09';
+ALTER TABLE companies ENABLE TRIGGER trg_companies_updated_at;
+
+
 -- ── 99. API 스키마 캐시 갱신 (항상 파일 맨 끝에 둘 것) ───────
 -- 새 컬럼·테이블을 추가해도 Supabase API(PostgREST)가 캐시를 다시 읽기 전까지는
 -- "column ... does not exist"로 조회가 실패한다. 전체 실행 마지막에 갱신을 요청한다.

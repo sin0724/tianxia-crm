@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Header } from '@/components/layout/Header'
 import { requireAuth } from '@/lib/auth'
 import { getProfiles, getCategorySourceOptions } from '@/lib/companies'
-import { COMPANY_STATUS } from '@/lib/constants'
+import { COMPANY_STATUS, memberLabel } from '@/lib/constants'
 
 export default async function ExportPage() {
   const profile = await requireAuth()
@@ -45,7 +45,7 @@ export default async function ExportPage() {
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">담당자 필터</label>
                 <select name="assigned_to" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#3182f6]/30">
                   <option value="">전체 담당자</option>
-                  {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {profiles.map(p => <option key={p.id} value={p.id}>{memberLabel(p.name, p.team)}</option>)}
                 </select>
               </div>
             )}

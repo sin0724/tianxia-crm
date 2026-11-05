@@ -44,6 +44,7 @@ function matches(row, filter) {
 const DEFAULT_PROFILES = [
   { id: 'admin-1', name: '관리자', email: 'admin@example.com', role: 'admin', is_active: true },
   { id: 'sales-1', name: '김영업', email: 'sales@example.com', role: 'sales', is_active: true },
+  { id: 'sales-t1', name: '일팀원', email: 't1@example.com', role: 'sales', team: '1팀', slack_user_id: 'U-T1', is_active: true },
   { id: 'off-1', name: '휴직', email: 'off@example.com', role: 'sales', is_active: false },
 ]
 
@@ -58,6 +59,7 @@ function company(partial) {
     latest_note: null,
     status: '신규문의',
     assigned_to: null,
+    team: null,
     last_contacted_at: null,
     updated_at: '2026-01-01T00:00:00.000Z',
     ...partial,
@@ -73,6 +75,7 @@ function harness(options = {}) {
   }
   const calls = []
   const notifications = []
+  const dms = []
   let seq = 0
 
   function apply(table, state) {
@@ -203,6 +206,10 @@ function harness(options = {}) {
           notifications.push(value)
           return options.slack ?? { ok: true }
         },
+        sendSlackDM: async (slackUserId, value) => {
+          dms.push({ slackUserId, ...value })
+          return options.slack ?? { ok: true }
+        },
       }
     }
     if (name.startsWith('@/')) {
@@ -210,14 +217,9 @@ function harness(options = {}) {
       if (loaded.has(file)) return loaded.get(file)
       const compiled = ts.transpileModule(fs.readFileSync(file, 'utf8'), transpileOpts).outputText
       const loadedModule = { exports: {} }
-      const previous = { module: context.module, exports: context.exports, require: context.require }
-      context.module = loadedModule
-      context.exports = loadedModule.exports
-      context.require = localRequire
-      vm.runInContext(compiled, context)
-      context.module = previous.module
-      context.exports = previous.exports
-      context.require = previous.require
+      // 함수로 감싸야 호출 시점의 exports 참조(exports.COMPANY_TEAMS 등)가 이 모듈을 가리킨다
+      const wrapper = vm.runInContext(`(function (module, exports, require) {${compiled}\n})`, context)
+      wrapper(loadedModule, loadedModule.exports, localRequire)
       loaded.set(file, loadedModule.exports)
       return loadedModule.exports
     }
@@ -235,6 +237,7 @@ function harness(options = {}) {
     db,
     calls,
     notifications,
+    dms,
     async run(body, requestOptions = {}) {
       const header = requestOptions.header === undefined
         ? 'Bearer integration-secret'
@@ -681,4 +684,48 @@ test('a missing service role key fails after validation and does not claim succe
   assert.equal(result.status, 500)
   assert.match(result.body.error, /SUPABASE_SERVICE_ROLE_KEY/)
   assert.equal(h.db.companies.length, 0)
+})
+
+test('a new lead lands in the poster team, 0팀 for a teamless poster, and unset for an unknown poster', async () => {
+  const h = harness()
+  const own = await h.run({ company_name: '일팀건', poster_name: '일팀원' })
+  const admin = await h.run({ company_name: '관리자건', poster_name: '관리자' })
+  const unknown = await h.run({ company_name: '모르는건', poster_name: '없는사람' })
+  assert.equal(h.db.companies.find(row => row.id === own.body.id).team, '1팀')
+  assert.equal(h.db.companies.find(row => row.id === admin.body.id).team, '0팀')
+  assert.equal(h.db.companies.find(row => row.id === unknown.body.id).team, null)
+  assert.equal(h.dms.length, 0)
+})
+
+test('a team member hitting a 0팀 company keeps the team and gets a confirm link by DM', async () => {
+  const h = harness({
+    companies: [company({ id: 'co-zero', company_name: '메타리드', phone: '01077778888', team: '0팀' })],
+  })
+  const result = await h.run({ company_name: '메타리드', phone: '010-7777-8888', poster_name: '일팀원' })
+  assert.equal(result.body.result, 'merged')
+  assert.equal(result.body.needs_team_confirm, true)
+  const row = h.db.companies.find(item => item.id === 'co-zero')
+  assert.equal(row.team, '0팀')
+  assert.equal(row.assigned_to, null)
+  assert.equal(h.dms.length, 1)
+  assert.equal(h.dms[0].slackUserId, 'U-T1')
+  assert.match(h.dms[0].blocks[0].text.text, /https:\/\/crm\.example\.com\/companies\/co-zero\/claim/)
+  assert.equal(h.notifications.length, 0)
+})
+
+test('no team confirm for a teamless poster or a company outside 0팀', async () => {
+  const h = harness({
+    companies: [
+      company({ id: 'co-zero', company_name: '회사건', team: '0팀' }),
+      company({ id: 'co-two', company_name: '이팀건', team: '2팀' }),
+      company({ id: 'co-unset', company_name: '미지정건' }),
+    ],
+  })
+  const teamless = await h.run({ company_name: '회사건', poster_name: '김영업' })
+  const otherTeam = await h.run({ company_name: '이팀건', poster_name: '일팀원' })
+  const unset = await h.run({ company_name: '미지정건', poster_name: '일팀원' })
+  assert.equal(teamless.body.needs_team_confirm, undefined)
+  assert.equal(otherTeam.body.needs_team_confirm, undefined)
+  assert.equal(unset.body.needs_team_confirm, undefined)
+  assert.equal(h.dms.length, 0)
 })

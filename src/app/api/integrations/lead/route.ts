@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { COMPANY_CATEGORY, COMPANY_SOURCE } from '@/lib/constants'
+import { COMPANY_CATEGORY, COMPANY_DB_TEAM, COMPANY_SOURCE, defaultTeamFor, memberTeam } from '@/lib/constants'
 import { kstDateString } from '@/lib/datetime'
-import { sendSlackNotification } from '@/lib/slack'
+import { sendSlackDM, sendSlackNotification } from '@/lib/slack'
 
 // ── 슬랙 리드 등록 웹훅 ────────────────────────────────────────
 // Slack /리드 가 올린 신규 문의를 거래처관리의 신규등록과 같은 companies 행으로 넣는다.
@@ -26,14 +26,17 @@ import { sendSlackNotification } from '@/lib/slack'
 //   dedupe_key?:      string   // Slack ts. 이미 처리됐으면 처음 결과를 그대로 반환
 // }
 //
-// 성공: { id, result: 'created' | 'merged', url }
+// 성공: { id, result: 'created' | 'merged', url, needs_team_confirm? }
+// 신규 건의 소속 팀은 작성자 프로필 팀이다 (작성자를 못 찾으면 미지정).
+// 이미 0팀(회사 DB)에 있는 건에 합쳐지면 팀을 바꾸지 않고 needs_team_confirm: true 를 주며,
+// 작성자에게 슬랙 DM으로 확인 페이지(/companies/{id}/claim)를 보낸다.
 // url 은 항상 http(s) 절대 경로. 슬랙 알림이 <url|열기> 로 쓰려면 스킴이 필요하다.
 
 const SOURCE_FALLBACK = '기타및소개'
 const CATEGORY_FALLBACK = '미분류'
 const MIN_PHONE_DIGITS = 8
 const COMPANY_COLUMNS =
-  'id, company_name, phone, email, contact_name, source, category, interest_level, latest_note, status, assigned_to, last_contacted_at, updated_at'
+  'id, company_name, phone, email, contact_name, source, category, interest_level, latest_note, status, assigned_to, team, last_contacted_at, updated_at'
 
 type LeadResult = 'created' | 'merged'
 
@@ -49,6 +52,7 @@ type CompanyRow = {
   latest_note: string | null
   status: string
   assigned_to: string | null
+  team: string | null
   last_contacted_at: string | null
   updated_at: string
 }
@@ -58,6 +62,7 @@ type ProfileRow = {
   name: string
   email: string
   role: string
+  team: string | null
   slack_user_id: string | null
 }
 
@@ -384,8 +389,23 @@ async function notifyNewLead(
   })
 }
 
-function ok(id: string, result: LeadResult) {
-  return NextResponse.json({ id, result, url: companyUrl(id) })
+// 본인 퍼널 건이 이미 0팀에 있을 때 — 작성자가 직접 확인하고 가져가도록 안내한다.
+// 슬랙 실패가 리드 등록을 실패시키면 안 된다.
+async function askTeamConfirm(company: CompanyRow, poster: ProfileRow, team: string) {
+  const claimUrl = `${companyUrl(company.id)}/claim`
+  const text = [
+    `⚠️ *이미 0팀(회사 DB)에 있는 거래처입니다:* ${slackLabel(company.company_name)}`,
+    '새로 만들지 않고 기존 건에 합쳤습니다.',
+    `본인 퍼널 건이 맞으면 확인 후 ${team}으로 가져가 주세요: <${claimUrl}|확인하기>`,
+  ].join('\n')
+  await sendSlackDM(poster.slack_user_id, {
+    text: `[중복 확인] ${company.company_name}: 이미 0팀에 있는 거래처입니다`,
+    blocks: [{ type: 'section', text: { type: 'mrkdwn', text } }],
+  }).catch(() => {})
+}
+
+function ok(id: string, result: LeadResult, extra?: { needs_team_confirm: true }) {
+  return NextResponse.json({ id, result, url: companyUrl(id), ...extra })
 }
 
 export async function POST(request: NextRequest) {
@@ -444,7 +464,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profileRows, error: profileError } = await supabase
       .from('profiles')
-      .select('id, name, email, role, slack_user_id')
+      .select('id, name, email, role, team, slack_user_id')
       .eq('is_active', true)
     if (profileError) throw new Error(profileError.message)
     const profiles = (profileRows ?? []) as ProfileRow[]
@@ -475,6 +495,11 @@ export async function POST(request: NextRequest) {
         latest_note: intendedNote,
         last_contacted_at: company.last_contacted_at,
       })
+      const posterTeam = poster ? memberTeam(poster.team) : null
+      if (poster && posterTeam && company.team === COMPANY_DB_TEAM) {
+        await askTeamConfirm(company, poster, posterTeam)
+        return ok(company.id, 'merged', { needs_team_confirm: true })
+      }
       return ok(company.id, 'merged')
     }
 
@@ -488,6 +513,8 @@ export async function POST(request: NextRequest) {
         phone: input.phone,
         email: input.email,
         assigned_to: poster?.id ?? null,
+        // 등록자 팀, 팀 없는 등록자는 0팀. 작성자를 못 찾으면 어느 팀 건인지 모르니 미지정
+        team: poster ? defaultTeamFor(poster.team) : null,
         status: '신규문의',
         inflow_date: kstDateString(),
         interest_level: input.interestLevel,

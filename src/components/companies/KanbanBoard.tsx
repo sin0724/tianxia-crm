@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useOptimistic, useTransition, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { COMPANY_STATUS, STATUS_COLOR, STAGES, STAGE_STATUS, type CompanyStatus } from '@/lib/constants'
+import { COMPANY_STATUS, STATUS_COLOR, STAGES, STAGE_STATUS, memberLabel, type CompanyStatus } from '@/lib/constants'
 import { updateCompanyStatus } from '@/app/(dashboard)/companies/actions'
 
 export interface BoardCompany {
@@ -12,7 +12,7 @@ export interface BoardCompany {
   category: string | null
   status: string
   next_action_at: string | null
-  profiles: { name: string } | null
+  profiles: { name: string; team?: string | null } | null
 }
 
 function fmtDate(s: string | null) {
@@ -95,7 +95,7 @@ export function KanbanBoard({ companies }: { companies: BoardCompany[] }) {
                             {c.company_name}
                           </Link>
                           <p className="mt-1 text-xs text-gray-400 truncate">
-                            {[c.category, c.profiles?.name].filter(Boolean).join(' · ') || '—'}
+                            {[c.category, c.profiles && memberLabel(c.profiles.name, c.profiles.team)].filter(Boolean).join(' · ') || '—'}
                           </p>
                           {c.next_action_at && (
                             <p className="mt-0.5 text-xs text-gray-500">액션 {fmtDate(c.next_action_at)}</p>

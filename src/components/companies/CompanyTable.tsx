@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { StatusBadge } from './StatusBadge'
 import { TeamBadge } from './TeamBadge'
-import { COMPANY_STATUS, COMPANY_TEAMS } from '@/lib/constants'
+import { COMPANY_STATUS, COMPANY_TEAMS, memberLabel } from '@/lib/constants'
 import { fmtFullDateKST } from '@/lib/datetime'
 import { isReassigned, REASSIGN_AGE_DAYS } from '@/lib/assignment'
 import type { Company, ProfileOption } from '@/lib/companies'
@@ -276,7 +276,7 @@ export function CompanyTable({
                     aria-label="배분할 담당자"
                   >
                     <option value="">담당자 선택</option>
-                    {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {profiles.map(p => <option key={p.id} value={p.id}>{memberLabel(p.name, p.team)}</option>)}
                   </select>
                   <button
                     onClick={() => handleAssign(assignee)}
@@ -448,7 +448,7 @@ export function CompanyTable({
                   {[
                     c.category, c.region, c.source,
                     c.inflow_date ? `${fmtMonth(c.inflow_date)} 유입` : null,
-                    c.profiles?.name,
+                    c.profiles && memberLabel(c.profiles.name, c.profiles.team),
                     c.previous_assignee_name ? `이전 ${c.previous_assignee_name}` : null,
                     c.assigned_at ? `${fmtFullDateKST(c.assigned_at)} 배분` : null,
                   ].filter(Boolean).join(' · ') || '—'}
@@ -559,7 +559,7 @@ export function CompanyTable({
                   <Td>{fmtMonth(c.inflow_date)}</Td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
-                      {c.profiles?.name ?? '—'}
+                      {c.profiles ? memberLabel(c.profiles.name, c.profiles.team) : '—'}
                       {isAssigned(c) && <AssignBadge assignedTo={c.assigned_to} name={c.profiles?.name} />}
                     </span>
                     {c.previous_assignee_name && (
