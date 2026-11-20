@@ -66,9 +66,10 @@ export function memberTeam(profileTeam: string | null | undefined): CompanyTeam 
   return team && team !== COMPANY_DB_TEAM ? team : null
 }
 
-/** 담당자 표기 — 팀이 있으면 "나병훈 (1팀)", 없으면 이름만 */
+/** 담당자 표기 — 팀이 있으면 "나병훈 (1팀)"·"김재연 (0팀)", 없으면 이름만 */
 export function memberLabel(name: string, profileTeam: string | null | undefined): string {
-  const team = memberTeam(profileTeam)
+  // 0팀 소속 담당자도 표기한다 (memberTeam은 0팀 건 가져오기 판단용이라 0팀을 제외함)
+  const team = toCompanyTeam(profileTeam)
   return team ? `${name} (${team})` : name
 }
 
