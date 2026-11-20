@@ -13,6 +13,7 @@ export interface Member {
   team: string | null
   is_active: boolean
   can_manage_kol: boolean
+  can_assign: boolean
 }
 
 const ROLE_LABEL = { admin: '관리자', manager: '매니저', sales: '영업' } as const
@@ -192,6 +193,21 @@ export function TeamManagement({ members, myId }: { members: Member[]; myId: str
                   className="w-3.5 h-3.5 accent-blue-600 disabled:opacity-50"
                 />
                 KOL 관리
+              </label>
+              {/* 관리자/매니저는 역할만으로 배분 권한이 있으므로 켜진 채로 고정.
+                  영업은 켜 준 사람만 거래처 전체를 보고 배분할 수 있다 (나머지는 본인 건만). */}
+              <label
+                className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer"
+                title="거래처 전체 열람·배분·소속 팀 변경 권한 (영업 역할이어도 켜면 배분 가능)"
+              >
+                <input
+                  type="checkbox"
+                  checked={m.role !== 'sales' || m.can_assign}
+                  onChange={e => apply(m.id, { can_assign: e.target.checked })}
+                  disabled={isPending || m.role !== 'sales'}
+                  className="w-3.5 h-3.5 accent-blue-600 disabled:opacity-50"
+                />
+                배분
               </label>
               {m.id !== myId && (
                 <button

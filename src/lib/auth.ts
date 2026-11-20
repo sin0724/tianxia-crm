@@ -13,6 +13,8 @@ export interface Profile {
   is_active: boolean
   /** KOL 리스트 관리 권한 — role과 별개로 admin이 담당자에게 켜 준다 */
   can_manage_kol: boolean
+  /** 거래처 배분 권한 — role과 별개로 admin이 켜 준다 (예: 0팀 영업 중 배분 담당) */
+  can_assign: boolean
 }
 
 export async function getProfile(): Promise<Profile | null> {
@@ -23,7 +25,7 @@ export async function getProfile(): Promise<Profile | null> {
 
   const { data } = await supabase
     .from('profiles')
-    .select('id, name, email, role, team, slack_user_id, is_active, can_manage_kol')
+    .select('id, name, email, role, team, slack_user_id, is_active, can_manage_kol, can_assign')
     .eq('id', user.id)
     .single()
 
@@ -48,6 +50,12 @@ export async function requireRole(roles: UserRole[]): Promise<Profile> {
 
 export function isAdminOrManager(role: UserRole): boolean {
   return role === 'admin' || role === 'manager'
+}
+
+// 거래처 전체 열람·배분·소속 팀 변경 권한 (DB의 is_company_supervisor()와 같은 기준).
+// admin/manager는 항상 보유하고, 영업은 admin이 설정 > 팀 관리에서 "배분"을 켜 준 담당자만.
+export function canAssignCompanies(profile: Pick<Profile, 'role' | 'can_assign'>): boolean {
+  return isAdminOrManager(profile.role) || !!profile.can_assign
 }
 
 // KOL 등록/수정/삭제·엑셀 가져오기·카테고리 관리 권한.

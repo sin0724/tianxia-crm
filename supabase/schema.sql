@@ -244,6 +244,26 @@ AS $$
   );
 $$;
 
+-- 거래처 배분 권한 — role과 별개로 admin이 특정 담당자에게만 켜 주는 플래그.
+-- 영업(sales) 역할이어도 이 값이 켜져 있으면 관리자/매니저처럼 거래처 전체를 보고 배분할 수 있다.
+-- (예: 0팀 영업 담당자 중 회사 DB를 나눠 주는 사람) 다른 영업 담당자는 본인 건만 본다.
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS can_assign BOOLEAN NOT NULL DEFAULT false;
+
+-- 거래처 전체 열람·수정·배분 가능 여부 (admin/manager 또는 can_assign). 거래처 관련 RLS에만 쓴다.
+CREATE OR REPLACE FUNCTION is_company_supervisor()
+RETURNS BOOLEAN
+LANGUAGE SQL
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM profiles p
+    WHERE p.id = auth.uid()
+      AND p.is_active = true
+      AND (p.role IN ('admin', 'manager') OR p.can_assign)
+  );
+$$;
+
 
 -- ── 5. TRIGGERS ─────────────────────────────────────────────
 
@@ -270,7 +290,7 @@ CREATE OR REPLACE TRIGGER trg_notification_settings_updated_at
   BEFORE UPDATE ON notification_settings
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- role / is_active / can_manage_kol 변경은 admin만 가능 (권한 상승 방지)
+-- role / is_active / can_manage_kol / can_assign 변경은 admin만 가능 (권한 상승 방지)
 -- auth 컨텍스트가 없는 경우(service role, SQL Editor)는 허용
 CREATE OR REPLACE FUNCTION protect_profile_fields()
 RETURNS TRIGGER
@@ -281,10 +301,11 @@ BEGIN
   IF auth.uid() IS NOT NULL
      AND (NEW.role IS DISTINCT FROM OLD.role
           OR NEW.is_active IS DISTINCT FROM OLD.is_active
-          OR NEW.can_manage_kol IS DISTINCT FROM OLD.can_manage_kol)
+          OR NEW.can_manage_kol IS DISTINCT FROM OLD.can_manage_kol
+          OR NEW.can_assign IS DISTINCT FROM OLD.can_assign)
      AND COALESCE(get_my_role()::text, '') <> 'admin'
   THEN
-    RAISE EXCEPTION 'role/is_active/can_manage_kol은 관리자만 변경할 수 있습니다.';
+    RAISE EXCEPTION 'role/is_active/can_manage_kol/can_assign은 관리자만 변경할 수 있습니다.';
   END IF;
   RETURN NEW;
 END;
@@ -387,13 +408,13 @@ CREATE POLICY "profiles_delete"
   USING (get_my_role() = 'admin');
 
 -- ── companies ──
--- admin/manager: 전체, sales: 본인 담당 거래처만
+-- admin/manager(+배분 권한 담당자): 전체, sales: 본인 담당 거래처만
 
 DROP POLICY IF EXISTS "companies_select" ON companies;
 CREATE POLICY "companies_select"
   ON companies FOR SELECT
   TO authenticated
-  USING (is_admin_or_manager() OR assigned_to = auth.uid());
+  USING (is_company_supervisor() OR assigned_to = auth.uid());
 
 DROP POLICY IF EXISTS "companies_insert" ON companies;
 CREATE POLICY "companies_insert"
@@ -405,7 +426,7 @@ DROP POLICY IF EXISTS "companies_update" ON companies;
 CREATE POLICY "companies_update"
   ON companies FOR UPDATE
   TO authenticated
-  USING (is_admin_or_manager() OR assigned_to = auth.uid());
+  USING (is_company_supervisor() OR assigned_to = auth.uid());
 
 DROP POLICY IF EXISTS "companies_delete" ON companies;
 CREATE POLICY "companies_delete"
@@ -423,7 +444,7 @@ CREATE POLICY "activities_select"
     EXISTS (
       SELECT 1 FROM companies c
       WHERE c.id = company_id
-        AND (is_admin_or_manager() OR c.assigned_to = auth.uid())
+        AND (is_company_supervisor() OR c.assigned_to = auth.uid())
     )
   );
 
@@ -432,11 +453,11 @@ CREATE POLICY "activities_insert"
   ON activities FOR INSERT
   TO authenticated
   WITH CHECK (
-    (user_id = auth.uid() OR is_admin_or_manager())
+    (user_id = auth.uid() OR is_company_supervisor())
     AND EXISTS (
       SELECT 1 FROM companies c
       WHERE c.id = company_id
-        AND (is_admin_or_manager() OR c.assigned_to = auth.uid())
+        AND (is_company_supervisor() OR c.assigned_to = auth.uid())
     )
   );
 
@@ -489,7 +510,7 @@ CREATE POLICY "company_products_select"
     EXISTS (
       SELECT 1 FROM companies c
       WHERE c.id = company_id
-        AND (is_admin_or_manager() OR c.assigned_to = auth.uid())
+        AND (is_company_supervisor() OR c.assigned_to = auth.uid())
     )
   );
 
@@ -501,7 +522,7 @@ CREATE POLICY "company_products_insert"
     EXISTS (
       SELECT 1 FROM companies c
       WHERE c.id = company_id
-        AND (is_admin_or_manager() OR c.assigned_to = auth.uid())
+        AND (is_company_supervisor() OR c.assigned_to = auth.uid())
     )
   );
 
@@ -513,7 +534,7 @@ CREATE POLICY "company_products_delete"
     EXISTS (
       SELECT 1 FROM companies c
       WHERE c.id = company_id
-        AND (is_admin_or_manager() OR c.assigned_to = auth.uid())
+        AND (is_company_supervisor() OR c.assigned_to = auth.uid())
     )
   );
 
@@ -597,7 +618,7 @@ DROP POLICY IF EXISTS "notifications_insert" ON notifications;
 CREATE POLICY "notifications_insert"
   ON notifications FOR INSERT
   TO authenticated
-  WITH CHECK (is_admin_or_manager() OR user_id = auth.uid());
+  WITH CHECK (is_company_supervisor() OR user_id = auth.uid());
 
 DROP POLICY IF EXISTS "notifications_update" ON notifications;
 CREATE POLICY "notifications_update"
@@ -1278,7 +1299,7 @@ DROP POLICY IF EXISTS "kpi_entries_insert" ON kpi_entries;
 CREATE POLICY "kpi_entries_insert"
   ON kpi_entries FOR INSERT
   TO authenticated
-  WITH CHECK (user_id = auth.uid() OR is_admin_or_manager());
+  WITH CHECK (user_id = auth.uid() OR is_company_supervisor());
 
 -- 미팅 종류를 나중에 바로잡을 수 있어야 한다 (본인 기록 또는 admin)
 DROP POLICY IF EXISTS "kpi_entries_update" ON kpi_entries;

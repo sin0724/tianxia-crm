@@ -35,6 +35,7 @@ export async function updateMemberAccess(
     is_active?: boolean
     team?: string | null
     can_manage_kol?: boolean
+    can_assign?: boolean
   },
 ): Promise<{ error?: string }> {
   const profile = await requireAuth()
@@ -63,7 +64,8 @@ export async function updateMemberAccess(
     // KOL 페이지의 등록/수정 버튼 노출 조건이 바뀜
     revalidatePath('/kol')
   }
-  if (changes.name !== undefined || changes.team !== undefined) {
+  if (changes.name !== undefined || changes.team !== undefined
+      || changes.can_assign !== undefined || changes.role !== undefined) {
     // 이름·팀은 거래처 담당자 표기·할 일·대시보드 곳곳에 쓰임
     revalidatePath('/companies')
     revalidatePath('/dashboard')

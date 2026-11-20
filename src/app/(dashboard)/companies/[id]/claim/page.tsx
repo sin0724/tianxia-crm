@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { ClaimTeamButton } from '@/components/companies/ClaimTeamButton'
 import { TeamBadge } from '@/components/companies/TeamBadge'
-import { requireAuth, isAdminOrManager } from '@/lib/auth'
+import { requireAuth, canAssignCompanies } from '@/lib/auth'
 import { COMPANY_DB_TEAM, claimTeamFor, memberLabel, memberTeam } from '@/lib/constants'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -32,7 +32,7 @@ export default async function ClaimCompanyPage({ params }: PageProps) {
     profiles: { name: string; team: string | null } | null
   }
   const claimTeam = claimTeamFor(company, profile)
-  const canView = isAdminOrManager(profile.role) || company.assigned_to === profile.id
+  const canView = canAssignCompanies(profile) || company.assigned_to === profile.id
   const assignee = company.profiles ? memberLabel(company.profiles.name, company.profiles.team) : null
 
   let notice: string | null = null

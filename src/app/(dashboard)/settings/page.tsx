@@ -18,7 +18,7 @@ export default async function SettingsPage() {
     const [{ data }, metrics] = await Promise.all([
       supabase
         .from('profiles')
-        .select('id, name, email, role, team, is_active, can_manage_kol')
+        .select('id, name, email, role, team, is_active, can_manage_kol, can_assign')
         .order('is_active', { ascending: true })
         .order('name'),
       getAllKpiMetrics(),

@@ -5,7 +5,7 @@ import { CompanyTable } from '@/components/companies/CompanyTable'
 import { Pagination } from '@/components/companies/Pagination'
 import { getCompanies, getProfiles, getCategorySourceOptions, getNewAssignedCount } from '@/lib/companies'
 import { getKpiMetrics } from '@/lib/kpi'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, canAssignCompanies } from '@/lib/auth'
 import type { CompanyListFilters } from '@/lib/companies'
 
 interface PageProps {
@@ -47,7 +47,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-gray-500">거래처 목록</p>
           <div className="flex flex-wrap items-center gap-2">
-            {(profile.role === 'admin' || profile.role === 'manager') && (
+            {canAssignCompanies(profile) && (
               <Link href="/companies/assignments" className="px-3 py-2 text-sm font-medium text-gray-700 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-gray-100 transition-colors">
                 ⚖️ 배분 현황
               </Link>
@@ -78,7 +78,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
         <CompanyTable
           companies={result.companies}
           canDelete={profile.role === 'admin'}
-          canAssign={profile.role === 'admin' || profile.role === 'manager'}
+          canAssign={canAssignCompanies(profile)}
           profiles={profiles}
           categories={options.categories}
           sources={options.sources}

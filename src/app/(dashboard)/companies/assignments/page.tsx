@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Header } from '@/components/layout/Header'
-import { requireRole } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import { requireAuth, canAssignCompanies } from '@/lib/auth'
 import { getAssignmentOverview } from '@/lib/companies'
 import { fmtMonthLabelKST } from '@/lib/datetime'
 
@@ -18,7 +19,8 @@ function fmtDateTime(s: string) {
 }
 
 export default async function AssignmentsPage() {
-  const profile = await requireRole(['admin', 'manager'])
+  const profile = await requireAuth()
+  if (!canAssignCompanies(profile)) redirect('/dashboard')
   const isAdmin = profile.role === 'admin'
   const { unassigned, loads, batches, monthly, monthlyAssignees } = await getAssignmentOverview()
   const maxLoad = Math.max(1, ...loads.map(l => l.total))

@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireAuth, isAdminOrManager } from '@/lib/auth'
+import { requireAuth, canAssignCompanies } from '@/lib/auth'
 import { claimTeamFor } from '@/lib/constants'
 
 // ── 타입 ──────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ export async function findDuplicateCandidates(data: {
     if (found.has(row.id)) {
       found.get(row.id)!.matchReasons.push(reason)
     } else {
-      const canView = isAdminOrManager(profile.role) || row.assigned_to === profile.id
+      const canView = canAssignCompanies(profile) || row.assigned_to === profile.id
       found.set(row.id, {
         id:               row.id,
         company_name:     row.company_name,

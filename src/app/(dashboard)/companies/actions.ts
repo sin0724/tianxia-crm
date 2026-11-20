@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { requireAuth, isAdminOrManager } from '@/lib/auth'
+import { requireAuth, canAssignCompanies } from '@/lib/auth'
 import { kstDateString } from '@/lib/datetime'
 import { isReassigned } from '@/lib/assignment'
 import { COMPANY_DB_TEAM, COMPANY_STATUS, COMPANY_TEAMS, claimTeamFor, toCompanyTeam, defaultTeamFor } from '@/lib/constants'
@@ -296,7 +296,7 @@ export async function updateCompany(id: string, formData: FormData): Promise<Act
   // 'none' = 팀 미지정으로 되돌림.
   const teamField = formData.get('team') as string | null
   const teamChange =
-    isAdminOrManager(profile.role) && teamField !== null
+    canAssignCompanies(profile) && teamField !== null
       ? { team: teamField === 'none' ? null : toCompanyTeam(teamField) }
       : {}
 
@@ -405,8 +405,8 @@ export async function assignCompanies(
   assigneeId: string | 'auto',
 ): Promise<AssignResult | undefined> {
   const profile = await requireAuth()
-  if (!isAdminOrManager(profile.role)) {
-    return { error: '거래처 배분은 관리자/매니저만 가능합니다.' }
+  if (!canAssignCompanies(profile)) {
+    return { error: '거래처 배분 권한이 없습니다.' }
   }
   if (ids.length === 0) return
 
@@ -420,6 +420,8 @@ export async function assignCompanies(
       .select('id, name, slack_user_id')
       .eq('role', 'sales')
       .eq('is_active', true)
+      // 배분 권한자는 나눠 주는 쪽이라 자동 균등 배분 대상에서 뺀다
+      .eq('can_assign', false)
       .order('name')
     assignees = data ?? []
     if (assignees.length === 0) return { error: '배분할 활성 영업사원이 없습니다.' }
@@ -563,8 +565,8 @@ export async function bulkUpdateCompanies(
     update.inflow_date = `${changes.inflow_month}-01`
   }
   if (changes.team) {
-    if (!isAdminOrManager(profile.role)) {
-      return { error: '소속 팀 변경은 관리자/매니저만 가능합니다.' }
+    if (!canAssignCompanies(profile)) {
+      return { error: '소속 팀 변경 권한이 없습니다.' }
     }
     if (changes.team === 'none') update.team = null
     else if ((COMPANY_TEAMS as readonly string[]).includes(changes.team)) update.team = changes.team

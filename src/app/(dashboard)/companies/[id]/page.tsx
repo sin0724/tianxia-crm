@@ -5,7 +5,7 @@ import { CompanyDetailClient } from '@/components/companies/CompanyDetailClient'
 import { getCompany, getProfiles, getCategorySourceOptions } from '@/lib/companies'
 import { getActivities } from '@/lib/activities'
 import { getKpiMetrics } from '@/lib/kpi'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, canAssignCompanies } from '@/lib/auth'
 import { claimTeamFor } from '@/lib/constants'
 
 interface PageProps {
@@ -45,7 +45,7 @@ export default async function CompanyDetailPage({ params }: PageProps) {
           categoryOptions={options.categories}
           sourceOptions={options.sources}
           meetingMetrics={meetingMetrics}
-          canEditTeam={profile.role === 'admin' || profile.role === 'manager'}
+          canEditTeam={canAssignCompanies(profile)}
           claimTeam={claimTeamFor(company, profile)}
         />
       </main>
