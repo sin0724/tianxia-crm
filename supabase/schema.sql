@@ -249,6 +249,10 @@ $$;
 -- (예: 0팀 영업 담당자 중 회사 DB를 나눠 주는 사람) 다른 영업 담당자는 본인 건만 본다.
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS can_assign BOOLEAN NOT NULL DEFAULT false;
 
+-- 퇴사 처리 시각 — 값이 있으면 퇴사자. is_active = false와 함께 쓰여 로그인은 막히고,
+-- 팀 관리의 승인 대기 목록에서 빠져 '퇴사자' 목록으로 간다. 거래처·활동·KPI 기록은 그대로 남는다.
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS retired_at TIMESTAMPTZ;
+
 -- 거래처 전체 열람·수정·배분 가능 여부 (admin/manager 또는 can_assign). 거래처 관련 RLS에만 쓴다.
 CREATE OR REPLACE FUNCTION is_company_supervisor()
 RETURNS BOOLEAN
@@ -302,10 +306,11 @@ BEGIN
      AND (NEW.role IS DISTINCT FROM OLD.role
           OR NEW.is_active IS DISTINCT FROM OLD.is_active
           OR NEW.can_manage_kol IS DISTINCT FROM OLD.can_manage_kol
-          OR NEW.can_assign IS DISTINCT FROM OLD.can_assign)
+          OR NEW.can_assign IS DISTINCT FROM OLD.can_assign
+          OR NEW.retired_at IS DISTINCT FROM OLD.retired_at)
      AND COALESCE(get_my_role()::text, '') <> 'admin'
   THEN
-    RAISE EXCEPTION 'role/is_active/can_manage_kol/can_assign은 관리자만 변경할 수 있습니다.';
+    RAISE EXCEPTION 'role/is_active/can_manage_kol/can_assign/retired_at은 관리자만 변경할 수 있습니다.';
   END IF;
   RETURN NEW;
 END;

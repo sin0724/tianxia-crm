@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { updateMemberAccess } from '@/app/(dashboard)/settings/actions'
+import { updateMemberAccess, setMemberRetired } from '@/app/(dashboard)/settings/actions'
 import { COMPANY_TEAMS, toCompanyTeam } from '@/lib/constants'
 
 export interface Member {
@@ -14,6 +14,8 @@ export interface Member {
   is_active: boolean
   can_manage_kol: boolean
   can_assign: boolean
+  /** 퇴사 처리 시각 — 있으면 퇴사자 */
+  retired_at: string | null
 }
 
 const ROLE_LABEL = { admin: '관리자', manager: '매니저', sales: '영업' } as const
@@ -29,6 +31,20 @@ export function TeamManagement({ members, myId }: { members: Member[]; myId: str
     setError(null)
     startTransition(async () => {
       const result = await updateMemberAccess(targetId, changes)
+      if (result?.error) setError(result.error)
+      else router.refresh()
+    })
+  }
+
+  function retire(m: Member, retired: boolean) {
+    const msg = retired
+      ? `${m.name} 님을 퇴사 처리할까요?
+로그인이 막히고 목록에서 빠집니다. 거래처·활동·KPI 기록은 그대로 남습니다.`
+      : `${m.name} 님을 복구할까요? 바로 다시 로그인할 수 있게 됩니다.`
+    if (!window.confirm(msg)) return
+    setError(null)
+    startTransition(async () => {
+      const result = await setMemberRetired(m.id, retired)
       if (result?.error) setError(result.error)
       else router.refresh()
     })
@@ -52,7 +68,10 @@ export function TeamManagement({ members, myId }: { members: Member[]; myId: str
     })
   }
 
-  const pending = members.filter(m => !m.is_active)
+  const [showRetired, setShowRetired] = useState(false)
+
+  const retired = members.filter(m => !m.is_active && m.retired_at)
+  const pending = members.filter(m => !m.is_active && !m.retired_at)
   const active  = members.filter(m => m.is_active)
 
   return (
@@ -104,13 +123,23 @@ export function TeamManagement({ members, myId }: { members: Member[]; myId: str
                   )}
                   <p className="text-xs text-gray-500 truncate">{m.email}</p>
                 </div>
-                <button
-                  onClick={() => apply(m.id, { is_active: true })}
-                  disabled={isPending}
-                  className="shrink-0 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                >
-                  승인
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => apply(m.id, { is_active: true })}
+                    disabled={isPending}
+                    className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    승인
+                  </button>
+                  <button
+                    onClick={() => retire(m, true)}
+                    disabled={isPending}
+                    className="px-2 py-1.5 border border-gray-300 text-gray-500 text-xs rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    title="승인하지 않고 목록에서 뺍니다"
+                  >
+                    퇴사 처리
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -218,10 +247,53 @@ export function TeamManagement({ members, myId }: { members: Member[]; myId: str
                   비활성화
                 </button>
               )}
+              {m.id !== myId && (
+                <button
+                  onClick={() => retire(m, true)}
+                  disabled={isPending}
+                  className="px-2 py-1 border border-red-200 text-red-500 text-xs rounded-md hover:bg-red-50 disabled:opacity-50 transition-colors"
+                >
+                  퇴사 처리
+                </button>
+              )}
             </div>
           </div>
         ))}
       </div>
+
+      {retired.length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowRetired(v => !v)}
+            className="text-xs font-medium text-gray-400 hover:text-gray-600"
+          >
+            {showRetired ? '▾' : '▸'} 퇴사자 ({retired.length})
+          </button>
+          {showRetired && (
+            <div className="mt-2 space-y-2">
+              {retired.map(m => (
+                <div key={m.id} className="flex items-center justify-between gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-gray-500 truncate">{m.name}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {m.email}
+                      {m.retired_at && ` · ${new Date(m.retired_at).toLocaleDateString('ko-KR')} 퇴사`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => retire(m, false)}
+                    disabled={isPending}
+                    className="shrink-0 px-2 py-1 border border-gray-300 text-gray-500 text-xs rounded-md hover:bg-white disabled:opacity-50 transition-colors"
+                  >
+                    복구
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

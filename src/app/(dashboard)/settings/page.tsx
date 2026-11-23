@@ -15,15 +15,19 @@ export default async function SettingsPage() {
   let kpiMetrics: KpiMetric[] = []
   if (profile.role === 'admin') {
     const supabase = await createClient()
-    const [{ data }, metrics] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('id, name, email, role, team, is_active, can_manage_kol, can_assign')
-        .order('is_active', { ascending: true })
-        .order('name'),
+    const loadMembers = (cols: string) => supabase
+      .from('profiles')
+      .select(cols)
+      .order('is_active', { ascending: true })
+      .order('name')
+    const BASE_COLS = 'id, name, email, role, team, is_active, can_manage_kol, can_assign'
+    const [first, metrics] = await Promise.all([
+      loadMembers(`${BASE_COLS}, retired_at`),
       getAllKpiMetrics(),
     ])
-    members = (data as Member[]) ?? []
+    // retired_at 마이그레이션 전이면 컬럼 없이 다시 읽는다 (퇴사자 없음으로 표시)
+    const { data } = first.error ? await loadMembers(BASE_COLS) : first
+    members = ((data ?? []) as unknown as Member[]).map(m => ({ ...m, retired_at: m.retired_at ?? null }))
     kpiMetrics = metrics
   }
 
@@ -51,7 +55,8 @@ export default async function SettingsPage() {
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-sm font-semibold text-gray-900 mb-1">팀 관리</h2>
               <p className="text-sm text-gray-400 mb-4">
-                신규 가입자 승인, 권한 변경, 계정 비활성화를 할 수 있습니다.
+                신규 가입자 승인, 권한 변경, 계정 비활성화·퇴사 처리를 할 수 있습니다.
+                퇴사 처리하면 로그인이 막히고 목록에서 빠지지만 거래처·활동·KPI 기록은 그대로 남습니다.
                 &lsquo;KOL 관리&rsquo;를 켜면 관리자가 아니어도 KOL 리스트를 등록·수정할 수 있습니다.
               </p>
               <TeamManagement members={members} myId={profile.id} />
