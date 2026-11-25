@@ -7,7 +7,7 @@ import {
   kstTodayRange, kstStartOfDay, kstDaysAgoEnd, kstDateString,
   todayLabelKST, fmtDateKST, fmtDateTimeKST,
 } from '@/lib/datetime'
-import { parseVisitNote } from '@/lib/visit-note'
+import { resolveVisitRange } from '@/lib/visit-note'
 import { logMeetingKpiEntries, fetchDefaultMeetingMetricKey } from '@/lib/kpi-log'
 
 // ── Admin client (RLS 우회, cron job에는 user session이 없음) ──
@@ -166,9 +166,13 @@ async function cleanupKolVisits(supabase: Supabase): Promise<{ backfilled: numbe
   let backfilled = 0
   let cleared = 0
   for (const row of data ?? []) {
-    const parsed = parseVisitNote(row.visit_note, today)
-    const start = row.visit_date ?? parsed?.start ?? null
-    const end = row.visit_end_date ?? parsed?.end ?? row.visit_date ?? null
+    // 메모+대표 날짜로 다시 계산 — 예전 해석 오류로 저장된 종료일(예: 2027-01 방문인데 2026-01-31)을 바로잡는다.
+    // 저장된 종료일이 더 늦으면(직접 넓혀 둔 경우) 그것을 존중한다.
+    const resolved = resolveVisitRange(row.visit_note, row.visit_date, today)
+    const start = resolved.start
+    const end = row.visit_end_date && (!resolved.end || row.visit_end_date > resolved.end)
+      ? row.visit_end_date
+      : resolved.end
 
     if (end && end < today) {
       // 지난 방문 — 방문 예정 필드 자동 삭제
@@ -180,9 +184,9 @@ async function cleanupKolVisits(supabase: Supabase): Promise<{ backfilled: numbe
       continue
     }
 
-    // 해석 가능한데 날짜가 비어 있으면 백필
-    const nextStart = row.visit_date ?? start
-    const nextEnd = row.visit_end_date ?? end
+    // 해석 가능한데 날짜가 비어 있거나 종료일이 잘못돼 있으면 백필·보정
+    const nextStart = start
+    const nextEnd = end
     if (nextStart !== row.visit_date || nextEnd !== row.visit_end_date) {
       const { error } = await supabase
         .from('kols')

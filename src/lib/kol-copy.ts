@@ -2,7 +2,7 @@
 
 import { fmtFollowers } from '@/lib/constants'
 import { fmtDateKST } from '@/lib/datetime'
-import { parseVisitNote } from '@/lib/visit-note'
+import { resolveVisitRange } from '@/lib/visit-note'
 
 export interface KolCopySource {
   name: string
@@ -19,7 +19,7 @@ export function isVisitExpired(
   kol: Pick<KolCopySource, 'visit_note' | 'visit_date'>,
   todayStr: string,
 ): boolean {
-  const end = parseVisitNote(kol.visit_note, todayStr)?.end ?? kol.visit_date
+  const { end } = resolveVisitRange(kol.visit_note, kol.visit_date, todayStr)
   return end !== null && end < todayStr
 }
 

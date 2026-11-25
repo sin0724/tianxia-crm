@@ -9,7 +9,7 @@ import {
   normalizeKolName, isSimilarKolName, KOL_NAME_SCAN_LIMIT,
 } from '@/lib/kol-fields'
 import { getKolCategoryNames } from '@/lib/kol-categories'
-import { parseVisitNote } from '@/lib/visit-note'
+import { resolveVisitRange } from '@/lib/visit-note'
 import { kstDateString } from '@/lib/datetime'
 import { GONGGU_CATEGORY, isCurrency, type Currency } from '@/lib/constants'
 
@@ -106,11 +106,11 @@ function toRow(input: KolInput, validCategories: string[]): ParseResult {
 function resolveVisit(noteInput: string, dateInput: string) {
   const visit_note = noteInput.trim() || null
   const explicit = /^\d{4}-\d{2}-\d{2}$/.test(dateInput) ? dateInput : null
-  const parsed = parseVisitNote(visit_note, kstDateString())
+  const { start, end } = resolveVisitRange(visit_note, explicit, kstDateString())
   return {
     visit_note,
-    visit_date:     explicit ?? parsed?.start ?? null,
-    visit_end_date: parsed?.end ?? explicit ?? null,
+    visit_date:     start,
+    visit_end_date: end,
   }
 }
 

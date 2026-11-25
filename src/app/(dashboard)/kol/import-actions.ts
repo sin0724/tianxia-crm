@@ -9,7 +9,7 @@ import {
   normalizeKolName, isSimilarKolName, KOL_NAME_SCAN_LIMIT,
 } from '@/lib/kol-fields'
 import { getKolCategoryNames } from '@/lib/kol-categories'
-import { parseVisitNote } from '@/lib/visit-note'
+import { resolveVisitRange } from '@/lib/visit-note'
 import { kstDateString } from '@/lib/datetime'
 
 // ── 타입 ──────────────────────────────────────────────────────
@@ -142,11 +142,11 @@ export async function importKols(rows: KolImportRow[]): Promise<KolImportResult>
         // 방문 메모("7월중")를 날짜 범위로 해석 — 명시된 대표 날짜가 있으면 시작일 우선
         const visit_note = row.visit_note?.trim() || null
         const explicit = parseDate(row.visit_date)
-        const parsed = parseVisitNote(visit_note, kstDateString())
+        const { start, end } = resolveVisitRange(visit_note, explicit, kstDateString())
         return {
           visit_note,
-          visit_date:     explicit ?? parsed?.start ?? null,
-          visit_end_date: parsed?.end ?? explicit ?? null,
+          visit_date:     start,
+          visit_end_date: end,
         }
       })(),
       history:          row.history?.trim()    || null,

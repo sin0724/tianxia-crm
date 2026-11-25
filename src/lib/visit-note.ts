@@ -49,7 +49,8 @@ function parseSegment(s: string, year: number): VisitRange | null {
     const m2 = range[3] ? parseInt(range[3], 10) : m1
     const d2 = parseInt(range[4], 10)
     const start = toDate(year, m1, d1)
-    const end = toDate(year, m2, d2)
+    // "12/28~1/3"처럼 뒤쪽 월이 더 작으면 해를 넘기는 기간
+    const end = toDate(m2 < m1 ? year + 1 : year, m2, d2)
     if (start && end) return end >= start ? { start, end } : { start, end: start }
   }
 
@@ -108,20 +109,42 @@ function parseSegment(s: string, year: number): VisitRange | null {
   return null
 }
 
-// 연도가 명시된 표기("2026-07-23")는 그 연도로, 없는 자유 메모는 기준일(todayStr)의 연도로 해석한다.
-// "1월 방문"을 12월에 적는 해넘김 케이스는 드물어 단순화 — 지난 날짜로 해석되면
-// 지남 처리되므로 최소한 잘못된 미래 일정으로 남지는 않는다.
+// "YYYY-MM-DD"에 n개월을 더한 날짜 (일은 말일로 보정)
+function shiftMonths(dateStr: string, n: number): string {
+  const y = parseInt(dateStr.slice(0, 4), 10)
+  const m = parseInt(dateStr.slice(5, 7), 10)
+  const d = parseInt(dateStr.slice(8, 10), 10)
+  const total = y * 12 + (m - 1) + n
+  const ny = Math.floor(total / 12)
+  const nm = (total % 12) + 1
+  return toDate(ny, nm, d) ?? dateStr
+}
+
+// 연도 없는 구간은 기준일에서 앞뒤 6개월 안쪽이 되는 연도로 해석한다.
+// 예) 기준 2026-11-25: "1월" → 2027-01, "7월" → 2026-07(지남), "12/5" → 2026-12-05
+// 연도가 명시된 표기는 연도를 바꿔 해석해도 결과가 같으므로 그대로 유지된다.
+function parseSegmentNear(s: string, refStr: string): VisitRange | null {
+  const year = parseInt(refStr.slice(0, 4), 10)
+  const r = parseSegment(s, year)
+  if (!r) return null
+  if (r.end < shiftMonths(refStr, -6)) return parseSegment(s, year + 1) ?? r
+  if (r.start > shiftMonths(refStr, 6)) return parseSegment(s, year - 1) ?? r
+  return r
+}
+
+// 연도가 명시된 표기("2026-07-23")는 그 연도로, 없는 자유 메모는 기준일(refStr)에서 가까운 연도로 해석한다.
+// 기준일은 보통 오늘이고, 대표 날짜를 직접 입력했다면 그 날짜를 기준으로 삼는다
+// (예: 대표 날짜 2027-01-10 + 메모 "1월 방문" → 2027-01-01~01-31).
 // "6/27~7/1 부산 / 7월중 제주"처럼 여러 일정이 있으면 전체를 아우르는 범위로 합친다
 // (지남 판정은 마지막 일정 기준이 되어 미래 일정이 지워지지 않는다).
-export function parseVisitNote(note: string | null | undefined, todayStr: string): VisitRange | null {
+export function parseVisitNote(note: string | null | undefined, refStr: string): VisitRange | null {
   if (!note) return null
   // 전각 물결(～)·대시 통일 후 " / ", 콤마, 가운뎃점으로 구간 분리 (날짜의 /와 구분)
   const s = note.trim().replace(/[～〜]/g, '~').replace(/[–—−]/g, '-')
   if (!s) return null
-  const year = parseInt(todayStr.slice(0, 4), 10)
 
   const ranges = s.split(/\s+\/\s+|[,·]/)
-    .map(seg => parseSegment(seg.trim(), year))
+    .map(seg => parseSegmentNear(seg.trim(), refStr))
     .filter((r): r is VisitRange => r !== null)
   if (ranges.length === 0) return null
 
@@ -129,4 +152,20 @@ export function parseVisitNote(note: string | null | undefined, todayStr: string
     start: ranges.reduce((a, r) => (r.start < a ? r.start : a), ranges[0].start),
     end:   ranges.reduce((a, r) => (r.end > a ? r.end : a), ranges[0].end),
   }
+}
+
+// 메모 + 직접 입력한 대표 날짜 → 저장할 시작/종료일.
+// 대표 날짜가 있으면 시작일은 그것을 우선하고, 메모 해석의 기준일로도 쓴다.
+// 종료일이 시작일보다 앞서는 일은 없도록 보정한다 (메모가 다른 시기를 가리켜도 대표 날짜는 살린다).
+export function resolveVisitRange(
+  note: string | null | undefined,
+  explicitDate: string | null | undefined,
+  todayStr: string,
+): { start: string | null; end: string | null } {
+  const explicit = explicitDate || null
+  const parsed = parseVisitNote(note, explicit ?? todayStr)
+  const start = explicit ?? parsed?.start ?? null
+  let end = parsed?.end ?? explicit ?? null
+  if (start && end && end < start) end = start
+  return { start, end }
 }
